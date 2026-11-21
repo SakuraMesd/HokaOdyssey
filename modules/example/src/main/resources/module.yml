@@ -1,0 +1,9 @@
+# Описание модуля. Обязательны id и main.
+id: example                          # латиница/цифры/-/_ ; данные модуля — в module/example/
+name: Пример модуля
+version: 0.1.0
+main: ink.hoka.odyssey.example.ExampleModule
+authors: [Takuyamo]
+description: Шаблон — копируйте для нового модуля
+depends: []                          # без этих модулей не включится
+softdepends: []                      # если есть — включатся раньше
