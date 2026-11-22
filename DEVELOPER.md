@@ -59,9 +59,11 @@ HokaOdyssey/
 │     perms/  Ops, HoOpCommand (/hoop)          — операторы, ops.json
 │     blocks/ BlockRules, MultiBlocks, Dir      — ванильная установка блоков
 ├─ modules/
-│  └─ example/           шаблон модуля — копировать для нового
+│  ├─ example/           шаблон модуля — копировать для нового
+│  └─ clientmods, blocks, hoitems, hosounds, houi — контент через клиентский мод (см. CONTENT.md)
+├─ client/               клиентский мод Hoka Odyssey (Fabric): core + modules/* (см. CONTENT.md)
 ├─ run/                  локальный сервер для разработки (в git не идёт)
-├─ README.md, MODULES.md, DEVELOPER.md
+├─ README.md, MODULES.md, DEVELOPER.md, CONTENT.md
 └─ settings.gradle.kts   сюда добавлять include("modules:<id>")
 ```
 

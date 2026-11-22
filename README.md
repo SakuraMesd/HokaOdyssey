@@ -2,6 +2,7 @@
 
 Сервер на Minestom (Minecraft 1.21.11) с системой модулей. Ядро — мир и загрузчик модулей,
 вся игра — в модулях (папка `module/`). Как писать модуль — [MODULES.md](MODULES.md).
+Свои блоки, предметы, звуки, окна, HUD и клиентский мод — [CONTENT.md](CONTENT.md).
 
 ## Структура
 
@@ -10,6 +11,8 @@
 | `api/` | API для модулей (`OdysseyModule`, конфиг, планировщик, сервисы). Модули подключают его как `compileOnly` |
 | `server/` | Ядро → `server/build/libs/server.jar` |
 | `modules/example/` | Шаблон модуля |
+| `modules/clientmods`, `blocks`, `hoitems`, `hosounds`, `houi` | Контент через клиентский мод: раздача файлов, блоки, предметы, звуки, окна и HUD |
+| `client/` | Клиентский мод Hoka Odyssey (Fabric 1.21.11): ядро `client/core` + мини-модули `client/modules/*` |
 | `run/` | Локальный сервер для разработки (не коммитится) |
 
 ## Нужно
