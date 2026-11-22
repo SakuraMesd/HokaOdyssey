@@ -4,5 +4,5 @@ version: 0.1.0
 main: ink.hoka.odyssey.ships.ShipsModule
 authors: [Takuyamo]
 description: Чертежи кораблей (админ), призыв игроком, полёт без задержки управления, посадка
-depends: []
-softdepends: []
+depends: [respack]
+softdepends: [gravity]

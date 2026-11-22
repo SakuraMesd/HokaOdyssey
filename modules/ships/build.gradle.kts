@@ -1,6 +1,7 @@
 // Модуль «Корабли»: чертежи кораблей (строит админ), призыв игроком, полёт и посадка.
 dependencies {
     compileOnly(project(":api"))
+    compileOnly(project(":modules:respack"))   // ResourcePackApi — модели кораблей в общий пак
     testImplementation(project(":api"))
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")

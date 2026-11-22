@@ -27,6 +27,8 @@ final class ShipTemplate {
     /** Индексы палитры по порядку x → z → y, сжатие: пары [индекс, сколько подряд]. */
     List<int[]> runs = new ArrayList<>();
     int[] seat;
+    /** Куда смотрит пилот (перед корабля) в координатах чертежа: north/east/south/west. null — из блока сиденья. */
+    String forward;
     List<int[]> chests = new ArrayList<>();
     /** Зоны строительства: {x1,y1,z1,x2,y2,z2} включительно. */
     List<int[]> zones = new ArrayList<>();
@@ -60,6 +62,26 @@ final class ShipTemplate {
         int n = 0;
         for (Block b : blocks()) if (!b.isAir()) n++;
         return n;
+    }
+
+    /** Перед корабля: заданный админом, иначе — от сиденья (ступенька: лицом от спинки), иначе юг. */
+    String forwardDir() {
+        if (forward != null) return forward;
+        Block s = block(seat[0], seat[1], seat[2]);
+        String f = s.getProperty("facing");
+        if (f != null && !f.equals("up") && !f.equals("down"))
+            return s.key().value().endsWith("_stairs") ? Rot.dir(f, 2) : f;       // на ступеньке сидят лицом от спинки (проверено на «sup»)
+        return "south";
+    }
+
+    /** Yaw Minecraft для горизонтального направления (юг 0, запад 90, север 180, восток −90). */
+    static float yawOf(String dir) {
+        return switch (dir) { case "west" -> 90f; case "north" -> 180f; case "east" -> -90f; default -> 0f; };
+    }
+
+    /** Горизонтальное направление взгляда по yaw. */
+    static String dirOf(float yaw) {
+        return switch (Math.floorMod(Math.round(yaw / 90f), 4)) { case 1 -> "west"; case 2 -> "north"; case 3 -> "east"; default -> "south"; };
     }
 
     boolean inZone(int x, int y, int z) {

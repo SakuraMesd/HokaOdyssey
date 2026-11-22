@@ -49,6 +49,7 @@ final class Rot {
             out.put("axis", a.equals("x") ? "z" : a.equals("z") ? "x" : a);
         }
         if (p.containsKey("rotation")) out.put("rotation", String.valueOf((Integer.parseInt(p.get("rotation")) + 4 * r) & 15));
+        if (p.containsKey("shape") && b.key().value().endsWith("rail")) out.put("shape", rail(p.get("shape"), r));
         boolean sides = false;
         for (String h : H) if (p.containsKey(h)) { sides = true; break; }
         if (sides) for (String h : H) if (p.containsKey(h)) out.put(dir(h, r), p.get(h));
@@ -57,6 +58,17 @@ final class Rot {
         } catch (IllegalArgumentException e) {
             return b;                                                    // необычный блок — оставить как есть
         }
+    }
+
+    /** Форма рельсов: north_south/east_west, ascending_*, повороты (south_east и т.п.). */
+    static String rail(String s, int r) {
+        if (s.equals("north_south") || s.equals("east_west")) return (r & 1) == 0 ? s : s.equals("north_south") ? "east_west" : "north_south";
+        if (s.startsWith("ascending_")) return "ascending_" + dir(s.substring(10), r);
+        String[] ab = s.split("_");
+        if (ab.length != 2) return s;
+        String a = dir(ab[0], r), c = dir(ab[1], r);
+        String ns = a.equals("north") || a.equals("south") ? a : c, ew = a.equals("north") || a.equals("south") ? c : a;
+        return ns + "_" + ew;                                                   // допустимый порядок: south_east, north_west…
     }
 
     /** Поворот вектора (x,z) на угол a (градусы, как yaw Minecraft: +90 — юг → запад). */
@@ -69,6 +81,55 @@ final class Rot {
     static float[] quat(double deg) {
         double h = -Math.toRadians(deg) / 2;                              // yaw Minecraft — по часовой, ось Y — против
         return new float[]{0f, (float) Math.sin(h), 0f, (float) Math.cos(h)};
+    }
+
+    /** Кватернион наклона вокруг X: pitch > 0 (как у Minecraft — взгляд вниз) опускает нос (+z → вниз). */
+    static float[] quatPitch(double deg) {
+        double h = Math.toRadians(deg) / 2;
+        return new float[]{(float) Math.sin(h), 0f, 0f, (float) Math.cos(h)};
+    }
+
+    /** Произведение кватернионов a·b (сначала b, потом a): {x, y, z, w}. */
+    static float[] mul(float[] a, float[] b) {
+        return new float[]{
+                a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+                a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+                a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+                a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]};
+    }
+
+    /** Кватернион крена вокруг Z (оси носа в системе «нос на юг»): roll > 0 опускает правый борт (−x). */
+    static float[] quatRoll(double deg) {
+        double h = Math.toRadians(deg) / 2;
+        return new float[]{0f, 0f, (float) Math.sin(h), (float) Math.cos(h)};
+    }
+
+    /**
+     * Ориентация модели: её перед (направление с yaw {@code base}) смотрит по курсу yaw с наклоном pitch.
+     * = Y(yaw) · X(pitch) · Y(−base).
+     */
+    static float[] quat(double yaw, double pitch, double base) {
+        return mul(mul(quat(yaw), quatPitch(pitch)), quat(-base));
+    }
+
+    /** То же с креном: Y(yaw) · X(pitch) · Z(roll) · Y(−base). */
+    static float[] quat(double yaw, double pitch, double roll, double base) {
+        return mul(mul(mul(quat(yaw), quatPitch(pitch)), quatRoll(roll)), quat(-base));
+    }
+
+    /** Повернуть вектор кватернионом q: q·v·q*. */
+    static double[] rotate(float[] q, double x, double y, double z) {
+        double qx = q[0], qy = q[1], qz = q[2], qw = q[3];
+        double tx = 2 * (qy * z - qz * y), ty = 2 * (qz * x - qx * z), tz = 2 * (qx * y - qy * x);
+        return new double[]{x + qw * tx + (qy * tz - qz * ty), y + qw * ty + (qz * tx - qx * tz), z + qw * tz + (qx * ty - qy * tx)};
+    }
+
+    /** Вектор из системы «нос на юг, горизонтально» → наклон pitch, затем курс yaw (как взгляд игрока). */
+    static double[] orient(double x, double y, double z, double yaw, double pitch) {
+        double p = Math.toRadians(pitch), c = Math.cos(p), s = Math.sin(p);
+        double y2 = y * c - z * s, z2 = y * s + z * c;
+        double[] h = yaw(x, z2, yaw);
+        return new double[]{h[0], y2, h[1]};
     }
 
     /** Угол [-180, 180). */
