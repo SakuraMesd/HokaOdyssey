@@ -1,0 +1,8 @@
+id: hoitems
+name: Свои предметы
+version: 0.1.0
+main: ink.hoka.odyssey.hoitems.HoItemsModule
+authors: [Takuyamo]
+description: Свои предметы (иконки PNG и модели .bbmodel с сервера) — рисует мод Hoka Odyssey, без ресурспака и перезагрузок
+depends: [clientmods]
+softdepends: []

@@ -1,0 +1,8 @@
+id: blocks
+name: Свои блоки
+version: 0.1.0
+main: ink.hoka.odyssey.blocks.BlocksModule
+authors: [Takuyamo]
+description: Свои блоки (текстуры и модели .bbmodel с сервера) — рисует мод Hoka Odyssey, без ресурспака и перезагрузок
+depends: [clientmods]
+softdepends: []

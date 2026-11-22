@@ -1,0 +1,30 @@
+# Свои звуки. Файлы .ogg (Ogg Vorbis; МОНО — иначе звук не «из точки», а везде одинаково) кладутся в
+# module/hosounds/assets/ (можно папками). Мод скачивает их как текстуры и играет без ресурспака и перезагрузок.
+# Изменили → /hosound reload. Проверить: /hosound play <id> [громкость] [высота], /hosound stop.
+#
+# Имя звука в игре — hoka:<id> (так его зовут в описаниях блоков, из других модулей — сервис HoSounds).
+#
+# Поля:
+#   files     — файлы; несколько — игра выбирает случайно (как ванильные шаги). Строка — просто файл, или
+#               {file: x.ogg, volume: 0.8, pitch: 1.2, weight: 2}
+#   subtitle  — субтитр (если у игрока включены)
+#   range     — слышно на столько блоков при громкости 1 (по умолчанию 16)
+#   stream    — true для длинных (музыка, фон): играется потоком, не грузится в память целиком
+sounds:
+  crate_open:
+    files: [crate_open.ogg]
+    subtitle: "Ящик открыт"
+  crate_close:
+    files: [crate_close.ogg]
+    subtitle: "Ящик закрыт"
+  shot:
+    files:
+      - pistol_fire.ogg
+      - {file: pistol_fire.ogg, pitch: 0.85}
+      - {file: pistol_fire.ogg, pitch: 1.15}
+    subtitle: "Выстрел"
+    range: 48
+  hum:
+    files: [lamp_hum.ogg]
+    stream: true
+    subtitle: "Гудение"

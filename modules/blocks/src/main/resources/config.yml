@@ -1,0 +1,49 @@
+# Свои блоки. Рисует их мод Hoka Odyssey: текстуры и модели берутся с сервера и появляются у игроков сразу —
+# без ресурспака, без загрузки ресурсов и без пересборки мода. Под капотом каждый блок — ванильное состояние-
+# «носитель» (его физику, хитбокс, звук и скорость ломания игра знает сама), мод рисует поверх него своё.
+#
+# Файлы (PNG, .bbmodel) — в module/blocks/assets/ (можно папками). Изменили описание или файл →
+#   /hoblock reload   — у игроков блоки обновятся сразу.
+# Выдать блок: /hoblock give <id> [кол-во]. Список: /hoblock.
+#
+# Поля блока:
+#   name        — название предмета
+#   type        — носитель:
+#                   solid       — полный твёрдый блок (нотный блок, ~1100 мест). Закрывает соседей — для
+#                                 непрозрачных кубов
+#                   transparent — полный твёрдый, но не закрывает соседей (листва, 63 места) — для моделей
+#                                 и текстур с дырками
+#                   passable    — сквозь него ходят (растяжка, 127 мест) — декор: трава, цветы, таблички
+#                 по умолчанию: с моделью — transparent, иначе solid
+#   texture     — PNG на все грани; уточнить: side / top / bottom, или north / south / east / west / up / down
+#   model       — .bbmodel вместо текстур (поза по умолчанию; формат «Java Block» — 0..16, другие — центр в 0)
+#   rotatable   — true: ставится «лицом» к игроку (4 стороны, 4 места носителя)
+#   layer       — cutout (по умолчанию: прозрачные пиксели — дырки), solid (без дыр), translucent (полупрозрачность)
+#   particle    — PNG для частиц ломания (по умолчанию — первая текстура)
+#   ao          — мягкие тени в углах (по умолчанию true)
+#   sounds      — звуки блока (по умолчанию — как у носителя):
+#                   type: stone | wood | metal | glass | grass | gravel | sand | wool | snow | anvil | lantern |
+#                         copper | deepslate | amethyst | moss | … (ванильный набор за основу)
+#                   break / place / step / hit / fall — свой звук из модуля hosounds (crate_open = hoka:crate_open)
+#                         или ванильный (minecraft:block.stone.break)
+#                   volume / pitch — громкость и высота набора
+#
+# Носители раздаются один раз и запоминаются в states.yml — не правьте его руками (иначе в построенном мире
+# блоки поменяются местами). Без мода игрок видит сами носители (нотный блок, листву, растяжку).
+blocks:
+  test_crate:
+    name: "Тестовый ящик"
+    texture: test_crate.png
+    top: test_crate_top.png
+    sounds:
+      type: wood
+      place: crate_close
+      break: crate_open
+  mortar:
+    name: "Ступка"
+    model: mortar.bbmodel
+    rotatable: true
+  bell:
+    name: "Колокольчик"
+    type: passable
+    model: bell.bbmodel

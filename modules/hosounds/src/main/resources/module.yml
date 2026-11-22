@@ -1,0 +1,8 @@
+id: hosounds
+name: Свои звуки
+version: 0.1.0
+main: ink.hoka.odyssey.hosounds.HoSoundsModule
+authors: [Takuyamo]
+description: Свои звуки (.ogg с сервера) — играет мод Hoka Odyssey, без ресурспака и перезагрузок
+depends: [clientmods]
+softdepends: []

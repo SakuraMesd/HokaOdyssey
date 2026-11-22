@@ -1,0 +1,28 @@
+{
+  "size": [124, 40],
+  "anchor": [0, 1],
+  "offset": [6, -6],
+  "data": { "oxygen": 100, "coins": 0 },
+  "children": [
+    {
+      "type": "box", "w": 124, "h": 40, "radius": 2, "bw": 1,
+      "color": "#B0141A28", "color2": "#C00C1018", "border": "#803A4A6E",
+      "appear": { "alpha": 0, "x": -10, "duration": 0.25 }
+    },
+    { "type": "text", "x": 6, "y": 5, "text": "&bКислород" },
+    { "type": "text", "align": [1, 0], "origin": [1, 0], "x": -6, "y": 5, "text": "&f{oxygen}%" },
+    {
+      "type": "bar", "x": 6, "y": 15, "w": 112, "h": 6, "value": "{oxygen}", "max": "100", "smooth": 0.6,
+      "back": "#0B1220", "border": "#2A3A6A", "radius": 1,
+      "color": "#3FA9F5", "color2": "#2A7BC0"
+    },
+    {
+      "type": "bar", "if": "{oxygen} < 30", "x": 6, "y": 15, "w": 112, "h": 6, "value": "{oxygen}", "max": "100", "smooth": 0.6,
+      "back": "#0B1220", "border": "#6A2A2A", "radius": 1,
+      "color": "#F5533F", "color2": "#C0302A"
+    },
+    { "type": "image", "src": "demo/coin.png", "x": 6, "y": 27, "w": 9, "h": 9 },
+    { "type": "text", "x": 18, "y": 28, "text": "&e{coins}" },
+    { "type": "text", "if": "{oxygen} < 30", "align": [1, 0], "origin": [1, 0], "x": -6, "y": 28, "text": "&cМало кислорода!" }
+  ]
+}

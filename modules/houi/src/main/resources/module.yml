@@ -1,0 +1,8 @@
+id: houi
+name: Окна
+version: 0.1.0
+main: ink.hoka.odyssey.houi.HoUiModule
+authors: [Takuyamo]
+description: Окна и меню мода Hoka Odyssey — раскладка с сервера (JSON), кнопки → сервер, данные на лету
+depends: [clientmods]
+softdepends: [hoitems]

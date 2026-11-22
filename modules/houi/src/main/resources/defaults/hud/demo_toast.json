@@ -1,0 +1,17 @@
+{
+  "size": [180, 18],
+  "anchor": [0.5, 0],
+  "offset": [0, 28],
+  "z": 10,
+  "data": { "toast": "" },
+  "children": [
+    {
+      "type": "box", "w": 180, "h": 18, "radius": 2, "bw": 1,
+      "color": "#C0141A28", "border": "#A0E0B040",
+      "appear": { "alpha": 0, "y": -8, "duration": 0.25, "easing": "back" },
+      "children": [
+        { "type": "text", "align": [0.5, 0.5], "origin": [0.5, 0.5], "text": "{toast}" }
+      ]
+    }
+  ]
+}
