@@ -1,0 +1,19 @@
+# Клиентские модули мода Hoka Odyssey.
+# jar клиентских модулей — в module/clientmods/jars/ (кладёт сборка client/: gradle build → run/module/clientmods/jars).
+# Закрытый ключ подписи — module/clientmods/signing.key (Ed25519, PKCS#8 base64). Открытый вшит в мод: без ключа
+# список модулей не подписать, и мод ничего не загрузит.
+
+# Порядок загрузки модулей у клиента (остальные — по алфавиту после этих)
+order: []
+
+# Размер куска при передаче jar, байт
+chunk: 262144
+
+# Сообщение игроку без мода (пусто — молчать)
+no-mod-hint: ""
+
+# Файлы ресурсов, которые моду НЕ отдаются (начало пути в паке). По умолчанию — шейдеры мира: Sodium их не
+# поддерживает и показывает окно-предупреждение.
+assets-exclude:
+  - assets/minecraft/shaders/core/terrain.
+  - assets/minecraft/shaders/include/fog.glsl

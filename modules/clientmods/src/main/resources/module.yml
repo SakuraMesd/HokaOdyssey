@@ -1,0 +1,7 @@
+id: clientmods
+name: Клиентские модули
+version: 0.1.0
+main: ink.hoka.odyssey.clientmods.ClientModsModule
+authors: [Takuyamo]
+description: Раздача клиентских модулей моду Hoka Odyssey (подпись Ed25519) и связь серверных модулей с клиентскими
+softdepends: [respack]

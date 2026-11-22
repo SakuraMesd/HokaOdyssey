@@ -1,0 +1,7 @@
+{
+  "id": "hello",
+  "version": "0.2.0",
+  "main": "ink.hoka.odyssey.client.hello.HelloModule",
+  "authors": ["Takuyamo"],
+  "description": "Шаблон клиентского модуля: текст с сервера на HUD"
+}
