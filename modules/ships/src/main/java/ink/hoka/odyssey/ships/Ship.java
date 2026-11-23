@@ -10,13 +10,15 @@ import java.util.UUID;
  * <ul>
  *   <li>PARKED — стоит блоками на карте map: угол anchor (минимальные x,y,z), поворот rot (0..3 × 90° по часовой);</li>
  *   <li>FLYING — летит моделью (см. {@link Flight}), блоков в мире нет;</li>
- *   <li>STOWED — убран (не нашлось места при аварийной посадке) — появится снова при призыве.</li>
+ *   <li>STOWED — убран (не нашлось места при аварийной посадке) — появится снова при призыве;</li>
+ *   <li>MODEL — стоит моделью там, где пилот вышел (F), в том же повороте: блоков в мире нет, его рисует мод,
+ *       по нему можно ходить. Положение и блоки — поля m*.</li>
  * </ul>
  * Сохраняется в module/ships/ships.json.
  */
 final class Ship {
 
-    enum State { PARKED, FLYING, STOWED }
+    enum State { PARKED, FLYING, STOWED, MODEL }
 
     String owner;          // UUID владельца
     String ownerName;
@@ -25,6 +27,14 @@ final class Ship {
     int ax, ay, az;        // anchor
     int rot;
     State state = State.PARKED;
+    // MODEL: точка пилота, курс/наклон/крен, курс взлёта (поворот блоков), высота сиденья; блоки — dx dy dz от клетки
+    // пилота и их состояния (строкой — переживает смену номеров состояний)
+    double mx, my, mz;
+    float myaw, mpitch, mroll, mturn, mseatH;
+    java.util.List<int[]> mparts;
+    java.util.List<String> mblocks;
+    /** Вещи сундуков/бочек корабля-модели: клетка «dx,dy,dz» → вещи по ячейкам (JSON, пусто — нет вещи). */
+    java.util.Map<String, java.util.List<String>> mchests;
 
     transient ShipTemplate t;
     transient Flight flight;

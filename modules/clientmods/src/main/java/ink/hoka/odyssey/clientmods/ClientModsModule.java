@@ -58,11 +58,9 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
     record Jar(String id, String version, String sha, byte[] bytes) {}
 
     private volatile List<Jar> jars = List.of();
+    /** Ядро мода для автообновления (module/clientmods/core/*.jar — самая новая версия) или null. */
+    private volatile Jar coreJar;
     private volatile byte[] manifestPacket;                                     // готовый пакет MANIFEST (подписан)
-    // ресурсы (вместо ресурспака): путь → sha, объекты sha → байты, готовый подписанный пакет ASSETS
-    private volatile Map<String, byte[]> assetObjects = Map.of();
-    private volatile byte[] assetsPacket;
-    private ink.hoka.odyssey.respack.ResourcePackApi respack;
     // файлы для модулей: владелец → путь → байты; объекты sha → байты; подписанный пакет FILES
     private final Map<String, Map<String, byte[]>> modFiles = new ConcurrentHashMap<>();
     private volatile Map<String, byte[]> fileObjects = Map.of();
@@ -80,16 +78,6 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
     protected void onEnable() {
         rescan();
         services().register(ClientModsApi.class, this);
-        try {
-            respack = services().get(ink.hoka.odyssey.respack.ResourcePackApi.class).orElse(null);
-        } catch (Throwable e) {
-            respack = null;                                                     // модуля respack нет
-        }
-        if (respack != null) {
-            respack.setSendFilter(this::hasMod);                                // игрокам с модом ресурспак не нужен
-            respack.onBuilt(() -> { rescanAssets(); broadcastAssets(); });
-        }
-        rescanAssets();
         rescanFiles();
         // объявить канал ядра: мод видит его и здоровается (так ведёт себя и Paper с плагинами)
         events().addListener(PlayerSpawnEvent.class, e -> {
@@ -107,7 +95,6 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
 
     @Override
     protected void onDisable() {
-        if (respack != null) try { respack.setSendFilter(null); } catch (Throwable ignored) { }
         services().unregister(ClientModsApi.class);
         ready.clear();
         for (var e : testCarriers) e.remove();
@@ -162,6 +149,14 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
             arr.add(o);
         }
         root.add("modules", arr);
+        coreJar = findCore();
+        if (coreJar != null) {
+            JsonObject c = new JsonObject();
+            c.addProperty("version", coreJar.version());
+            c.addProperty("sha", coreJar.sha());
+            c.addProperty("size", coreJar.bytes().length);
+            root.add("core", c);
+        }
         byte[] body = root.toString().getBytes(StandardCharsets.UTF_8);
         byte[] sig = sign(body);
         if (sig == null) {
@@ -174,9 +169,57 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
             out.writeInt(sig.length);
             out.write(sig);
         });
-        String names = list.stream().map(j -> j.id() + " " + j.version()).reduce((a, b) -> a + ", " + b).orElse("—");
+        String names = list.stream().map(j -> j.id() + " " + j.version()).reduce((a, b) -> a + ", " + b).orElse("—")
+                + (coreJar != null ? "; ядро мода " + coreJar.version() : "");
         logger().info("клиентских модулей: {} ({})", list.size(), names);
         return "модулей " + list.size() + ": " + names;
+    }
+
+    /**
+     * Ядро мода для автообновления: jar из module/clientmods/core/ с наибольшей версией (из fabric.mod.json).
+     * У игроков со старой версией мод скачает его и заменит себя при выходе из игры.
+     */
+    private Jar findCore() {
+        Path dir = dataFolder().resolve("core");
+        Jar best = null;
+        try {
+            Files.createDirectories(dir);
+            try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir, "*.jar")) {
+                for (Path p : ds) {
+                    try (JarFile jf = new JarFile(p.toFile())) {
+                        var en = jf.getEntry("fabric.mod.json");
+                        if (en == null) continue;
+                        JsonObject fm;
+                        try (InputStream in = jf.getInputStream(en)) {
+                            fm = JsonParser.parseString(new String(in.readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject();
+                        }
+                        if (!"hoka_odyssey".equals(fm.get("id").getAsString())) continue;
+                        String v = fm.get("version").getAsString();
+                        if (best != null && compareVersions(v, best.version()) <= 0) continue;
+                        byte[] bytes = Files.readAllBytes(p);
+                        best = new Jar("core", v, sha(bytes), bytes);
+                    } catch (Exception ex) {
+                        logger().warn("ядро {}: не прочитано: {}", p.getFileName(), ex.toString());
+                    }
+                }
+            }
+        } catch (IOException e) {
+            logger().warn("папка {}: {}", dir, e.toString());
+        }
+        return best;
+    }
+
+    static int compareVersions(String a, String b) {
+        String[] x = a.split("[.+-]"), y = b.split("[.+-]");
+        for (int i = 0; i < Math.max(x.length, y.length); i++) {
+            int p = i < x.length ? intOr0(x[i]) : 0, q = i < y.length ? intOr0(y[i]) : 0;
+            if (p != q) return Integer.compare(p, q);
+        }
+        return 0;
+    }
+
+    private static int intOr0(String s) {
+        try { return Integer.parseInt(s); } catch (NumberFormatException e) { return 0; }
     }
 
     private byte[] sign(byte[] body) {
@@ -196,62 +239,6 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
             logger().error("подпись не удалась: {}", e.toString());
             return null;
         }
-    }
-
-    /**
-     * Ресурсы для мода: файлы собранного пака модуля respack + своя папка {@code module/clientmods/assets/}
-     * (пути как в паке: assets/ns/…). Мод кладёт их в свой невидимый пак и перезагружает ресурсы при изменениях.
-     */
-    synchronized String rescanAssets() {
-        java.util.TreeMap<String, byte[]> files = new java.util.TreeMap<>();
-        if (respack != null) try { files.putAll(respack.snapshot()); } catch (Throwable ignored) { }
-        Path dir = dataFolder().resolve("assets");
-        if (Files.isDirectory(dir)) {
-            try (var walk = Files.walk(dir)) {
-                for (Path f : (Iterable<Path>) walk.filter(Files::isRegularFile)::iterator) {
-                    String rel = dir.relativize(f).toString().replace(java.io.File.separatorChar, '/');
-                    files.put(rel.startsWith("assets/") || rel.equals("pack.mcmeta") ? rel : "assets/" + rel, Files.readAllBytes(f));
-                }
-            } catch (IOException e) {
-                logger().warn("папка assets не прочитана: {}", e.toString());
-            }
-        }
-        // что моду НЕ отдавать (Sodium не умеет подменять шейдеры мира и ругается окном)
-        List<String> exclude = config().contains("assets-exclude") ? config().getStringList("assets-exclude")
-                : List.of("assets/minecraft/shaders/core/terrain.", "assets/minecraft/shaders/include/fog.glsl");
-        int dropped = files.size();
-        files.keySet().removeIf(k -> exclude.stream().anyMatch(k::startsWith));
-        dropped -= files.size();
-        if (dropped > 0) logger().info("моду не отдаются {} файлов (assets-exclude)", dropped);
-        Map<String, byte[]> objects = new HashMap<>();
-        JsonObject map = new JsonObject();
-        long total = 0;
-        for (var e : files.entrySet()) {
-            String h = sha(e.getValue());
-            objects.put(h, e.getValue());
-            map.addProperty(e.getKey(), h);
-            total += e.getValue().length;
-        }
-        JsonObject root = new JsonObject();
-        root.add("files", map);
-        byte[] body = root.toString().getBytes(StandardCharsets.UTF_8);
-        byte[] sig = sign(body);
-        assetObjects = objects;
-        assetsPacket = sig == null ? null : packet(4, out -> {
-            out.writeInt(body.length);
-            out.write(body);
-            out.writeInt(sig.length);
-            out.write(sig);
-        });
-        logger().info("ресурсы для мода: {} файлов, {} КБ", files.size(), total / 1024);
-        return files.size() + " файлов, " + total / 1024 + " КБ";
-    }
-
-    void broadcastAssets() {
-        byte[] a = assetsPacket;
-        if (a == null) return;
-        for (Player p : MinecraftServer.getConnectionManager().getOnlinePlayers())
-            if (hasMod(p)) p.sendPluginMessage(CH_S2C, a);
     }
 
     /**
@@ -335,8 +322,11 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
                     String ver = in.readUTF();
                     ready.put(p.getUuid(), ConcurrentHashMap.newKeySet());
                     logger().info("{}: мод Hoka Odyssey {} (протокол {})", p.getUsername(), ver, proto);
+                    Jar core = coreJar;
+                    if (core != null && compareVersions(ver, core.version()) < 0)   // ядро у игрока старше — скачается само
+                        p.sendMessage(Component.text("Мод Hoka Odyssey обновляется до " + core.version()
+                                + " — перезапустите игру, когда скачается (без перезапуска часть нового не работает).", NamedTextColor.YELLOW));
                     if (manifestPacket != null) p.sendPluginMessage(CH_S2C, manifestPacket);
-                    if (assetsPacket != null) p.sendPluginMessage(CH_S2C, assetsPacket);
                     if (filesPacket != null) p.sendPluginMessage(CH_S2C, filesPacket);
                     p.sendPluginMessage(CH_S2C, packet(6, out -> out.writeByte(4)));
                     for (var e : models.entrySet()) sendModel(p, e.getKey(), e.getValue());
@@ -355,7 +345,7 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
                     ready.put(p.getUuid(), now);
                     logger().info("{}: клиентские модули загружены: {}", p.getUsername(), now);
                     for (String id : now) {
-                        if (before.contains(id)) continue;
+                        // и обновлённый модуль (тот же id) — тоже: у него новое состояние, ему нужно всё заново
                         for (Consumer<Player> h : readyHandlers.getOrDefault(id, List.of())) safe(id, () -> h.accept(p));
                     }
                 }
@@ -383,11 +373,12 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
         int chunk = Math.clamp(config().getInt("chunk", 262144), 4096, 1 << 20);
         Map<String, Jar> bySha = new HashMap<>();
         for (Jar j : jars) bySha.put(j.sha(), j);
-        Map<String, byte[]> objs = assetObjects, fobjs = fileObjects;
+        Jar core = coreJar;
+        if (core != null) bySha.put(core.sha(), core);
+        Map<String, byte[]> fobjs = fileObjects;
         for (String sha : shas) {
             Jar j = bySha.get(sha);
-            byte[] b0 = j != null ? j.bytes() : objs.get(sha);
-            final byte[] b = b0 != null ? b0 : fobjs.get(sha);
+            final byte[] b = j != null ? j.bytes() : fobjs.get(sha);
             if (b == null) continue;
             for (int off = 0; off < b.length; off += chunk) {
                 int o = off, len = Math.min(chunk, b.length - off);
@@ -528,9 +519,8 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
                 s.sendMessage(Component.text("Игроков с модом: " + mods + ".  /hoclient reload — перечитать и разослать", NamedTextColor.GRAY));
             });
             addSyntax((s, c) -> {
-                String r = rescan() + "; ресурсы: " + rescanAssets() + "; файлы: " + rescanFiles();
+                String r = rescan() + "; файлы: " + rescanFiles();
                 broadcastManifest();
-                broadcastAssets();
                 broadcastFiles();
                 s.sendMessage(Component.text("Перечитано и разослано: " + r, NamedTextColor.GREEN));
             }, ArgumentType.Literal("reload"));

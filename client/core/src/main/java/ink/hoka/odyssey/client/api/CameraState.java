@@ -10,4 +10,9 @@ public final class CameraState {
     public float yaw, pitch, roll;
     /** Камера от 3-го лица (F5) — модуль может решить, что делать. */
     public boolean detached;
+    /**
+     * Полный поворот камеры (если задан модулем) — тогда yaw/pitch/roll для поворота не используются (только для
+     * звука и прочего, что смотрит на углы игры). Без особых точек у «прямо вверх/вниз», крен на 360°, петли.
+     */
+    public org.joml.Quaternionf rotation;
 }

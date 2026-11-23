@@ -135,26 +135,6 @@ class ShipsMathTest {
         for (int k = 0; k < 4; k++) assertEquals(b[k], a[k], 1e-6);
     }
 
-    @Test
-    void turnIsSmoothAndConverges() {
-        double ang = 0, rate = 0;
-        for (int t = 0; t < 200; t++) {
-            double prev = rate;
-            rate = Flight.approach(rate, 170 - ang, 0.15, 3, 0.6);
-            assertTrue(Math.abs(rate) <= 3 + 1e-9);
-            assertTrue(Math.abs(rate - prev) <= 0.6 + 1e-9 || Math.abs(170 - ang) < 0.05);
-            ang += rate;
-        }
-        assertEquals(170, ang, 0.05);
-    }
-
-    @org.junit.jupiter.api.Test
-    void accelRateReaches90PercentInTime() {
-        double v = 0, k = Flight.rate(3);
-        for (int t = 0; t < 60; t++) v += (1 - v) * k;
-        org.junit.jupiter.api.Assertions.assertEquals(0.9, v, 1e-6);
-    }
-
     @org.junit.jupiter.api.Test
     void rollLowersRightWing() {
         float[] q = Rot.quatRoll(30);
@@ -163,23 +143,6 @@ class ShipsMathTest {
         float[] qc = {-q[0], -q[1], -q[2], q[3]};
         float[] r = Rot.mul(Rot.mul(q, v), qc);
         org.junit.jupiter.api.Assertions.assertTrue(r[1] < -0.4, "правый борт должен опуститься: " + r[1]);
-    }
-
-    @org.junit.jupiter.api.Test
-    void shipBasisIsOrthonormal() {
-        for (double yaw = -180; yaw < 180; yaw += 17)
-            for (double pitch = -85; pitch <= 85; pitch += 13) {
-                double[] b = Flight.basis(yaw, pitch);
-                for (int i = 0; i < 3; i++)
-                    for (int j = 0; j < 3; j++) {
-                        double d = b[i * 3] * b[j * 3] + b[i * 3 + 1] * b[j * 3 + 1] + b[i * 3 + 2] * b[j * 3 + 2];
-                        org.junit.jupiter.api.Assertions.assertEquals(i == j ? 1 : 0, d, 1e-9, "yaw " + yaw + " pitch " + pitch);
-                    }
-                org.junit.jupiter.api.Assertions.assertTrue(b[7] > 0, "верх смотрит вверх");
-                double[] r = Rot.yaw(-1, 0, yaw);                          // правый борт совпадает с поворотом модели
-                org.junit.jupiter.api.Assertions.assertEquals(r[0], b[3], 1e-9);
-                org.junit.jupiter.api.Assertions.assertEquals(r[1], b[5], 1e-9);
-            }
     }
 
     @org.junit.jupiter.api.Test

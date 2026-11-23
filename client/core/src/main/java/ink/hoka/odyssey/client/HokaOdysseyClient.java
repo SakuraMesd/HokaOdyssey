@@ -22,6 +22,22 @@ public final class HokaOdysseyClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         Net.register();
+        if (Boolean.getBoolean("hoka.mixincheck")) {                            // проверка сборки: применить все миксины сразу
+            for (String c : new String[]{"net.minecraft.client.player.KeyboardInput", "net.minecraft.client.player.ClientInput",
+                    "net.minecraft.world.entity.LivingEntity", "net.minecraft.world.entity.Entity", "net.minecraft.client.Camera"}) {
+                try { Class.forName(c); } catch (Throwable t) { throw new RuntimeException("mixincheck " + c, t); }
+            }
+            org.slf4j.LoggerFactory.getLogger("HokaOdyssey").info("mixincheck OK");
+        }
+        // пак ресурсов сервера больше не используется (0.10) — убрать остатки прежних версий
+        try {
+            java.nio.file.Path old = ModuleManager.ROOT.resolve("pack");
+            if (java.nio.file.Files.isDirectory(old)) try (var w = java.nio.file.Files.walk(old)) {
+                w.sorted(java.util.Comparator.reverseOrder()).forEach(f -> f.toFile().delete());
+            }
+            java.nio.file.Files.deleteIfExists(ModuleManager.ROOT.resolve("active"));
+        } catch (Exception ignored) {
+        }
         ClientPlayNetworking.registerGlobalReceiver(Net.S2C.TYPE, (p, ctx) -> ModuleManager.handle(p.data()));
         // сервер объявил канал ядра — значит, это наш сервер: представляемся, он пришлёт список модулей
         C2SPlayChannelEvents.REGISTER.register((handler, sender, client, channels) -> {
@@ -55,6 +71,7 @@ public final class HokaOdysseyClient implements ClientModInitializer {
         ink.hoka.odyssey.client.ui.UiHud.register();
         net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.END_EXTRACTION.register(ink.hoka.odyssey.client.model.Models::extract);
         net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.AFTER_ENTITIES.register(ink.hoka.odyssey.client.model.Models::render);
+        net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.AFTER_ENTITIES.register(Hooks::world);
         LOG.info("Hoka Odyssey {}: ждём сервер", ModuleManager.coreVersion());
     }
 }

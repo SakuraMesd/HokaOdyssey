@@ -82,7 +82,6 @@ final class ModuleManager {
                 case 1 -> manifest(in);
                 case 2 -> chunk(in);
                 case 3 -> message(in);
-                case 4 -> AssetSync.manifest(in);
                 case 5 -> FileStore.manifest(in);
                 case 6 -> ink.hoka.odyssey.client.model.Models.handle(in);
                 case 7 -> ink.hoka.odyssey.client.ui.UiScreen.handle(in);
@@ -113,6 +112,10 @@ final class ModuleManager {
             list.add(new Entry(o.get("id").getAsString(), o.get("version").getAsString(), o.get("sha").getAsString(), o.get("size").getAsInt()));
         }
         wanted = list;
+        if (root.has("core") && root.get("core").isJsonObject()) {               // ядро на сервере новее — обновиться
+            JsonObject c = root.getAsJsonObject("core");
+            CoreUpdate.offer(c.get("version").getAsString(), c.get("sha").getAsString(), c.get("size").getAsInt());
+        }
         // выгрузить то, чего больше нет или что обновилось
         for (String id : List.copyOf(LOADED.keySet())) {
             Loaded l = LOADED.get(id);
@@ -123,7 +126,7 @@ final class ModuleManager {
         for (Entry e : list) if (!cached(e)) need.add(e.sha());
         HokaOdysseyClient.LOG.info("Hoka Odyssey: модулей {}, докачать {}", list.size(), need.size());
         if (!need.isEmpty()) need(need);
-        tryLoad();
+        tryLoad(true);                                                          // всегда сказать серверу, что готово
     }
 
     /** Подпись нашего сервера (Ed25519). */
@@ -178,12 +181,15 @@ final class ModuleManager {
         Files.write(tmp, buf);
         Files.move(tmp, object(sha), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
         tryLoad();
-        AssetSync.tryApply();
         FileStore.tryApply();
+        CoreUpdate.objectArrived(sha);
     }
 
     /** Все jar на месте — загрузить те, что ещё не загружены, по порядку списка, и сказать серверу. */
-    private static void tryLoad() {
+    private static void tryLoad() { tryLoad(false); }
+
+    /** force — сказать серверу «загружено» даже если новых модулей нет (сервер мог перезапуститься и всё забыть). */
+    private static void tryLoad(boolean force) {
         for (Entry e : wanted) if (!LOADED.containsKey(e.id()) && !cached(e)) return;
         boolean any = false;
         for (Entry e : wanted) {
@@ -191,7 +197,7 @@ final class ModuleManager {
             load(e);
             any = true;
         }
-        if (!any && !LOADED.isEmpty()) return;
+        if (!any && !force && !LOADED.isEmpty()) return;
         List<String> ids = List.copyOf(LOADED.keySet());
         Net.send(3, out -> {
             out.writeInt(ids.size());
@@ -312,6 +318,16 @@ final class ModuleManager {
         @Override public void onHud(HudLayer layer) { Hooks.HUD.add(new Hooks.Owned<>(id, layer)); }
         @Override public void onMouse(MouseHook hook) { Hooks.MOUSE.add(new Hooks.Owned<>(id, hook)); }
         @Override public void onCamera(CameraHook hook) { Hooks.CAMERA.add(new Hooks.Owned<>(id, hook)); }
+        @Override public void onWorld(WorldHook hook) { Hooks.WORLD.add(new Hooks.Owned<>(id, hook)); }
+        @Override public void onLocalTravel(TravelHook hook) { Hooks.TRAVEL.add(new Hooks.Owned<>(id, hook)); }
+        @Override public void onInput(InputHook hook) { Hooks.INPUT.add(new Hooks.Owned<>(id, hook)); }
+        @Override public void onEntityTilt(EntityTiltHook hook) { Hooks.TILT.add(new Hooks.Owned<>(id, hook)); }
+        @Override public void onClick(ClickHook hook) { Hooks.CLICK.add(new Hooks.Owned<>(id, hook)); }
+        @Override public void setMove(net.minecraft.client.player.ClientInput input, float x, float y) {
+            ((ink.hoka.odyssey.client.mixin.ClientInputAccessor) input).hoka$setMoveVector(new net.minecraft.world.phys.Vec2(x, y));
+        }
+        @Override public void hideHand(boolean hide) { if (hide) Hooks.HIDE_HAND.add(id); else Hooks.HIDE_HAND.remove(id); }
+        @Override public void onCollision(CollisionHook hook) { Hooks.COLLISION.add(new Hooks.Owned<>(id, hook)); }
         @Override public java.util.Optional<byte[]> file(String path) { return FileStore.get(path); }
         @Override public void onFile(String path, Consumer<byte[]> listener) { FileStore.listen(id, path, listener); }
         @Override public net.minecraft.resources.Identifier texture(String path) { return FileStore.texture(path); }

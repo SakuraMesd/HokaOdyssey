@@ -1,8 +1,0 @@
-id: respack
-name: Ресурспак
-version: 0.1.0
-main: ink.hoka.odyssey.respack.RespackModule
-authors: [Takuyamo]
-description: Общий ресурспак сервера из файлов модулей, раздача по HTTP, отправка игрокам, ванильные ассеты
-depends: []
-softdepends: []

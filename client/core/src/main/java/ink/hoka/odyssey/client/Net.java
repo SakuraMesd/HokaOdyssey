@@ -20,7 +20,7 @@ import java.io.IOException;
  *   1 MANIFEST  int len, body (UTF-8 JSON), int len, подпись Ed25519 тела
  *   2 CHUNK     UTF sha256, int всего, int смещение, int len, байты (jar модуля или файл ресурсов)
  *   3 MSG       UTF модуль, int len, байты
- *   4 ASSETS    int len, body (UTF-8 JSON {"files": {путь: sha256}}), int len, подпись — ресурсы вместо ресурспака
+ *   4 —         (был ASSETS — пак ресурсов сервера; убран в 0.10, ресурспака нет)
  *   5 FILES     то же для файлов модулей (мимо ресурсов игры: ctx.file / onFile / texture — без перезагрузок)
  * C2S hoka_odyssey:c
  *   1 HELLO     int протокол, UTF версия ядра

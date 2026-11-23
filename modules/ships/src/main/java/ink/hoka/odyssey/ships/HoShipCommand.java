@@ -136,6 +136,7 @@ final class HoShipCommand extends Command {
                 case PARKED -> "стоит: " + mine.map + " " + mine.seatWorld().blockX() + " " + mine.seatWorld().blockY() + " " + mine.seatWorld().blockZ();
                 case FLYING -> "в полёте";
                 case STOWED -> "убран (призовите снова)";
+                case MODEL -> "стоит «как есть»: " + mine.map + " " + Math.round(mine.mx) + " " + Math.round(mine.my) + " " + Math.round(mine.mz) + " (/hoship fly рядом)";
             };
             info(p, "Ваш корабль «" + mine.template + "» — " + st);
         }
@@ -150,6 +151,11 @@ final class HoShipCommand extends Command {
     private void fly(Player p) {
         Ship s = mod.ships.get(p.getUuid().toString());
         if (s == null) { err(p, "У вас нет корабля — /hoship summon <корабль>"); return; }
+        if (s.state == Ship.State.MODEL) {                                    // стоит моделью «как есть»
+            if (!mod.nearModel(p, s, 12)) { err(p, "Подойдите к своему кораблю"); return; }
+            mod.takeOff(p, s);
+            return;
+        }
         if (s.state != Ship.State.PARKED || !s.around(p.getPosition()) || mod.instanceOf(s) != p.getInstance()) {
             err(p, "Встаньте на свой корабль (или ПКМ по месту пилота)");
             return;

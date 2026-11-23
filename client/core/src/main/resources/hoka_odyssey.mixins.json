@@ -4,7 +4,6 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "CameraMixin",
-    "PackRepositoryMixin",
     "MouseHandlerMixin",
     "BlockModelShaperMixin",
     "ItemBlockRenderTypesMixin",
@@ -13,7 +12,16 @@
     "SoundManagerMixin",
     "SoundBufferLibraryMixin",
     "BlockStateSoundMixin",
-    "BlockItemMixin"
+    "BlockItemMixin",
+    "GameRendererMixin",
+    "EntityCollisionMixin",
+    "ClientInputAccessor",
+    "KeyboardInputMixin",
+    "LocalTravelMixin",
+    "EntityTiltMixin",
+    "BackOffMixin",
+    "HitboxTiltMixin",
+    "ClickMixin"
   ],
   "injectors": {
     "defaultRequire": 1

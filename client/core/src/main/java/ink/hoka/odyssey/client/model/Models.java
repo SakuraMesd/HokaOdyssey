@@ -209,6 +209,10 @@ public final class Models {
     private static Vec3 cam = Vec3.ZERO;
     private static Frustum frustum;
 
+    public static Vec3 camera() { return cam; }
+
+    public static Frustum frustum() { return frustum; }
+
     public static void extract(WorldExtractionContext ctx) {
         cam = ctx.camera().position();
         frustum = ctx.frustum();

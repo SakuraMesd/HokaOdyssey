@@ -12,8 +12,3 @@ chunk: 262144
 # Сообщение игроку без мода (пусто — молчать)
 no-mod-hint: ""
 
-# Файлы ресурсов, которые моду НЕ отдаются (начало пути в паке). По умолчанию — шейдеры мира: Sodium их не
-# поддерживает и показывает окно-предупреждение.
-assets-exclude:
-  - assets/minecraft/shaders/core/terrain.
-  - assets/minecraft/shaders/include/fog.glsl

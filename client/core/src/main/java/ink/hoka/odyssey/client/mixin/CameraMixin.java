@@ -29,7 +29,7 @@ public abstract class CameraMixin {
     @Inject(method = "setup", at = @At("TAIL"))
     private void hokaOdyssey$setup(Level level, Entity entity, boolean detached, boolean mirror, float partialTick, CallbackInfo ci) {
         if (!Hooks.hasCamera()) {
-            if (Hooks.roll != 0) { Hooks.roll = 0; setRotation(yRot(), xRot()); }
+            if (Hooks.roll != 0 || Hooks.rotation != null) { Hooks.roll = 0; Hooks.rotation = null; setRotation(yRot(), xRot()); }
             return;
         }
         CameraState s = new CameraState();
@@ -41,9 +41,30 @@ public abstract class CameraMixin {
         s.pitch = xRot();
         s.detached = detached;
         Hooks.camera(s, partialTick);
-        Hooks.roll = (float) Math.toRadians(s.roll);
+        if (s.rotation != null) {
+            Hooks.rotation = new org.joml.Quaternionf(s.rotation);               // полный поворот на этот кадр
+            Hooks.roll = 0;
+        } else {
+            Hooks.rotation = null;
+            Hooks.roll = (float) Math.toRadians(s.roll);
+        }
         setRotation(s.yaw, s.pitch);
         setPosition(s.x, s.y, s.z);
+    }
+
+    @org.spongepowered.asm.mixin.Shadow @org.spongepowered.asm.mixin.Final private org.joml.Quaternionf rotation;
+    @org.spongepowered.asm.mixin.Shadow @org.spongepowered.asm.mixin.Final private org.joml.Vector3f forwards;
+    @org.spongepowered.asm.mixin.Shadow @org.spongepowered.asm.mixin.Final private org.joml.Vector3f up;
+    @org.spongepowered.asm.mixin.Shadow @org.spongepowered.asm.mixin.Final private org.joml.Vector3f left;
+
+    /** Полный поворот от модуля — поверх того, что игра насчитала из углов. */
+    @Inject(method = "setRotation", at = @At("TAIL"))
+    private void hokaOdyssey$rotation(float yRot, float xRot, CallbackInfo ci) {
+        if (Hooks.rotation == null) return;
+        rotation.set(Hooks.rotation);
+        forwards.set(0, 0, -1).rotate(rotation);
+        up.set(0, 1, 0).rotate(rotation);
+        left.set(-1, 0, 0).rotate(rotation);
     }
 
     @ModifyArg(method = "setRotation", at = @At(value = "INVOKE",

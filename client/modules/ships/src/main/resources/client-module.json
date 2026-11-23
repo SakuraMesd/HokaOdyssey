@@ -1,0 +1,7 @@
+{
+  "id": "ships",
+  "version": "0.12.0",
+  "main": "ink.hoka.odyssey.client.ships.ShipsClientModule",
+  "authors": ["Takuyamo"],
+  "description": "Корабли: модель из блоков чертежа (сервер двигает якорь, модуль рисует блоки)"
+}
