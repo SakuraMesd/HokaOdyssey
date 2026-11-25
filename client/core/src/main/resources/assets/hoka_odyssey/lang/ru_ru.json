@@ -1,0 +1,9 @@
+{
+  "options.hoka_odyssey.vertical": "Дальность по высоте",
+  "options.hoka_odyssey.vertical.tooltip": "Сколько кубов (по 16 блоков) вверх и вниз от вас грузить и рисовать на картах Hoka Odyssey с кубическими чанками. По горизонтали — обычная «Дальность прорисовки». Больше — дальше видно вверх и вниз, но больше памяти, трафика и нагрузки. Сервер может ограничить.",
+  "options.hoka_odyssey.vertical.value": "%s куб.",
+  "options.hoka_odyssey.cube_cache": "Кэш кубов",
+  "options.hoka_odyssey.cube_cache.tooltip": "Сколько памяти держать под кубы, ушедшие из обзора, на картах Hoka Odyssey с кубическими чанками. При возврате они показываются сразу, а не качаются заново; изменённые сервер пришлёт сам. 0 — кэш выключен.",
+  "options.hoka_odyssey.cube_cache.value": "%s МБ",
+  "options.hoka_odyssey.cube_cache.off": "Выкл"
+}

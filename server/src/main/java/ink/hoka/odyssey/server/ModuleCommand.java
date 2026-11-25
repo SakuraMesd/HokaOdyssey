@@ -34,8 +34,10 @@ final class ModuleCommand extends Command {
                 case "info" -> info(s, mm, t);
                 case "reload" -> s.sendMessage("reload " + t + ": " + mm.reload(t));
                 case "unload" -> {
-                    var off = mm.unload(t);
-                    s.sendMessage(off.isEmpty() ? "модуль «" + t + "» не включён" : "выключены: " + String.join(", ", off));
+                    try {
+                        var off = mm.unload(t);
+                        s.sendMessage(off.isEmpty() ? "модуль «" + t + "» не включён" : "выключены: " + String.join(", ", off));
+                    } catch (ModuleManager.Refused e) { s.sendMessage("нельзя: " + e.getMessage()); }
                 }
                 case "load" -> s.sendMessage(mm.loadFile(t));
                 default -> list(s, mm);

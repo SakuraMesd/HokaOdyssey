@@ -68,6 +68,32 @@ final class ModuleManager {
         this.api = api;
     }
 
+    /**
+     * Защиты от выгрузки: по набору id модулей (вся цепочка unload) — текст отказа или null. Ставит ядро
+     * (генераторы планет: карта с генератором модуля загружена или идёт pregen). disableAll их не спрашивает.
+     */
+    private final List<java.util.function.Function<Set<String>, String>> guards = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    void addUnloadGuard(java.util.function.Function<Set<String>, String> g) { guards.add(g); }
+
+    /** Модуль id и зависящие от него — можно ли выгрузить: null или почему нельзя. */
+    private String guard(String id) {
+        if (!enabled.containsKey(id)) return null;
+        Set<String> chain = new LinkedHashSet<>();
+        chain.add(id);
+        for (Loaded l : dependents(List.of(id))) chain.add(l.d.id());
+        for (var g : guards) {
+            String r = g.apply(chain);
+            if (r != null) return r;
+        }
+        return null;
+    }
+
+    /** Отказ выгрузки (команда покажет текст). */
+    static final class Refused extends RuntimeException {
+        Refused(String m) { super(m); }
+    }
+
     ServiceRegistry services() { return services; }
     OdysseyServerApi serverApi() { return api; }
     Path dir() { return dir; }
@@ -276,6 +302,8 @@ final class ModuleManager {
     /** Выключить модуль и зависящие от него. Возвращает выключенные (в порядке включения). */
     List<String> unload(String id) {
         synchronized (lock) {
+            String no = guard(id);
+            if (no != null) throw new Refused(no);
             List<String> off = unloadChain(id).stream().map(x -> x.d.id()).toList();
             publish();
             refreshCommands();
@@ -302,6 +330,8 @@ final class ModuleManager {
     String reload(String id) {
         synchronized (lock) {
             Map<String, Path> jars = new LinkedHashMap<>();
+            String no = guard(id);
+            if (no != null) return "нельзя: " + no;
             if (enabled.containsKey(id)) {
                 for (Loaded l : unloadChain(id)) jars.put(l.d.id(), l.jar);
             } else if (failed.containsKey(id)) {
@@ -378,6 +408,8 @@ final class ModuleManager {
             if (!fresh.contains(l.d.id()) && l.d.softDepends().stream().anyMatch(fresh::contains)) stale.add(l.d.id());
         for (String s : stale) {
             if (!enabled.containsKey(s)) continue;                                      // уже выключен вместе с другим
+            String no = guard(s);
+            if (no != null) { r.append(s).append(": не перезагружен (softdepends) — ").append(no).append("; "); continue; }
             Map<String, Loaded> batch = new TreeMap<>();
             for (Loaded x : unloadChain(s)) {
                 try { batch.put(x.d.id(), new Loaded(readDescriptor(x.jar), x.jar)); } catch (Exception ignored) { }

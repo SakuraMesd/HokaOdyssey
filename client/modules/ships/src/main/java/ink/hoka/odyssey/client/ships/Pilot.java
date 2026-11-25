@@ -49,12 +49,22 @@ final class Pilot {
     private Quaternionf chase;
     // для HUD: поворот камеры последнего кадра (в системе «как корабль»)
     private final Quaternionf camView = new Quaternionf();
+    /** Автовыравнивание: можно ли здесь (планета — да, космос — нет; говорит сервер) и включено ли (U). */
+    private boolean levelAllowed, levelOn, uWasDown;
+
+    /** Сетка своя (корабль без верфи) или общая с моделью на якоре (корабль из верфи — её рисует модуль по позе пилота). */
+    final boolean ownsMesh;
 
     Pilot(ClientContext ctx, int anchor, double x, double y, double z, float baseYaw, float seatH, JsonObject cfg, int[][] parts) {
+        this(ctx, anchor, x, y, z, baseYaw, cfg, new ShipMesh(parts, seatH, baseYaw), true);
+    }
+
+    Pilot(ClientContext ctx, int anchor, double x, double y, double z, float baseYaw, JsonObject cfg, ShipMesh shared, boolean owns) {
         this.ctx = ctx;
         this.cfg = cfg;
         this.anchor = anchor;
-        this.mesh = new ShipMesh(parts, seatH, baseYaw);
+        this.mesh = shared;
+        this.ownsMesh = owns;
         this.x = this.px = x;
         this.y = this.py = y;
         this.z = this.pz = z;
@@ -68,6 +78,7 @@ final class Pilot {
 
     void end() {
         ctx.hideHand(false);
+        if (ownsMesh) mesh.release();                                           // своя сетка полёта — из видеопамяти (общую рисует модель)
         Minecraft mc = Minecraft.getInstance();
         if (mc.player != null) {                                                // взгляд — туда же, куда смотрела кабина
             Vector3f f = camView.transform(new Vector3f(0, 0, 1));
@@ -153,9 +164,43 @@ final class Pilot {
 
     // ───────────────────────── тик ─────────────────────────
 
+    /** Сервер: здесь есть автовыравнивание (планета) или нет (космос). */
+    void levelAllowed(boolean allowed) {
+        boolean was = levelAllowed;
+        levelAllowed = allowed;
+        if (was && !allowed && levelOn) say("Автовыравнивание: здесь его нет (космос)");
+    }
+
+    private static void say(String text) {
+        Minecraft.getInstance().gui.setOverlayMessage(net.minecraft.network.chat.Component.literal(text), false);
+    }
+
+    /** Корабль ровно: тот же курс, наклон и крен 0 (нос вертикально — курс по «верху»). */
+    static Quaternionf level(Quaternionf o) {
+        Vector3f f = o.transform(new Vector3f(0, 0, 1));
+        float hx = -f.x, hz = f.z;
+        if (hx * hx + hz * hz < 1e-6f) {
+            Vector3f u = o.transform(new Vector3f(0, 1, 0));
+            float sg = f.y < 0 ? 1 : -1;
+            hx = -u.x * sg;
+            hz = u.z * sg;
+        }
+        return orient((float) Math.toDegrees(Math.atan2(hx, hz)), 0, 0);
+    }
+
     void tick() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return;
+        // U — автовыравнивание вкл/выкл (только на планетах)
+        boolean uDown = mc.screen == null && com.mojang.blaze3d.platform.InputConstants.isKeyDown(mc.getWindow(), org.lwjgl.glfw.GLFW.GLFW_KEY_U);
+        if (uDown && !uWasDown) {
+            if (!levelAllowed) say("Автовыравнивания здесь нет (космос)");
+            else {
+                levelOn = !levelOn;
+                say(levelOn ? "Автовыравнивание: вкл (U)" : "Автовыравнивание: выкл (U)");
+            }
+        }
+        uWasDown = uDown;
         // F5 — переключить вид (сама камера игры всегда «от первого лица», ставим её мы)
         if (mc.options.getCameraType() != CameraType.FIRST_PERSON) {
             view = 1 - view;
@@ -178,6 +223,15 @@ final class Pilot {
                 .rotateY((float) Math.toRadians(-yawRate))
                 .rotateX((float) Math.toRadians(pitchRate))
                 .rotateZ((float) Math.toRadians(rollRate)).normalize();
+
+        // автовыравнивание: пока пилот не кренит и не тянет нос вверх/вниз — плавно к «ровно» (курс тот же)
+        if (levelOn && levelAllowed && side == 0 && Math.abs(offPitch) < 0.5f && Math.abs(pitchRate) < 0.3) {
+            Quaternionf l = level(nq);
+            float d = Math.abs(nq.dot(l));
+            float ang = 2 * (float) Math.acos(Math.min(1f, d));
+            float step = (float) Math.toRadians(c("auto-level", "flight-speed", 30) / 20.0);
+            if (ang > 1e-4f) nq.slerp(l, Math.min(1f, step / ang)).normalize();
+        }
 
         // физика: скорость по осям корабля
         boolean fwdK = o.keyUp.isDown() && free, backK = o.keyDown.isDown() && free;
@@ -202,21 +256,29 @@ final class Pilot {
         if (!Double.isFinite(len)) { nvx = nvy = nvz = 0; }
         else if (len > cap) { nvx *= cap / len; nvy *= cap / len; nvz *= cap / len; }
 
-        // столкновения: новый поворот на месте, потом ход — целиком или по осям
-        if (hits(x, y, z, nq)) {
-            nq.set(q);
-            yawRate = pitchRate = rollRate = 0;
-            offYaw = offPitch = 0;
-        } else {
+        // столкновения. 0.27.1: сначала сразу итоговое положение (поворот + ход) — свободно (почти всегда) → одна
+        // проверка за тик вместо двух. Занято — как раньше: поворот на месте, потом ход целиком или по осям
+        if (!hits(x + nvx, y + nvy, z + nvz, nq)) {
             offYaw -= (float) yawRate;                                           // прицел стоит, нос подходит к нему
             offPitch -= (float) pitchRate;
-        }
-        q.set(nq);
-        if (!hits(x + nvx, y + nvy, z + nvz, q)) { x += nvx; y += nvy; z += nvz; }
-        else {
-            if (!hits(x + nvx, y, z, q)) x += nvx; else nvx = 0;
-            if (!hits(x, y + nvy, z, q)) y += nvy; else nvy = 0;
-            if (!hits(x, y, z + nvz, q)) z += nvz; else nvz = 0;
+            q.set(nq);
+            x += nvx; y += nvy; z += nvz;
+        } else {
+            if (hits(x, y, z, nq)) {
+                nq.set(q);
+                yawRate = pitchRate = rollRate = 0;
+                offYaw = offPitch = 0;
+            } else {
+                offYaw -= (float) yawRate;
+                offPitch -= (float) pitchRate;
+            }
+            q.set(nq);
+            if (!hits(x + nvx, y + nvy, z + nvz, q)) { x += nvx; y += nvy; z += nvz; }
+            else {
+                if (!hits(x + nvx, y, z, q)) x += nvx; else nvx = 0;
+                if (!hits(x, y + nvy, z, q)) y += nvy; else nvy = 0;
+                if (!hits(x, y, z + nvz, q)) z += nvz; else nvz = 0;
+            }
         }
         vx = nvx; vy = nvy; vz = nvz;
         clampAim();
@@ -227,17 +289,59 @@ final class Pilot {
         send();
     }
 
-    /** Корабль задевает блоки мира (по центрам внешних клеток). */
+    private final Vector3f hv = new Vector3f();
+    private final BlockPos.MutableBlockPos hp = new BlockPos.MutableBlockPos();
+
+    /**
+     * Корабль задевает блоки мира (по центрам внешних клеток). 0.27.1: сперва грубо — секции 16³ мира под коробкой
+     * повёрнутого корпуса: все загружены и пустые (космос, небо) — сразу «нет», без обхода клеток. Иначе — по клеткам,
+     * но блок читается только в непустых секциях (пустая секция — воздух, палитру не трогаем).
+     */
     private boolean hits(double px, double py, double pz, Quaternionf o) {
         Minecraft mc = Minecraft.getInstance();
-        Vector3f v = new Vector3f();
-        BlockPos.MutableBlockPos bp = new BlockPos.MutableBlockPos();
-        for (float[] h : mesh.hull) {
-            o.transform(v.set(h[0], h[1], h[2]));
-            bp.set(Mth.floor(px + v.x), Mth.floor(py + v.y), Mth.floor(pz + v.z));
-            if (!mc.level.isLoaded(bp)) return true;                            // мир не загружен — дальше не летим
-            BlockState st = mc.level.getBlockState(bp);
-            if (!st.isAir() && !st.getCollisionShape(mc.level, bp).isEmpty()) return true;
+        var level = mc.level;
+        float[] h = mesh.hull();
+        if (h.length == 0) return false;
+        int minY = level.getMinY(), topY = minY + level.getHeight();             // [minY, topY) — высота мира
+        // коробка корпуса (центры внешних клеток) → 8 углов поворотом o → коробка в мире
+        float[] lo = mesh.hullLo, hi = mesh.hullHi;
+        double ax = Double.MAX_VALUE, ay = ax, az = ax, bx = -ax, by = -ax, bz = -ax;
+        for (int c = 0; c < 8; c++) {
+            o.transform(hv.set((c & 1) != 0 ? hi[0] : lo[0], (c & 2) != 0 ? hi[1] : lo[1], (c & 4) != 0 ? hi[2] : lo[2]));
+            ax = Math.min(ax, hv.x); ay = Math.min(ay, hv.y); az = Math.min(az, hv.z);
+            bx = Math.max(bx, hv.x); by = Math.max(by, hv.y); bz = Math.max(bz, hv.z);
+        }
+        int x0 = Mth.floor(px + ax) - 1, y0 = Mth.floor(py + ay) - 1, z0 = Mth.floor(pz + az) - 1;
+        int x1 = Mth.floor(px + bx) + 1, y1 = Mth.floor(py + by) + 1, z1 = Mth.floor(pz + bz) + 1;
+        var chunks = level.getChunkSource();
+        boolean detail = y0 < minY || y1 >= topY;                              // край мира по высоте — по клеткам (там «занято»)
+        int sy0 = Math.max(y0, minY) >> 4, sy1 = Math.min(y1, topY - 1) >> 4;
+        for (int cx = x0 >> 4; cx <= x1 >> 4 && !detail; cx++)
+            for (int cz = z0 >> 4; cz <= z1 >> 4 && !detail; cz++) {
+                net.minecraft.world.level.chunk.LevelChunk ch = chunks.getChunk(cx, cz, false);
+                if (ch == null) { detail = true; break; }                        // не загружен — по клеткам (там «занято»)
+                var secs = ch.getSections();
+                for (int sy = sy0; sy <= sy1; sy++) {
+                    int i = ch.getSectionIndexFromSectionY(sy);
+                    if (i < 0 || i >= secs.length || secs[i] == null || !secs[i].hasOnlyAir()) { detail = true; break; }
+                }
+            }
+        if (!detail) return false;                                              // вокруг только пустота
+        for (int k = 0; k < h.length; k += 3) {
+            o.transform(hv.set(h[k], h[k + 1], h[k + 2]));
+            int bxp = Mth.floor(px + hv.x), byp = Mth.floor(py + hv.y), bzp = Mth.floor(pz + hv.z);
+            if (byp < minY || byp >= topY) return true;                         // за краем мира — как «не загружен»
+            net.minecraft.world.level.chunk.LevelChunk ch = chunks.getChunk(bxp >> 4, bzp >> 4, false);
+            if (ch == null) return true;                                        // мир не загружен — дальше не летим
+            var secs = ch.getSections();
+            int i = ch.getSectionIndexFromSectionY(byp >> 4);
+            if (i < 0 || i >= secs.length) return true;
+            var sec = secs[i];
+            if (sec == null || sec.hasOnlyAir()) continue;                      // пустая секция — воздух
+            BlockState st = sec.getBlockState(bxp & 15, byp & 15, bzp & 15);
+            if (st.isAir()) continue;
+            hp.set(bxp, byp, bzp);
+            if (!st.getCollisionShape(level, hp).isEmpty()) return true;
         }
         return false;
     }
@@ -275,8 +379,27 @@ final class Pilot {
     private double iz(float pt) { return Mth.lerp(pt, pz, z); }
     private Quaternionf iq(float pt) { return new Quaternionf(pq).slerp(q, pt); }
 
+    /** Поза своего корабля (система корабля → мир, с поворотом turn): для общей с моделью сетки, палубы, частиц. */
+    ShipGravity.Ship pose() {
+        Pilot me = this;
+        return new ShipGravity.Ship() {
+            @Override public org.joml.Matrix4f place() {
+                return new org.joml.Matrix4f().translation((float) me.x, (float) me.y, (float) me.z).rotate(me.q)
+                        .rotateY((float) Math.toRadians(me.mesh.turn));
+            }
+
+            @Override public org.joml.Matrix4f placeAt(float pt) {
+                return new org.joml.Matrix4f().translation((float) me.ix(pt), (float) me.iy(pt), (float) me.iz(pt)).rotate(me.iq(pt))
+                        .rotateY((float) Math.toRadians(me.mesh.turn));
+            }
+
+            @Override public ShipMesh mesh() { return me.mesh; }
+        };
+    }
+
     /** Свой корабль — по своему положению (сервер его не двигает). */
     void render(ClientContext.WorldFrame f) {
+        if (!ownsMesh) return;                                                  // общую сетку рисует модель на якоре (по pose())
         Minecraft mc = Minecraft.getInstance();
         float pt = f.partialTick();
         double sx = ix(pt), sy = iy(pt), sz = iz(pt);
@@ -288,8 +411,8 @@ final class Pilot {
         ps.translate(sx - cam.x, sy - cam.y, sz - cam.z);
         ps.mulPose(iq(pt));
         int light = LevelRenderer.getLightColor(mc.level, BlockPos.containing(sx, sy + 1, sz));
-        mesh.draw(ps, f.buffers(), light);
-        mesh.drawEntities(ps, f);
+        mesh.draw(ps, f.buffers(), light, f);
+        mesh.drawEntities(ps, f, light);
         ps.popPose();
     }
 
@@ -325,6 +448,9 @@ final class Pilot {
         } catch (LinkageError old) {                                            // ядро до 0.21 — только углы
         }
     }
+
+    /** Поворот камеры последнего кадра (для камеры игры: смотрит по −Z). */
+    Quaternionf cameraRotation() { return new Quaternionf(camView).rotateY((float) Math.PI); }
 
     // ───────────────────────── HUD ─────────────────────────
 

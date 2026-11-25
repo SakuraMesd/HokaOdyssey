@@ -36,13 +36,13 @@ public final class MultiBlocks {
         Point pos = e.getBlockPosition();
         if (name.endsWith("_door") && "lower".equals(b.getProperty("half"))) {
             Point up = pos.add(0, 1, 0);
-            if (!replaceable(inst.getBlock(up))) { e.setCancelled(true); return; }
-            inst.scheduleNextTick(i -> { if (BlockRules.same(i.getBlock(pos), b)) i.setBlock(up, i.getBlock(pos).withProperty("half", "upper")); });
+            if (!loaded(inst, up) || !replaceable(inst.getBlock(up))) { e.setCancelled(true); return; }   // верх в незагруженном кубе — не ставить
+            inst.scheduleNextTick(i -> { if (loaded(i, up) && BlockRules.same(i.getBlock(pos), b)) i.setBlock(up, i.getBlock(pos).withProperty("half", "upper")); });
         } else if (name.endsWith("_bed") && "foot".equals(b.getProperty("part"))) {
             Dir f = BlockRules.facing(b);
             Point head = f.rel(pos);
-            if (!replaceable(inst.getBlock(head))) { e.setCancelled(true); return; }
-            inst.scheduleNextTick(i -> { if (BlockRules.same(i.getBlock(pos), b)) i.setBlock(head, b.withProperty("part", "head")); });
+            if (!loaded(inst, head) || !replaceable(inst.getBlock(head))) { e.setCancelled(true); return; }
+            inst.scheduleNextTick(i -> { if (loaded(i, head) && BlockRules.same(i.getBlock(pos), b)) i.setBlock(head, b.withProperty("part", "head")); });
         }
     }
 
@@ -59,7 +59,7 @@ public final class MultiBlocks {
         }
         if (other == null) return;
         Point o = other;
-        inst.scheduleNextTick(i -> { if (BlockRules.same(i.getBlock(o), b)) i.setBlock(o, Block.AIR); });
+        inst.scheduleNextTick(i -> { if (loaded(i, o) && BlockRules.same(i.getBlock(o), b)) i.setBlock(o, Block.AIR); });
     }
 
     private static void onInteract(PlayerBlockInteractEvent e) {
@@ -79,10 +79,15 @@ public final class MultiBlocks {
         inst.setBlock(pos, nb);
         if (name.endsWith("_door")) {
             Point o = pos.add(0, "lower".equals(b.getProperty("half")) ? 1 : -1, 0);
-            Block ob = inst.getBlock(o);
+            Block ob = loaded(inst, o) ? inst.getBlock(o) : Block.AIR;          // вторая половина в незагруженном кубе — не трогать
             if (BlockRules.same(ob, b)) inst.setBlock(o, ob.withProperty("open", open));
         }
         e.setBlockingItemUse(true);
+    }
+
+    /** Куб с блоком загружен (CUBIC-CHUNKS.md §4.2: писать только в загруженный). */
+    private static boolean loaded(Instance inst, Point p) {
+        return ink.hoka.odyssey.server.tall.Cubes.isCubeLoaded(inst, p.blockX(), p.blockY(), p.blockZ());
     }
 
     private static boolean replaceable(Block b) {

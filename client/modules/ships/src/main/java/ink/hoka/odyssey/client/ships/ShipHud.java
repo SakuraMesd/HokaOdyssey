@@ -29,6 +29,8 @@ final class ShipHud {
     private static DynamicTexture base, dial, nose, aim;
     private static int nCompass, nNose, nAim, nDial;
     private static float drawnHead = Float.NaN, drawnEl = Float.NaN;
+    /** 0.27.1: когда шкала компаса перерисовывалась последний раз (не чаще 60 раз в секунду). */
+    private static long drawnAt;
     private static Canvas dialCanvas;
 
     private static Identifier id(String n) { return Identifier.fromNamespaceAndPath("hoka_odyssey", "ships/" + n); }
@@ -74,10 +76,13 @@ final class ShipHud {
         }
         if (nn != nNose) { nNose = nn; nose = put(T_NOSE, nose, noseImage(nn)); }
         if (na != nAim) { nAim = na; aim = put(T_AIM, aim, aimImage(na)); }
-        if (Float.isNaN(drawnHead) || Math.abs(wrap(head - drawnHead)) > 0.25f || Math.abs(el - drawnEl) > 0.25f) {
+        long now = System.nanoTime();
+        boolean fresh = Float.isNaN(drawnHead) || dial == null || nDial != nc;
+        if (fresh || (now - drawnAt >= 16_000_000L && (Math.abs(wrap(head - drawnHead)) > 0.25f || Math.abs(el - drawnEl) > 0.25f))) {
             compassDial(dialCanvas, head, el);
-            if (dial == null || nDial != nc) { dial = put(T_DIAL, dial, dialCanvas); nDial = nc; }
-            else dialCanvas.to(dial);
+            if (fresh) { dial = put(T_DIAL, dial, dialCanvas); nDial = nc; }
+            else dialCanvas.toDial(dial);                                        // только круг шкалы (снаружи всегда пусто)
+            drawnAt = now;
             drawnHead = head;
             drawnEl = el;
         }
@@ -360,6 +365,29 @@ final class ShipHud {
                 }
                 put(x, y, rgb, alpha * in / 4f);
             }
+        }
+
+        /**
+         * 0.27.1: шкала компаса — только квадрат вокруг круга (риски и лесенка внутри радиуса 0.39·n, снаружи всегда
+         * пусто — там остаются нули прошлой заливки), прямо в память картинки (ABGR), без setPixel с проверками.
+         */
+        void toDial(DynamicTexture t) {
+            var img = t.getPixels();
+            if (img == null || img.getWidth() != n || img.getHeight() != n || img.format() != com.mojang.blaze3d.platform.NativeImage.Format.RGBA) { to(t); return; }
+            long ptr = img.getPointer();
+            int c = n / 2, rad = (int) Math.ceil(n * 0.39f) + 4;
+            int x0 = Math.max(0, c - rad), x1 = Math.min(n, c + rad), y0 = Math.max(0, c - rad), y1 = Math.min(n, c + rad);
+            for (int y = y0; y < y1; y++) {
+                long row = ptr + (long) y * n * 4L;
+                for (int x = x0; x < x1; x++) {
+                    int i = y * n + x;
+                    float av = a[i];
+                    int A = av <= 0 ? 0 : av >= 1 ? 255 : (int) (av * 255 + 0.5f);
+                    int v = A == 0 ? 0 : (A << 24) | ((int) (b[i] * 255 + 0.5f) << 16) | ((int) (gr[i] * 255 + 0.5f) << 8) | (int) (r[i] * 255 + 0.5f);
+                    org.lwjgl.system.MemoryUtil.memPutInt(row + x * 4L, v);
+                }
+            }
+            t.upload();
         }
 
         void to(DynamicTexture t) {

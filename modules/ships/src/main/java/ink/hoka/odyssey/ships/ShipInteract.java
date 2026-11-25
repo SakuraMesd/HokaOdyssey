@@ -6,7 +6,6 @@ import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.minestom.server.codec.Transcoder;
-import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.GameMode;
@@ -25,9 +24,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Клики по стоящему кораблю-модели (его блоков в мире нет — их рисует мод, мод же находит, куда смотрит игрок):
- * двери/люки/калитки открываются, сундуки и бочки хранят вещи (вместе с кораблём, в ships.json), клик по месту
- * пилота — взлёт, блоком в руке — поставить блок, ЛКМ — сломать. Все изменения — сразу всем (пакет CELL).
+ * Клики по кораблю — стоящему моделью и летящему (его блоков в мире нет — их рисует мод, мод же находит, куда
+ * смотрит игрок): двери/люки/калитки открываются, сундуки и бочки хранят вещи (вместе с кораблём, в ships.json),
+ * клик по месту пилота стоящего корабля — взлёт, блоком в руке — поставить блок, ЛКМ — сломать. Все изменения —
+ * сразу всем (пакет CELL), в полёте — и пилоту; при стоянке они остаются в корабле.
  * Права: строить — владелец и OP (build.others), двери и сундуки — все (interact.others).
  */
 final class ShipInteract {
@@ -36,6 +36,30 @@ final class ShipInteract {
     private static final String[] H = {"north", "east", "south", "west"};
     private static final int[][] HV = {{0, 0, -1}, {1, 0, 0}, {0, 0, 1}, {-1, 0, 0}};
 
+    /** Клетки корабля: стоящего моделью (поля m*) или летящего (части полёта). */
+    private interface Cells {
+        Ship ship();
+
+        Block get(int dx, int dy, int dz);
+
+        void set(int dx, int dy, int dz, Block b);                 // null — убрать
+
+        int count();
+
+        /** Поворот система корабля → мир (как Rot.quat) и точка пилота, высота сиденья. */
+        float[] rot();
+
+        Vec pivot();
+
+        double seatH();
+
+        Instance instance();
+
+        int anchor();
+
+        boolean flying();
+    }
+
     private final ShipsModule mod;
     /** Открытые сундуки: ключ «владелец:x,y,z» → общее окно (все смотрят в одно). */
     private final Map<String, Inventory> open = new HashMap<>();
@@ -43,14 +67,29 @@ final class ShipInteract {
 
     ShipInteract(ShipsModule mod) { this.mod = mod; }
 
+    /** Открытые сундуки кораблей из верфи: окно → {якорь, клетка} (для крышки). */
+    private final Map<Inventory, int[]> lids = new java.util.concurrent.ConcurrentHashMap<>();
+
     void enable() {
+        mod.events().addListener(InventoryCloseEvent.class, e -> {
+            if (e.getInventory() instanceof Inventory inv && lids.containsKey(inv)) {
+                mod.scheduler().run(() -> {
+                    int[] l = lids.get(inv);
+                    if (l == null) return;
+                    int n = inv.getViewers().size();
+                    mod.client.lid(l[0], l[1], l[2], l[3], n);
+                    if (n == 0) lids.remove(inv);
+                });
+            }
+        });
         mod.events().addListener(InventoryCloseEvent.class, e -> {
             if (!(e.getInventory() instanceof Inventory inv)) return;
             String[] k = openKey.get(inv);
             if (k == null) return;
-            // окно ещё смотрят — сохраним при последнем
-            if (inv.getViewers().size() > 1 || (inv.getViewers().size() == 1 && !inv.getViewers().contains(e.getPlayer()))) { save(inv); return; }
             save(inv);
+            boolean others = false;
+            for (Player v : inv.getViewers()) if (v != e.getPlayer()) { others = true; break; }
+            if (others) return;                                                // окно ещё смотрят
             open.remove(k[0] + ":" + k[1]);
             openKey.remove(inv);
         });
@@ -67,12 +106,95 @@ final class ShipInteract {
 
     // ───────────────────────── поиск ─────────────────────────
 
-    private Ship shipByAnchor(int anchor) {
+    private Cells byAnchor(int anchor) {
         for (Ship s : mod.ships.values()) {
-            Entity a = mod.parked.get(s.owner);
-            if (a != null && a.getEntityId() == anchor && s.state == Ship.State.MODEL) return s;
+            if (s.state == Ship.State.MODEL || (s.flight != null && s.yard != null)) {   // из верфи — и в полёте те же клетки плота
+                Entity a = mod.parked.get(s.owner);
+                if (a != null && a.getEntityId() == anchor) return yard(model(s, a));
+            }
+            Flight f = s.flight;
+            if (f != null && f.anchorAll() != null && f.anchorAll().getEntityId() == anchor) return yard(flight(s, f));
         }
         return null;
+    }
+
+    /** Корабль из верфи: клетка = настоящий блок плота (читаем и пишем там), копия для мода — как раньше. */
+    private Cells yard(Cells base) {
+        Ship s = base.ship();
+        if (s.yard == null) return base;
+        Instance inst = base.instance();
+        Shipyard.ensureLoaded(mod, inst, s);                                    // плот мог выгрузиться — блоки должны быть
+        return new Cells() {
+            @Override public Ship ship() { return s; }
+            @Override public Block get(int dx, int dy, int dz) {
+                Block b = inst.getBlock(Shipyard.cell(s, dx, dy, dz));
+                return b.isAir() ? null : b;
+            }
+            @Override public void set(int dx, int dy, int dz, Block b) {
+                inst.setBlock(Shipyard.cell(s, dx, dy, dz), b == null ? Block.AIR : b);   // плот — правда (и в полёте)
+                mod.yardStream.changed(s, dx, dy, dz);
+                base.set(dx, dy, dz, b);
+                if (s.flight != null) s.flight.cellsChanged();
+            }
+            @Override public int count() { return base.count(); }
+            @Override public float[] rot() { return base.rot(); }
+            @Override public Vec pivot() { return base.pivot(); }
+            @Override public double seatH() { return base.seatH(); }
+            @Override public Instance instance() { return inst; }
+            @Override public int anchor() { return base.anchor(); }
+            @Override public boolean flying() { return base.flying(); }
+        };
+    }
+
+    private Cells model(Ship s, Entity a) {
+        return new Cells() {
+            @Override public Ship ship() { return s; }
+
+            @Override public Block get(int dx, int dy, int dz) {
+                int i = find(s, dx, dy, dz);
+                return i < 0 ? null : Block.fromState(s.mblocks.get(i));
+            }
+
+            @Override public void set(int dx, int dy, int dz, Block b) {
+                int i = find(s, dx, dy, dz);
+                if (b == null) {
+                    if (i >= 0) { s.mparts.remove(i); s.mblocks.remove(i); }
+                } else if (i >= 0) s.mblocks.set(i, b.state());
+                else { s.mparts.add(new int[]{dx, dy, dz}); s.mblocks.add(b.state()); }
+            }
+
+            @Override public int count() { return s.mparts.size(); }
+            @Override public float[] rot() { return Rot.quat(s.myaw, s.mpitch, s.mroll, s.mturn); }
+            @Override public Vec pivot() { return new Vec(s.mx, s.my, s.mz); }
+            @Override public double seatH() { return s.mseatH; }
+            @Override public Instance instance() { return mod.instanceOf(s); }
+            @Override public int anchor() { return a.getEntityId(); }
+            @Override public boolean flying() { return s.state == Ship.State.FLYING; }
+        };
+    }
+
+    private static Cells flight(Ship s, Flight f) {
+        return new Cells() {
+            @Override public Ship ship() { return s; }
+            @Override public Block get(int dx, int dy, int dz) { return f.cell(dx, dy, dz); }
+            @Override public void set(int dx, int dy, int dz, Block b) { f.setCell(dx, dy, dz, b); }
+            @Override public int count() { return f.cellCount(); }
+
+            @Override public float[] rot() {
+                double[] q = f.pose();
+                return Rot.quat(q[3], q[4], q[5], f.blockTurn());
+            }
+
+            @Override public Vec pivot() {
+                double[] q = f.pose();
+                return new Vec(q[0], q[1], q[2]);
+            }
+
+            @Override public double seatH() { return f.seatHeight(); }
+            @Override public Instance instance() { return f.instance(); }
+            @Override public int anchor() { return f.anchorAll().getEntityId(); }
+            @Override public boolean flying() { return true; }
+        };
     }
 
     private static int find(Ship s, int dx, int dy, int dz) {
@@ -83,22 +205,17 @@ final class ShipInteract {
         return -1;
     }
 
-    private static Block blockAt(Ship s, int dx, int dy, int dz) {
-        int i = find(s, dx, dy, dz);
-        return i < 0 ? null : Block.fromState(s.mblocks.get(i));
-    }
-
     /** Центр клетки корабля в мире. */
-    private Vec cellWorld(Ship s, int dx, int dy, int dz) {
-        float[] q = Rot.quat(s.myaw, s.mpitch, s.mroll, s.mturn);
-        double[] r = Rot.rotate(q, dx, dy - s.mseatH + 0.5, dz);
-        return new Vec(s.mx + r[0], s.my + r[1], s.mz + r[2]);
+    private static Vec cellWorld(Cells c, int dx, int dy, int dz) {
+        double[] r = Rot.rotate(c.rot(), dx, dy - c.seatH() + 0.5, dz);
+        Vec p = c.pivot();
+        return new Vec(p.x() + r[0], p.y() + r[1], p.z() + r[2]);
     }
 
-    private boolean reach(Player p, Ship s, int dx, int dy, int dz) {
-        if (mod.instanceOf(s) != p.getInstance()) return false;
-        double max = mod.config().getDouble("interact.reach", 7);
-        return p.getPosition().add(0, p.getEyeHeight(), 0).distanceSquared(cellWorld(s, dx, dy, dz)) <= max * max;
+    private boolean reach(Player p, Cells c, int dx, int dy, int dz) {
+        if (c.instance() != p.getInstance()) return false;
+        double max = mod.config().getDouble("interact.reach", 7) + (c.flying() ? 2 : 0);   // в полёте — запас на задержку
+        return p.getPosition().add(0, p.getEyeHeight(), 0).distanceSquared(cellWorld(c, dx, dy, dz)) <= max * max;
     }
 
     private boolean canBuild(Player p, Ship s) {
@@ -111,27 +228,48 @@ final class ShipInteract {
 
     // ───────────────────────── ПКМ ─────────────────────────
 
+    /** Колёсико по клетке корабля: как у игры «выбрать блок» (ядро сервера кладёт предмет; ctrl — с содержимым). */
+    void pick(Player p, int anchor, int dx, int dy, int dz, boolean ctrl) {
+        Cells c = byAnchor(anchor);
+        if (c == null || c.instance() != p.getInstance()) return;
+        Block b = c.get(dx, dy, dz);
+        if (b == null || b.isAir()) return;
+        var pos = c.ship().yard != null ? Shipyard.cell(c.ship(), dx, dy, dz) : new net.minestom.server.coordinate.BlockVec(0, 0, 0);
+        net.minestom.server.event.EventDispatcher.call(new net.minestom.server.event.player.PlayerPickBlockEvent(p, c.instance(), b, pos, ctrl));
+    }
+
     /** ПКМ по клетке (dx,dy,dz), грань face (как Direction), точка попадания в клетке (0..1, система корабля). */
     void use(Player p, int anchor, int dx, int dy, int dz, int face, float hx, float hy, float hz) {
-        Ship s = shipByAnchor(anchor);
-        if (s == null || !reach(p, s, dx, dy, dz)) return;
-        Block b = blockAt(s, dx, dy, dz);
+        Cells c = byAnchor(anchor);
+        if (c == null || !reach(p, c, dx, dy, dz)) return;
+        Ship s = c.ship();
+        Block b = c.get(dx, dy, dz);
         if (b == null) return;
-        // место пилота — взлёт
-        if (dx == 0 && dz == 0 && (dy == 0 || dy == -1)) {
-            if (!mod.canControl(p, s)) { p.sendActionBar(Component.text("Это корабль игрока " + s.ownerName, NamedTextColor.RED)); return; }
-            mod.takeOff(p, s);
-            return;
-        }
-        String id = b.key().value();
+        String id = id(b);
         if (toggles(id)) {
             if (!canUse(p, s)) { deny(p, s); return; }
-            toggle(s, dx, dy, dz, b, id);
+            toggle(c, dx, dy, dz, b, id);
             return;
         }
         if (id.equals("chest") || id.equals("trapped_chest") || id.equals("barrel")) {
             if (!canUse(p, s)) { deny(p, s); return; }
-            openChest(p, s, dx, dy, dz, b, id);
+            if (s.yard != null) {                                               // настоящий сундук в плоте — модуль контейнеров
+                var pos = Shipyard.cell(s, dx, dy, dz);
+                net.minestom.server.event.EventDispatcher.call(new net.minestom.server.event.player.PlayerBlockInteractEvent(p,
+                        net.minestom.server.entity.PlayerHand.MAIN, c.instance(), b, pos, pos, net.minestom.server.instance.block.BlockFace.TOP));
+                if (p.getOpenInventory() instanceof Inventory inv && !id.equals("barrel")) {   // крышка — моду (копия сундука корабля)
+                    lids.put(inv, new int[]{c.anchor(), dx, dy, dz});
+                    mod.client.lid(c.anchor(), dx, dy, dz, inv.getViewers().size());
+                }
+                return;
+            }
+            openChest(p, c, dx, dy, dz, b, id);
+            return;
+        }
+        // место пилота стоящего корабля — взлёт
+        if (!c.flying() && dx == 0 && dz == 0 && (dy == 0 || dy == -1)) {
+            if (!mod.canControl(p, s)) { deny(p, s); return; }
+            mod.takeOff(p, s);
             return;
         }
         // блок в руке — поставить рядом
@@ -141,41 +279,42 @@ final class ShipInteract {
         if (!canBuild(p, s)) { p.sendActionBar(Component.text("Строить на корабле может только его владелец", NamedTextColor.RED)); return; }
         if (face < 0 || face >= 6) return;
         int nx = dx + DIR[face][0], ny = dy + DIR[face][1], nz = dz + DIR[face][2];
-        if (find(s, nx, ny, nz) >= 0) return;
+        if (c.get(nx, ny, nz) != null) return;
         int max = mod.config().getInt("templates.max-blocks", 3000);
-        if (s.mparts.size() >= max) { p.sendActionBar(Component.text("Корабль больше не вырастет (не больше " + max + " блоков)", NamedTextColor.RED)); return; }
-        Block st = orient(place, p, s, face, hy);
+        if (c.count() >= max) { p.sendActionBar(Component.text("Корабль больше не вырастет (не больше " + max + " блоков)", NamedTextColor.RED)); return; }
+        Block st = orient(place, p, c, face, hy);
         List<int[]> changed = new ArrayList<>();
         if (id(place).endsWith("_door")) {
-            if (find(s, nx, ny + 1, nz) >= 0) return;
-            add(s, nx, ny + 1, nz, with(st, "half", "upper"));
+            if (c.get(nx, ny + 1, nz) != null) return;
+            c.set(nx, ny + 1, nz, with(st, "half", "upper"));
             changed.add(new int[]{nx, ny + 1, nz});
             st = with(st, "half", "lower");
         }
-        add(s, nx, ny, nz, st);
+        c.set(nx, ny, nz, st);
         changed.add(new int[]{nx, ny, nz});
         if (p.getGameMode() != GameMode.CREATIVE) p.setItemInMainHand(hand.consume(1));
-        sound(s, nx, ny, nz, "block.stone.place");
-        commit(s, changed);
+        sound(c, nx, ny, nz, "block.stone.place");
+        commit(c, changed);
     }
 
     // ───────────────────────── ЛКМ ─────────────────────────
 
     void breakBlock(Player p, int anchor, int dx, int dy, int dz) {
-        Ship s = shipByAnchor(anchor);
-        if (s == null || !reach(p, s, dx, dy, dz)) return;
-        Block b = blockAt(s, dx, dy, dz);
+        Cells c = byAnchor(anchor);
+        if (c == null || !reach(p, c, dx, dy, dz)) return;
+        Ship s = c.ship();
+        Block b = c.get(dx, dy, dz);
         if (b == null) return;
         if (!canBuild(p, s)) { p.sendActionBar(Component.text("Ломать корабль может только его владелец", NamedTextColor.RED)); return; }
         if (dx == 0 && dz == 0 && (dy == 0 || dy == -1)) { p.sendActionBar(Component.text("Место пилота не сломать", NamedTextColor.RED)); return; }
-        if (s.mparts.size() <= 2) return;
+        if (c.count() <= 2) return;
         List<int[]> changed = new ArrayList<>();
         changed.add(new int[]{dx, dy, dz});
         String id = id(b);
         if (id.endsWith("_door")) {                                             // вторая половина двери
             int oy = "upper".equals(b.getProperty("half")) ? dy - 1 : dy + 1;
-            Block o = blockAt(s, dx, oy, dz);
-            if (o != null && id(o).equals(id)) { remove(s, dx, oy, dz); changed.add(new int[]{dx, oy, dz}); }
+            Block o = c.get(dx, oy, dz);
+            if (o != null && id(o).equals(id)) { c.set(dx, oy, dz, null); changed.add(new int[]{dx, oy, dz}); }
         }
         // содержимое сундука — игроку
         String key = cellKey(dx, dy, dz);
@@ -186,7 +325,7 @@ final class ShipInteract {
                 if (!it.isAir() && !p.getInventory().addItemStack(it)) drop(p, it);
             }
         }
-        remove(s, dx, dy, dz);
+        c.set(dx, dy, dz, null);
         if (p.getGameMode() != GameMode.CREATIVE) {
             Material m = b.registry().material();
             if (m != null && m != Material.AIR) {
@@ -194,8 +333,8 @@ final class ShipInteract {
                 if (!p.getInventory().addItemStack(it)) drop(p, it);
             }
         }
-        sound(s, dx, dy, dz, "block.stone.break");
-        commit(s, changed);
+        sound(c, dx, dy, dz, "block.stone.break");
+        commit(c, changed);
     }
 
     // ───────────────────────── двери, люки, калитки ─────────────────────────
@@ -204,27 +343,28 @@ final class ShipInteract {
         return (id.endsWith("_door") || id.endsWith("_trapdoor") || id.endsWith("fence_gate")) && !id.startsWith("iron_");
     }
 
-    private void toggle(Ship s, int dx, int dy, int dz, Block b, String id) {
+    private void toggle(Cells c, int dx, int dy, int dz, Block b, String id) {
         boolean opened = !"true".equals(b.getProperty("open"));
         String v = String.valueOf(opened);
         List<int[]> changed = new ArrayList<>();
-        set(s, dx, dy, dz, with(b, "open", v));
+        c.set(dx, dy, dz, with(b, "open", v));
         changed.add(new int[]{dx, dy, dz});
         if (id.endsWith("_door")) {
             int oy = "upper".equals(b.getProperty("half")) ? dy - 1 : dy + 1;
-            Block o = blockAt(s, dx, oy, dz);
-            if (o != null && id(o).equals(id)) { set(s, dx, oy, dz, with(o, "open", v)); changed.add(new int[]{dx, oy, dz}); }
+            Block o = c.get(dx, oy, dz);
+            if (o != null && id(o).equals(id)) { c.set(dx, oy, dz, with(o, "open", v)); changed.add(new int[]{dx, oy, dz}); }
         }
         String snd = id.endsWith("_trapdoor") ? "block.wooden_trapdoor." : id.endsWith("fence_gate") ? "block.fence_gate." : "block.wooden_door.";
-        sound(s, dx, dy, dz, snd + (opened ? "open" : "close"));
-        commit(s, changed);
+        sound(c, dx, dy, dz, snd + (opened ? "open" : "close"));
+        commit(c, changed);
     }
 
     // ───────────────────────── сундуки ─────────────────────────
 
     private static String cellKey(int dx, int dy, int dz) { return dx + "," + dy + "," + dz; }
 
-    private void openChest(Player p, Ship s, int dx, int dy, int dz, Block b, String id) {
+    private void openChest(Player p, Cells c, int dx, int dy, int dz, Block b, String id) {
+        Ship s = c.ship();
         String key = cellKey(dx, dy, dz);
         int size = 27;
         // двойной сундук: соседняя половина (как у игры: left — по часовой от facing, right — против)
@@ -234,7 +374,7 @@ final class ShipInteract {
             if (f >= 0) {
                 int d = type.equals("left") ? (f + 1) & 3 : (f + 3) & 3;
                 int ox = dx + HV[d][0], oz = dz + HV[d][2];
-                Block o = blockAt(s, ox, dy, oz);
+                Block o = c.get(ox, dy, oz);
                 if (o != null && id(o).equals(id)) {
                     String ok = cellKey(ox, dy, oz);
                     if (ok.compareTo(key) < 0) key = ok;                        // одна пара — одно окно
@@ -253,7 +393,7 @@ final class ShipInteract {
             openKey.put(inv, new String[]{s.owner, key});
         }
         p.openInventory(inv);
-        sound(s, dx, dy, dz, id.equals("barrel") ? "block.barrel.open" : "block.chest.open");
+        sound(c, dx, dy, dz, id.equals("barrel") ? "block.barrel.open" : "block.chest.open");
     }
 
     private void closeChest(Ship s, String key) {
@@ -292,16 +432,17 @@ final class ShipInteract {
 
     private void drop(Player p, ItemStack it) {
         net.minestom.server.entity.ItemEntity e = new net.minestom.server.entity.ItemEntity(it);
-        e.setInstance(p.getInstance(), p.getPosition().add(0, 1, 0));
+        var at = p.getPosition().add(0, 1, 0);
+        if (!mod.deck.place(e, p.getInstance(), at, net.minestom.server.coordinate.Vec.ZERO))   // на палубе — в верфь
+            { e.scheduleRemove(java.time.Duration.ofMinutes(5)); e.setInstance(p.getInstance(), at); }
     }
 
     // ───────────────────────── постановка блока ─────────────────────────
 
     /** Состояние ставимого блока: поворот по взгляду игрока (в системе корабля), ось по грани, верх/низ по точке. */
-    private Block orient(Block b, Player p, Ship s, int face, float hy) {
+    private static Block orient(Block b, Player p, Cells c, int face, float hy) {
         String id = id(b);
-        // взгляд игрока → в систему корабля
-        float[] q = Rot.quat(s.myaw, s.mpitch, s.mroll, s.mturn);
+        float[] q = c.rot();
         float[] inv = {-q[0], -q[1], -q[2], q[3]};
         Vec look = p.getPosition().direction();
         double[] l = Rot.rotate(inv, look.x(), look.y(), look.z());
@@ -337,45 +478,24 @@ final class ShipInteract {
 
     // ───────────────────────── изменение корабля ─────────────────────────
 
-    private static void add(Ship s, int dx, int dy, int dz, Block b) {
-        s.mparts.add(new int[]{dx, dy, dz});
-        s.mblocks.add(b.state());
-    }
-
-    private static void set(Ship s, int dx, int dy, int dz, Block b) {
-        int i = find(s, dx, dy, dz);
-        if (i >= 0) s.mblocks.set(i, b.state());
-    }
-
-    private static void remove(Ship s, int dx, int dy, int dz) {
-        int i = find(s, dx, dy, dz);
-        if (i < 0) return;
-        s.mparts.remove(i);
-        s.mblocks.remove(i);
-    }
-
-    /** Сохранить и разослать изменённые клетки всем. */
-    private void commit(Ship s, List<int[]> cells) {
-        mod.saveShips();
-        Entity a = mod.parked.get(s.owner);
-        if (a == null) return;
-        for (int[] c : cells) {
-            Block b = blockAt(s, c[0], c[1], c[2]);
-            mod.client.cell(a.getEntityId(), c[0], c[1], c[2], b == null ? 0 : b.stateId());
+    /** Сохранить (стоящий — сразу; летящий — при стоянке) и разослать изменённые клетки всем. */
+    private void commit(Cells c, List<int[]> cells) {
+        if (!c.flying()) mod.saveShips();
+        int a = c.anchor();
+        for (int[] q : cells) {
+            Block b = c.get(q[0], q[1], q[2]);
+            mod.client.cell(a, q[0], q[1], q[2], b == null ? 0 : b.stateId());
         }
     }
 
-    private void sound(Ship s, int dx, int dy, int dz, String key) {
-        Instance inst = mod.instanceOf(s);
+    private static void sound(Cells c, int dx, int dy, int dz, String key) {
+        Instance inst = c.instance();
         if (inst == null) return;
-        Vec w = cellWorld(s, dx, dy, dz);
+        Vec w = cellWorld(c, dx, dy, dz);
         inst.playSound(Sound.sound(Key.key(key), Sound.Source.BLOCK, 1f, 1f), w.x(), w.y(), w.z());
     }
 
     private static void deny(Player p, Ship s) {
         p.sendActionBar(Component.text("Это корабль игрока " + s.ownerName, NamedTextColor.RED));
     }
-
-    @SuppressWarnings("unused")
-    private static Pos pos(Vec v) { return new Pos(v.x(), v.y(), v.z()); }
 }

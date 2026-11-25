@@ -1,0 +1,13 @@
+{
+  "required": false,
+  "package": "ink.hoka.odyssey.client.mixin.compat",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "SodiumTallMixin",
+    "SodiumOptionsMixin",
+    "SodiumOcclusionMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

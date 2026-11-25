@@ -94,7 +94,7 @@ public abstract class EntityCollisionMixin {
      */
     @Unique
     private Vec3 through(ClientContext.Body b, AABB box, Vec3 v, float step) {
-        Matrix4d toWorld = new Matrix4d(b.toWorld()), toLocal = new Matrix4d(toWorld).invert();
+        Matrix4d toWorld = new Matrix4d(b.toWorldD()), toLocal = new Matrix4d(toWorld).invert();
         Matrix3d rot = toWorld.get3x3(new Matrix3d()), inv = new Matrix3d(rot).transpose();
         // коробка в системе тела — от ног вверх по «вверх» тела (стоит на палубе прямо): на наклонном корабле рост
         // коробки (встал из приседа) идёт вверх, а не вбок в стену. Чуть меньше (как у игры): касание ≠ «внутри».

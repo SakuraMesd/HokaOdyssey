@@ -1,0 +1,50 @@
+package ink.hoka.odyssey.client.mixin.compat;
+
+import ink.hoka.odyssey.client.CubeCacheSetting;
+import ink.hoka.odyssey.client.VerticalView;
+import net.caffeinemc.mods.sodium.api.config.option.OptionImpact;
+import net.caffeinemc.mods.sodium.api.config.structure.ConfigBuilder;
+import net.caffeinemc.mods.sodium.api.config.structure.OptionPageBuilder;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+/**
+ * Sodium заменяет экран графики: ползунок «Дальность по высоте» — своей группой на странице «Общие», где «Дальность
+ * прорисовки». Опция строится обычным config API Sodium (ConfigBuilder). Необязательный (@Pseudo, require 0).
+ */
+@Pseudo
+@Mixin(targets = "net.caffeinemc.mods.sodium.client.gui.SodiumConfigBuilder", remap = false)
+public abstract class SodiumOptionsMixin {
+
+    @Inject(method = "buildGeneralPage", at = @At("RETURN"), remap = false)
+    private void hoka$vertical(ConfigBuilder builder, CallbackInfoReturnable<OptionPageBuilder> cir) {
+        OptionPageBuilder page = cir.getReturnValue();
+        if (page == null) return;
+        page.addOptionGroup(builder.createOptionGroup()
+                .setName(Component.literal("Hoka Odyssey"))
+                .addOption(builder.createIntegerOption(Identifier.fromNamespaceAndPath("hoka_odyssey", "vertical_distance"))
+                        .setName(Component.translatable("options.hoka_odyssey.vertical"))
+                        .setTooltip(Component.translatable("options.hoka_odyssey.vertical.tooltip"))
+                        .setRange(VerticalView.MIN, VerticalView.MAX, 1)
+                        .setDefaultValue(VerticalView.DEFAULT)
+                        .setValueFormatter(v -> Component.translatable("options.hoka_odyssey.vertical.value", v))
+                        .setImpact(OptionImpact.HIGH)
+                        .setBinding(VerticalView::set, VerticalView::get)
+                        .setStorageHandler(VerticalView::save))
+                .addOption(builder.createIntegerOption(Identifier.fromNamespaceAndPath("hoka_odyssey", "cube_cache"))   // 0.51
+                        .setName(Component.translatable("options.hoka_odyssey.cube_cache"))
+                        .setTooltip(Component.translatable("options.hoka_odyssey.cube_cache.tooltip"))
+                        .setRange(0, CubeCacheSetting.MAX, CubeCacheSetting.STEP)
+                        .setDefaultValue(Math.round(CubeCacheSetting.DEFAULT / (float) CubeCacheSetting.STEP) * CubeCacheSetting.STEP)
+                        .setValueFormatter(v -> v == 0 ? Component.translatable("options.hoka_odyssey.cube_cache.off")
+                                : Component.translatable("options.hoka_odyssey.cube_cache.value", v))
+                        .setImpact(OptionImpact.LOW)
+                        .setBinding(CubeCacheSetting::set, CubeCacheSetting::get)
+                        .setStorageHandler(CubeCacheSetting::save)));
+    }
+}

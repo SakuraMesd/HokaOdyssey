@@ -50,24 +50,39 @@ public final class ShipsClientModule implements ClientModule {
         gravity = new ShipGravity(ctx);
         target = new ShipTarget(ctx);
         ctx.onTick(() -> {
+            for (Other o : others.values()) o.mesh.tickLids();                 // крышки сундуков кораблей
+            tickDeck();
+            if (pilot != null) pilot.mesh.tickLids();
             if (pilot != null) pilot.tick();
-            carry();
             if (gravityHooks) gravity.select(gravityShips(), pilot != null);
-            unstuck();
             deck();
             if (pilot == null) target.tick(targets()); else target.tick(java.util.List.of());
         });
         ctx.onMouse((dy, dp) -> pilot != null ? pilot.mouse(dy, dp) : gravity.mouse(dy, dp));
+        try {                                                                   // ядро 0.43+: колёсико по блоку корабля
+            ctx.onPick(ctrl -> target.pick(ctrl));
+        } catch (LinkageError old) {
+        }
         ctx.onCamera((s, pt) -> {
-            if (pilot != null) { pilot.camera(s, pt); return; }
-            float w = deckW0 + (deckW - deckW0) * pt;
-            deckCamera(s, pt);
-            gravity.camera(s, pt, w);
+            if (pilot != null) { pilot.camera(s, pt); gravity.resetView(); }
+            else {
+                float w = deckW0 + (deckW - deckW0) * pt;
+                if (!gravityHooks) deckCamera(s, pt);                           // старое ядро — только глаза по палубе
+                gravity.camera(s, pt, w);
+            }
+            seatBlend(s);
         });
         try {                                                                   // гравитация корабля — ядро 0.21+
             ctx.onInput(in -> gravity.input(in));
             ctx.onLocalTravel(p -> gravity.travel(p));
+            ctx.onLocalTravelEnd(p -> gravity.travelEnd(p));
             gravityHooks = true;
+            try {                                                               // ядро 0.36+: в системе корабля — весь тик игрока
+                ctx.onLocalTick(p -> gravity.frameEnter(p), p -> gravity.frameExit(p));
+                gravity.wholeTick = true;
+            } catch (LinkageError old) {
+                ctx.logger().warn("ядро мода старше 0.36 — на корабле ноги и частицы бега не как у игры до обновления мода");
+            }
         } catch (LinkageError e) {
             ctx.logger().warn("ядро мода старше 0.21 — гравитации внутри корабля нет до обновления мода");
         }
@@ -76,12 +91,24 @@ public final class ShipsClientModule implements ClientModule {
         } catch (LinkageError e) {
             ctx.logger().warn("ядро мода старше 0.25 — двери, сундуки и стройка на корабле не работают до обновления мода");
         }
+        try {                                                                   // рамка выделения как у игры — ядро 0.26+
+            ctx.onOutline((ps, buffers, cam, pt) -> pilot == null && target.outline(ps, buffers, cam, pt));
+        } catch (LinkageError e) {
+            ctx.logger().warn("ядро мода старше 0.26 — рамки выделения на корабле нет до обновления мода");
+        }
         try {                                                                   // модели игроков — по палубе корабля (ядро 0.22+)
             ctx.onEntityTilt(this::tilt);
+            try {                                                               // ядро 0.37+: своя модель — углы палубы; частицы верфи — на корабле
+                ctx.onEntityPose((e, pt) -> e == Minecraft.getInstance().player ? gravity.pose(pt) : null);
+                ctx.setYardResolver(this::yardToWorld);
+                try { ctx.setLocalView(pt -> gravity.localView()); gravity.handLocal = true; } catch (LinkageError old) { }
+            } catch (LinkageError old) {
+                ctx.logger().warn("ядро мода старше 0.37 — частицы на корабле и поза модели по-старому до обновления мода");
+            }
         } catch (LinkageError e) {
             ctx.logger().warn("ядро мода старше 0.22 — игроки на корабле рисуются ровно по миру");
         }
-        ctx.onHud((g, d) -> { if (pilot != null) pilot.hud(g, d); });
+        ctx.onHud((g, d) -> { if (pilot != null) pilot.hud(g, d); else gravity.hud(g); });
         try {
             ctx.onCollision(this::collide);
         } catch (LinkageError e) {                                              // ядро старше 0.13 — без столкновений
@@ -91,8 +118,11 @@ public final class ShipsClientModule implements ClientModule {
 
     @Override
     public void disable() {
+        var me = Minecraft.getInstance().player;
+        if (me != null && gravity != null) gravity.frameExit(me);               // выгрузка посреди тика — вернуть игрока в мир
         if (pilot != null) pilot.end();
         pilot = null;
+        for (Other o : others.values()) o.mesh.release();
         others.clear();
         ShipHud.release();
     }
@@ -106,11 +136,14 @@ public final class ShipsClientModule implements ClientModule {
                     float seatH = in.readFloat(), turn = in.readFloat();
                     Other old = others.get(anchor);
                     Other o = new Other(anchor, new ShipMesh(parts(in), seatH, turn));
-                    if (old != null) o.last = old.last;                         // тот же корабль — не терять «где был»
+                    if (in.available() > 0 && in.readUnsignedByte() == 1)          // корабль в верфи: где его плот
+                        o.mesh.yard = new int[]{in.readInt(), in.readInt(), in.readInt()};
+                    if (old != null) { o.last = old.last; old.mesh.release(); } // тот же корабль — не терять «где был»
                     others.put(anchor, o);
                 }
-                case 2 -> others.remove(in.readInt());                          // DETACH
+                case 2 -> { Other gone = others.remove(in.readInt()); if (gone != null) gone.mesh.release(); }   // DETACH
                 case 3 -> {                                                     // START — ты пилот
+                    camBlend = true;                                            // с палубы в кабину — камера доезжает
                     int anchor = in.readInt();
                     double x = in.readDouble(), y = in.readDouble(), z = in.readDouble();
                     float baseYaw = in.readFloat(), seatH = in.readFloat();
@@ -118,11 +151,21 @@ public final class ShipsClientModule implements ClientModule {
                     in.readFully(js);
                     JsonObject cfg = JsonParser.parseString(new String(js, StandardCharsets.UTF_8)).getAsJsonObject();
                     if (pilot != null) pilot.end();
-                    pilot = new Pilot(ctx, anchor, x, y, z, baseYaw, seatH, cfg, parts(in));
-                    ctx.logger().info("полёт: блоков {}", pilot.mesh.parts.length);
+                    int mode = in.readUnsignedByte();
+                    if (mode == 1) {                                            // корабль из верфи: сетка — та же, что у модели на якоре
+                        in.readInt(); in.readInt(); in.readInt();
+                        Other o = others.get(anchor);
+                        ShipMesh shared = o != null ? o.mesh : new ShipMesh(new int[0][], seatH, baseYaw);
+                        pilot = new Pilot(ctx, anchor, x, y, z, baseYaw, cfg, shared, o == null);
+                    } else pilot = new Pilot(ctx, anchor, x, y, z, baseYaw, seatH, cfg, parts(in));
+                    ctx.logger().info("полёт: блоков {}", pilot.mesh.cells.size());
                 }
                 case 4 -> {                                                     // END
-                    if (pilot != null) pilot.end();
+                    Pilot was = pilot;
+                    if (pilot != null) { gravity.seedUp(pilot.cameraRotation().transform(new org.joml.Vector3f(0, 1, 0))); pilot.end(); }
+                    pilot = null;
+                    if (was != null) standUp(was);                              // слезли с кресла — на свободную клетку рядом
+                    camBlend = true;                                            // из кабины на сиденье — камера доезжает
                     pilot = null;
                     snapDeck = true;                                            // из кабины — сразу «на палубе», без перехода
                 }
@@ -131,11 +174,30 @@ public final class ShipsClientModule implements ClientModule {
                     float yaw = in.readFloat(), pitch = in.readFloat(), roll = in.readFloat();
                     if (pilot != null) pilot.correct(x, y, z, yaw, pitch, roll);
                 }
+                case 8 -> {                                                     // LID — крышка сундука корабля
+                    int anchor = in.readInt();
+                    int dx = in.readShort(), dy = in.readShort(), dz = in.readShort(), n = in.readUnsignedByte();
+                    Other o = others.get(anchor);
+                    if (o != null) o.mesh.lid(dx, dy, dz, n);
+                    if (pilot != null && pilot.anchor == anchor && (o == null || pilot.mesh != o.mesh)) pilot.mesh.lid(dx, dy, dz, n);
+                    Minecraft mc = Minecraft.getInstance();                     // звук — там, где сундук на корабле
+                    if (o != null && mc.level != null && mc.level.getEntity(anchor) instanceof Display d && d.renderState() != null) {
+                        org.joml.Vector3f w = ship(d, o).place().transformPosition(new org.joml.Vector3f(dx, dy - o.mesh.seatH + 0.5f, dz));
+                        var snd = n > 0 ? net.minecraft.sounds.SoundEvents.CHEST_OPEN : net.minecraft.sounds.SoundEvents.CHEST_CLOSE;
+                        if (n <= 1) mc.level.playLocalSound(w.x, w.y, w.z, snd, net.minecraft.sounds.SoundSource.BLOCKS, 0.5f,
+                                mc.level.random.nextFloat() * 0.1f + 0.9f, false);
+                    }
+                }
+                case 7 -> {                                                     // LEVEL — есть ли здесь автовыравнивание
+                    boolean ok = in.readUnsignedByte() != 0;
+                    if (pilot != null) pilot.levelAllowed(ok);
+                }
                 case 6 -> {                                                     // CELL — клетка корабля изменилась
                     int anchor = in.readInt();
                     int dx = in.readShort(), dy = in.readShort(), dz = in.readShort(), id = in.readInt();
                     Other o = others.get(anchor);
                     if (o != null) o.mesh.update(dx, dy, dz, id);
+                    if (pilot != null && pilot.anchor == anchor && (o == null || pilot.mesh != o.mesh)) pilot.mesh.update(dx, dy, dz, id);
                 }
                 default -> { }
             }
@@ -158,6 +220,22 @@ public final class ShipsClientModule implements ClientModule {
     private void collide(Entity entity, AABB area, java.util.List<ClientContext.Body> out) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || others.isEmpty()) return;
+        org.joml.Matrix4d yard = entity == mc.player ? gravity.yardFrame() : null;
+        if (yard != null) {                                                     // шаг в верфи: земля мира — тело (у корабля на земле)
+            org.joml.Matrix4d worldToYard = new org.joml.Matrix4d(yard);
+            var level = mc.level;
+            out.add(new ClientContext.Body() {
+                @Override public org.joml.Matrix4fc toWorld() { return new org.joml.Matrix4f(worldToYard); }
+                @Override public org.joml.Matrix4d toWorldD() { return worldToYard; }
+                @Override public java.util.List<net.minecraft.world.phys.shapes.VoxelShape> shapes(AABB a) {
+                    java.util.List<net.minecraft.world.phys.shapes.VoxelShape> list = new java.util.ArrayList<>();
+                    if (a.minX >= 399_000) return list;                         // «мир» в самой верфи — пусто
+                    for (var sh : level.getBlockCollisions(null, a)) list.add(sh);
+                    return list;
+                }
+            });
+            return;                                                             // корабли в мире — не в этой системе
+        }
         Vec3 c = area.getCenter();
         double rad = Math.sqrt(area.getXsize() * area.getXsize() + area.getYsize() * area.getYsize() + area.getZsize() * area.getZsize()) / 2 + 1.5;
         for (Other o : others.values()) {
@@ -187,11 +265,51 @@ public final class ShipsClientModule implements ClientModule {
 
     private boolean gravityHooks;
 
+    // ── посадка в кресло / выход: камера доезжает до нового места и поворота, а не прыгает ──
+    private boolean camBlend;
+    private org.joml.Vector3d camPos, offPos;
+    private org.joml.Quaternionf camRot, offRot;
+    private long camFrame;
+
+    private void seatBlend(ink.hoka.odyssey.client.api.CameraState s) {
+        long now = System.nanoTime();
+        double dt = camFrame == 0 ? 0 : Math.min(0.1, (now - camFrame) / 1e9);
+        camFrame = now;
+        org.joml.Quaternionf rot;
+        try {
+            rot = s.rotation != null ? new org.joml.Quaternionf(s.rotation) : null;
+        } catch (LinkageError old) {
+            return;                                                             // ядро до 0.21
+        }
+        if (rot == null) rot = new org.joml.Quaternionf().rotationYXZ((float) Math.PI - (float) Math.toRadians(s.yaw), (float) -Math.toRadians(s.pitch),
+                (float) Math.toRadians(s.roll));
+        org.joml.Vector3d pos = new org.joml.Vector3d(s.x, s.y, s.z);
+        if (camBlend && camPos != null && camRot != null && camPos.distance(pos) < 8) {
+            offPos = new org.joml.Vector3d(camPos).sub(pos);                    // откуда прыгнули бы
+            offRot = new org.joml.Quaternionf(camRot).mul(new org.joml.Quaternionf(rot).conjugate());
+        }
+        camBlend = false;
+        if (offPos != null) {
+            double k = Math.exp(-dt * 9);                                       // ~0.3 с до 95%
+            offPos.mul(k);
+            offRot = new org.joml.Quaternionf().slerp(offRot, (float) k);
+            if (offPos.lengthSquared() < 1e-6 && Math.abs(offRot.w) > 0.99999f) { offPos = null; offRot = null; }
+            else {
+                pos.add(offPos);
+                rot = new org.joml.Quaternionf(offRot).mul(rot);
+                s.x = pos.x; s.y = pos.y; s.z = pos.z;
+                s.rotation = rot;
+            }
+        }
+        camPos = pos;
+        camRot = rot;
+    }
+
     /** Модель игрока внутри корабля — по его палубе (свой — по гравитации корабля, чужие — по коробке корабля). */
     private org.joml.Quaternionfc tilt(Entity e, float pt) {
         if (!(e instanceof net.minecraft.world.entity.player.Player pl) || pl.isPassenger() || others.isEmpty()) return null;
         Minecraft mc = Minecraft.getInstance();
-        if (pl == mc.player) return gravity.active() ? gravity.shipRotation(pt) : null;
+        if (pl == mc.player) return gravity.modelTilt(pt);
         if (pl.getAbilities().flying || pl.isSpectator()) return null;
         Vec3 pos = pl.getPosition(pt);
         for (ShipGravity.Ship s : gravityShips(pos)) if (ShipGravity.inside(s, pos, 0.1f)) return s.placeAt(pt).getNormalizedRotation(new org.joml.Quaternionf());
@@ -217,7 +335,43 @@ public final class ShipsClientModule implements ClientModule {
         return list;
     }
 
-    private static ShipGravity.Ship ship(Display d, Other o) {
+    /**
+     * Слезли с кресла пилота: встать на свободную клетку из 8 вокруг кресла (на 1/100 блока над её полом). Ставит мод —
+     * сразу в системе корабля (верфи): поза, по которой посадил сервер, отстаёт от той, что была у пилота, и игрока
+     * заталкивало в блоки. Нет свободной — на само кресло.
+     */
+    private void standUp(Pilot was) {
+        Minecraft mc = Minecraft.getInstance();
+        ShipMesh m = was.mesh;
+        if (mc.player == null || mc.level == null || m.yard == null) return;
+        Other o = others.get(was.anchor);
+        if (o == null || o.mesh != m || !(mc.level.getEntity(was.anchor) instanceof Display d) || d.renderState() == null) return;
+        int[] c = m.seatExit();
+        int dx = c != null ? c[0] : 0, dy = c != null ? c[1] : 1, dz = c != null ? c[2] : 0;
+        org.joml.Vector3f w = ship(d, o).place().transformPosition(new org.joml.Vector3f(dx, dy - m.seatH + 0.01f, dz));
+        var p = mc.player;
+        p.setPos(w.x, w.y, w.z);
+        p.xo = p.xOld = w.x; p.yo = p.yOld = w.y; p.zo = p.zOld = w.z;
+        p.setDeltaMovement(Vec3.ZERO);
+        p.resetFallDistance();
+        gravity.seedDeck(m, new org.joml.Vector3d(m.yard[0] + 0.5 + dx, m.yard[1] + dy + 0.01, m.yard[2] + 0.5 + dz));
+    }
+
+    /** Точка верфи → корабль в мире (кадр pt): чей плот рядом с точкой, тот и везёт. */
+    private org.joml.Matrix4d yardToWorld(double x, double y, double z, float pt) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return null;
+        for (Other o : others.values()) {
+            int[] yd = o.mesh.yard;
+            if (yd == null || Math.abs(x - yd[0]) > 160 || Math.abs(z - yd[2]) > 128) continue;
+            if (!(mc.level.getEntity(o.anchor) instanceof Display d) || d.renderState() == null) continue;
+            return new org.joml.Matrix4d(ship(d, o).placeAt(pt)).translate(-(yd[0] + 0.5), -(yd[1] + o.mesh.seatH), -(yd[2] + 0.5));
+        }
+        return null;
+    }
+
+    private ShipGravity.Ship ship(Display d, Other o) {
+        if (pilot != null && pilot.anchor == o.anchor && pilot.mesh == o.mesh) return pilot.pose();   // свой летящий — по позе пилота
         return new ShipGravity.Ship() {
             @Override public org.joml.Matrix4f place() { return ShipsClientModule.place(d, o); }
 
@@ -254,127 +408,8 @@ public final class ShipsClientModule implements ClientModule {
                 .rotateY((float) Math.toRadians(o.mesh.turn));
     }
 
-    /**
-     * Стоящих на корабле — везти вместе с ним: корабль сдвинулся/повернулся с прошлого тика — игрок тоже (точка
-     * ног в системе корабля та же), и взгляд поворачивается на столько же.
-     */
-    private void carry() {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || mc.player == null || others.isEmpty()) return;
-        var p = mc.player;
-        for (Other o : others.values()) {
-            Entity e = mc.level.getEntity(o.anchor);
-            if (!(e instanceof Display d) || d.renderState() == null) { o.last = null; continue; }
-            org.joml.Matrix4f now = place(d, o);
-            org.joml.Matrix4f last = o.last;
-            o.last = now;
-            if (last == null || pilot != null || p.isPassenger()) continue;
-            if (last.equals(now, 1e-6f)) continue;                              // корабль стоит — не трогать (без дрожи float)
-            org.joml.Vector3d lpd = new org.joml.Matrix4d(last).invert().transformPosition(new org.joml.Vector3d(p.getX(), p.getY(), p.getZ()));
-            org.joml.Vector3f lp = new org.joml.Vector3f((float) lpd.x, (float) lpd.y, (float) lpd.z);
-            // стоит на корабле: под ногами (в системе корабля) — блок корабля, и игрок не летит/не падает далеко
-            int dx = Math.round(lp.x), dz = Math.round(lp.z), dy = (int) Math.floor(lp.y + o.mesh.seatH - 0.05f);
-            boolean inGravity = gravity != null && gravity.isOn(o.mesh);
-            boolean on = inGravity || o.mesh.shape(dx, dy, dz) != null || o.mesh.shape(dx, dy - 1, dz) != null;
-            if (!on || p.getAbilities().flying) continue;
-            org.joml.Vector3d np = new org.joml.Matrix4d(now).transformPosition(new org.joml.Vector3d(lpd));
-            double mx = np.x - p.getX(), my = np.y - p.getY(), mz = np.z - p.getZ();
-            if (mx * mx + my * my + mz * mz < 1e-8) continue;
-            if (mx * mx + my * my + mz * mz > 64) continue;                     // скачок — не наш случай
-            p.setPos(np.x, np.y, np.z);
-            // поворот взгляда — на поворот корабля вокруг вертикали
-            org.joml.Vector3f f0 = last.transformDirection(new org.joml.Vector3f(0, 0, 1)), f1 = now.transformDirection(new org.joml.Vector3f(0, 0, 1));
-            float a0 = (float) Math.toDegrees(Math.atan2(-f0.x, f0.z)), a1 = (float) Math.toDegrees(Math.atan2(-f1.x, f1.z));
-            float dyaw = net.minecraft.util.Mth.wrapDegrees(a1 - a0);
-            if (!inGravity && Math.abs(dyaw) > 1e-3f) {
-                p.setYRot(p.getYRot() + dyaw);
-                p.yRotO += dyaw;
-                p.setYHeadRot(p.getYHeadRot() + dyaw);
-            }
-        }
-    }
 
-    /**
-     * Страховка (как у игры для обычных блоков): игрок оказался внутри блоков корабля (резкий манёвр, присел/встал)
-     * — вытолкнуть: вверх на палубу, если до неё меньше 0.75 блока, иначе в ближайшую сторону. Изнутри блок игрока
-     * не держит, поэтому без этого он «тонет».
-     */
-    /** Коробка (система корабля) пересекает блоки корабля. */
-    private static boolean blocked(ShipMesh m, AABB lb) {
-        int x0 = (int) Math.floor(lb.minX + 0.5), x1 = (int) Math.floor(lb.maxX + 0.5);
-        int y0 = (int) Math.floor(lb.minY + m.seatH), y1 = (int) Math.floor(lb.maxY + m.seatH);
-        int z0 = (int) Math.floor(lb.minZ + 0.5), z1 = (int) Math.floor(lb.maxZ + 0.5);
-        for (int dy = y0; dy <= y1; dy++) for (int dz = z0; dz <= z1; dz++) for (int dx = x0; dx <= x1; dx++) {
-            var sh = m.shape(dx, dy, dz);
-            if (sh == null) continue;
-            for (AABB a : sh.toAabbs()) if (a.intersects(lb)) return true;
-        }
-        return false;
-    }
 
-    private void unstuck() {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || mc.player == null || others.isEmpty() || pilot != null) return;
-        var p = mc.player;
-        if (p.isSpectator() || p.getAbilities().flying || p.isPassenger()) return;
-        AABB box = p.getBoundingBox();
-        for (Other o : others.values()) {
-            Entity e = mc.level.getEntity(o.anchor);
-            if (!(e instanceof Display d) || d.renderState() == null) continue;
-            if (d.position().distanceTo(box.getCenter()) > o.mesh.radius + 3) continue;
-            org.joml.Matrix4d toWorld = new org.joml.Matrix4d(place(d, o)), toLocal = new org.joml.Matrix4d(toWorld).invert();
-            // как в ядре: коробка от ног вверх по «вверх» корабля
-            org.joml.Vector3d c = toLocal.transformPosition(new org.joml.Vector3d((box.minX + box.maxX) / 2, box.minY, (box.minZ + box.maxZ) / 2));
-            double hx = box.getXsize() / 2 - 0.01, hz = box.getZsize() / 2 - 0.01, hy = 0.01;
-            AABB lb = new AABB(c.x - hx, c.y + 0.01, c.z - hz, c.x + hx, c.y + box.getYsize() - 0.01, c.z + hz);
-            // пересечения с блоками корабля (в его системе)
-            double up = 0, best = Double.MAX_VALUE;
-            double[] push = null;
-            boolean any = false;
-            int x0 = (int) Math.floor(lb.minX + 0.5), x1 = (int) Math.floor(lb.maxX + 0.5);
-            int y0 = (int) Math.floor(lb.minY + o.mesh.seatH), y1 = (int) Math.floor(lb.maxY + o.mesh.seatH);
-            int z0 = (int) Math.floor(lb.minZ + 0.5), z1 = (int) Math.floor(lb.maxZ + 0.5);
-            java.util.List<AABB> hit = new java.util.ArrayList<>();
-            for (int dy = y0; dy <= y1; dy++) for (int dz = z0; dz <= z1; dz++) for (int dx = x0; dx <= x1; dx++) {
-                var sh = o.mesh.shape(dx, dy, dz);
-                if (sh == null) continue;
-                for (AABB a : sh.toAabbs()) if (a.intersects(lb)) {
-                    hit.add(a);
-                    any = true;
-                    // пол: блок прямо под серединой ног, верх чуть выше ног (стены сбоку — не пол)
-                    boolean under = c.x >= a.minX && c.x <= a.maxX && c.z >= a.minZ && c.z <= a.maxZ;
-                    if (under && a.maxY - lb.minY <= 0.6 && a.minY <= lb.minY + 0.05) up = Math.max(up, a.maxY - lb.minY);
-                }
-            }
-            if (!any) continue;
-            // в пол — поднять на палубу; в стену чуть-чуть (до трети блока) — назад, где свободно; иначе не трогать
-            if (up > 0) { push = new double[]{0, up + 0.011, 0}; best = up; }
-            else {
-                double[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-                for (double[] dv : dirs) {
-                    double need = 0;
-                    for (AABB a : hit) {
-                        double n = dv[0] > 0 ? a.maxX - lb.minX : dv[0] < 0 ? lb.maxX - a.minX : dv[1] > 0 ? a.maxZ - lb.minZ : lb.maxZ - a.minZ;
-                        need = Math.max(need, n);
-                    }
-                    double[] cand = {dv[0] * (need + 0.011), 0, dv[1] * (need + 0.011)};
-                    if (need <= 0.34 && need < best && !blocked(o.mesh, lb.move(cand[0], 0, cand[2]))) { best = need; push = cand; }
-                }
-            }
-            if (push == null || best > 2.5) continue;
-            org.joml.Vector3d w = new org.joml.Vector3d(push[0], push[1], push[2]);
-            toWorld.transformDirection(w);
-            p.setPos(p.getX() + w.x, p.getY() + w.y, p.getZ() + w.z);
-            if (gravity != null) gravity.moved(w.x, w.y, w.z);
-            if (push[1] > 0) {                                                  // встал на палубу — не падать дальше
-                var m = p.getDeltaMovement();
-                p.setDeltaMovement(m.x, Math.max(0, m.y), m.z);
-                p.setOnGround(true);
-                p.resetFallDistance();
-            }
-            return;
-        }
-    }
 
     /** Корабль под ногами: поворот его системы (для глаз) и плавный вес перехода «на палубе / не на палубе». */
     private org.joml.Matrix3f deckRot;
@@ -405,7 +440,7 @@ public final class ShipsClientModule implements ClientModule {
             }
         }
         if (found != null) deckRot = found;
-        deckW = Math.max(0, Math.min(1, deckW + (found != null ? 0.25f : -0.25f)));
+        deckW = Math.max(0, Math.min(1, deckW + (found != null ? 0.1f : -0.1f)));
         if (snapDeck && found != null) { deckW = deckW0 = 1; snapDeck = false; }
         if (deckW == 0 && deckW0 == 0) deckRot = null;
     }
@@ -418,6 +453,7 @@ public final class ShipsClientModule implements ClientModule {
         if (s.detached || deckRot == null) return;
         float w = deckW0 + (deckW - deckW0) * pt;
         if (w <= 0) return;
+        w = w * w * (3 - 2 * w);                                                // плавный разгон и остановка
         var p = Minecraft.getInstance().player;
         if (p == null) return;
         double eye = s.y - net.minecraft.util.Mth.lerp(pt, p.yo, p.getY());    // высота глаз (плавная при приседе)
@@ -425,6 +461,75 @@ public final class ShipsClientModule implements ClientModule {
         s.x += u.x * w;
         s.y += (u.y - eye) * w;
         s.z += u.z * w;
+    }
+
+    /**
+     * Сущности палубы (предметы) — живут в верфи корабля (сервер показывает их нам), рисуем их на корабле: смещение от
+     * клетки пилота в верфи — то же, что от пилота на корабле. Игра сама их не рисует (далеко от камеры).
+     */
+    private void deckEntities(Other o, PoseStack ps, ClientContext.WorldFrame f, int light) {
+        int[] yd = o.mesh.yard;
+        Minecraft mc = Minecraft.getInstance();
+        if (yd == null || mc.level == null) return;
+        net.minecraft.client.renderer.state.CameraRenderState cam;
+        try { cam = f.cameraState(); } catch (LinkageError e) { return; }
+        double ox = yd[0] + 0.5, oy = yd[1] + o.mesh.seatH, oz = yd[2] + 0.5, r = o.mesh.radius + 3;
+        var list = mc.level.getEntities((Entity) null, new AABB(ox - r, oy - r, oz - r, ox + r, oy + r, oz + r),
+                en -> !(en instanceof net.minecraft.world.entity.player.Player));
+        if (list.isEmpty()) return;
+        var disp = mc.getEntityRenderDispatcher();
+        float pt = f.partialTick();
+        ps.pushPose();
+        ps.mulPose(com.mojang.math.Axis.YP.rotationDegrees(o.mesh.turn));
+        for (Entity en : list) {
+            try {
+                keepTicking(en);                                                // отрисовка Entity Culling только что пометила «вне камеры»
+                if (en.tickCount == 0) { en.xOld = en.getX(); en.yOld = en.getY(); en.zOld = en.getZ(); }
+                var st = disp.extractEntity(en, pt);
+                st.lightCoords = light;                                         // свет — где корабль
+                st.shadowPieces.clear();
+                disp.submit(st, cam, st.x - ox, st.y - oy, st.z - oz, ps, f.submits());
+            } catch (Exception ignored) {
+            }
+        }
+        ps.popPose();
+    }
+
+
+    /** Entity Culling (в сборке) не тикает «невидимые» сущности — а палубные для него за 400 000 блоков. Его пропуск. */
+    private static java.lang.reflect.Method cullSet, cullCamera;
+    private static boolean cullChecked;
+
+    /** Снять с сущности флаги «скрыта» и «вне камеры» Entity Culling (по ним он не тикает её следующий тик). */
+    static void keepTicking(Entity en) {
+        if (!cullChecked) {
+            cullChecked = true;
+            try {
+                Class<?> c = Class.forName("dev.tr7zw.entityculling.versionless.access.Cullable");
+                cullSet = c.getMethod("setCulled", boolean.class);
+                cullCamera = c.getMethod("setOutOfCamera", boolean.class);
+            } catch (Throwable ignored) { }
+        }
+        if (cullSet == null || !cullSet.getDeclaringClass().isInstance(en)) return;
+        try { cullSet.invoke(en, false); cullCamera.invoke(en, false); } catch (Throwable ignored) { }
+    }
+
+    /**
+     * Сущности палубы двигает сама игра (столбцы верфи «тикают»: ядро 0.38 onChunkLoaded); Entity Culling из сборки
+     * пропускал бы их (для него они за 400 000 блоков) — снимаем его пометки каждый тик.
+     */
+    private void tickDeck() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || others.isEmpty()) return;
+        for (Other o : others.values()) {
+            int[] yd = o.mesh.yard;
+            if (yd == null) continue;
+            double ox = yd[0] + 0.5, oy = yd[1] + o.mesh.seatH, oz = yd[2] + 0.5, r = o.mesh.radius + 3;
+            for (Entity en : mc.level.getEntities((Entity) null, new AABB(ox - r, oy - r, oz - r, ox + r, oy + r, oz + r),
+                    en -> !(en instanceof net.minecraft.world.entity.player.Player))) {
+                keepTicking(en);                                                // Entity Culling — не пропускать её тики
+            }
+        }
     }
 
     private void render(ClientContext.WorldFrame f) {
@@ -437,18 +542,19 @@ public final class ShipsClientModule implements ClientModule {
         for (Other o : others.values()) {
             Entity e = mc.level.getEntity(o.anchor);
             if (!(e instanceof Display d) || d.renderState() == null) continue;
-            Vec3 pos = d.getPosition(pt);
+            org.joml.Matrix4f at = new org.joml.Matrix4f(ship(d, o).placeAt(pt)).rotateY((float) -Math.toRadians(o.mesh.turn));
+            org.joml.Vector3f t = at.getTranslation(new org.joml.Vector3f());
+            Vec3 pos = new Vec3(t.x, t.y, t.z);
             float r = o.mesh.radius;
             if (!f.visible(new AABB(pos.x - r, pos.y - r, pos.z - r, pos.x + r, pos.y + r, pos.z + r))) continue;
-            Transformation tr = d.renderState().transformation().get(d.calculateInterpolationProgress(pt));
             PoseStack ps = f.pose();
             ps.pushPose();
             ps.translate(pos.x - cam.x, pos.y - cam.y, pos.z - cam.z);
-            ps.mulPose(tr.getMatrix());                                         // поворот корабля (курс, наклон, крен)
-            o.mesh.draw(ps, f.buffers(), LevelRenderer.getLightColor(mc.level, BlockPos.containing(pos.add(0, 1, 0))));
-            o.mesh.drawEntities(ps, f);
+            ps.mulPose(at.setTranslation(0, 0, 0));                             // поворот корабля (курс, наклон, крен)
+            o.mesh.draw(ps, f.buffers(), LevelRenderer.getLightColor(mc.level, BlockPos.containing(pos.add(0, 1, 0))), f);
+            o.mesh.drawEntities(ps, f, LevelRenderer.getLightColor(mc.level, BlockPos.containing(pos.add(0, 1, 0))));
+            deckEntities(o, ps, f, LevelRenderer.getLightColor(mc.level, BlockPos.containing(pos.add(0, 1, 0))));
             ps.popPose();
         }
-        if (pilot == null) target.render(f);
     }
 }

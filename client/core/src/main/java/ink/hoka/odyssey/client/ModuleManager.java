@@ -320,12 +320,24 @@ final class ModuleManager {
         @Override public void onCamera(CameraHook hook) { Hooks.CAMERA.add(new Hooks.Owned<>(id, hook)); }
         @Override public void onWorld(WorldHook hook) { Hooks.WORLD.add(new Hooks.Owned<>(id, hook)); }
         @Override public void onLocalTravel(TravelHook hook) { Hooks.TRAVEL.add(new Hooks.Owned<>(id, hook)); }
+        @Override public void onLocalTravelEnd(TravelHook hook) { Hooks.TRAVEL_END.add(new Hooks.Owned<>(id, hook)); }
+        @Override public void onLocalTick(TravelHook enter, TravelHook exit) {
+            Hooks.TICK_ENTER.add(new Hooks.Owned<>(id, enter));
+            Hooks.TICK_EXIT.add(new Hooks.Owned<>(id, exit));
+        }
+        @Override public void setSoundFrame(org.joml.Matrix4d m) { Hooks.soundFrame = m; }
         @Override public void onInput(InputHook hook) { Hooks.INPUT.add(new Hooks.Owned<>(id, hook)); }
         @Override public void onEntityTilt(EntityTiltHook hook) { Hooks.TILT.add(new Hooks.Owned<>(id, hook)); }
+        @Override public void onPick(PickHook hook) { Hooks.PICK.add(new Hooks.Owned<>(id, hook)); }
+        @Override public void onEntityPose(EntityPoseHook hook) { Hooks.POSE.add(new Hooks.Owned<>(id, hook)); }
+        @Override public void setLocalView(LocalViewHook h) { Hooks.localView = h == null ? null : new Hooks.Owned<>(id, h); }
+        @Override public void setYardResolver(YardResolver r) { Hooks.yardResolver = r == null ? null : new Hooks.Owned<>(id, r); }
         @Override public void onClick(ClickHook hook) { Hooks.CLICK.add(new Hooks.Owned<>(id, hook)); }
+        @Override public void onOutline(OutlineHook hook) { Hooks.OUTLINE.add(new Hooks.Owned<>(id, hook)); }
         @Override public void setMove(net.minecraft.client.player.ClientInput input, float x, float y) {
             ((ink.hoka.odyssey.client.mixin.ClientInputAccessor) input).hoka$setMoveVector(new net.minecraft.world.phys.Vec2(x, y));
         }
+        @Override public void hideLoadingScreen(boolean hide) { Hooks.hideLoading(hide); }
         @Override public void hideHand(boolean hide) { if (hide) Hooks.HIDE_HAND.add(id); else Hooks.HIDE_HAND.remove(id); }
         @Override public void onCollision(CollisionHook hook) { Hooks.COLLISION.add(new Hooks.Owned<>(id, hook)); }
         @Override public java.util.Optional<byte[]> file(String path) { return FileStore.get(path); }

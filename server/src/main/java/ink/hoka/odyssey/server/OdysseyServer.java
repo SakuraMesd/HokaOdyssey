@@ -51,20 +51,33 @@ public final class OdysseyServer implements OdysseyServerApi {
         return m == null ? java.util.Optional.empty() : java.util.Optional.of(m.instance);
     }
     @Override public java.util.SortedSet<String> mapNames() { return maps.names(); }
+    @Override public java.util.SortedSet<String> generatorIds() { return ink.hoka.odyssey.server.tall.gen.GeneratorRegistry.ids(); }
     @Override public java.util.Optional<String> mapName(net.minestom.server.instance.Instance instance) {
         for (var m : maps.loadedMaps()) if (m.instance == instance) return java.util.Optional.of(m.name);
         return java.util.Optional.empty();
     }
 
+    // кубы (§4.10): на ленивых кубовых картах — по-настоящему (CubeStore, шаг 10), иначе поверх столбцов (tall/Cubes)
+    @Override public boolean isCubeLoaded(net.minestom.server.instance.Instance i, int x, int y, int z) { return ink.hoka.odyssey.server.tall.Cubes.isCubeLoaded(i, x, y, z); }
+    @Override public boolean areCubesLoaded(net.minestom.server.instance.Instance i, net.minestom.server.coordinate.Point a, net.minestom.server.coordinate.Point b) { return ink.hoka.odyssey.server.tall.Cubes.areCubesLoaded(i, a, b); }
+    @Override public java.util.concurrent.CompletableFuture<Void> loadCubes(net.minestom.server.instance.Instance i, net.minestom.server.coordinate.Point a, net.minestom.server.coordinate.Point b) { return ink.hoka.odyssey.server.tall.Cubes.loadCubes(i, a, b); }
+    @Override public boolean ensureCubes(net.minestom.server.instance.Instance i, net.minestom.server.coordinate.Point a, net.minestom.server.coordinate.Point b) { return ink.hoka.odyssey.server.tall.Cubes.ensureCubes(i, a, b); }
+    @Override public void pinCubes(net.minestom.server.instance.Instance i, net.minestom.server.coordinate.Point a, net.minestom.server.coordinate.Point b, Object owner) { ink.hoka.odyssey.server.tall.Cubes.pin(i, a, b, owner); }
+    @Override public void unpin(Object owner) { ink.hoka.odyssey.server.tall.Cubes.unpin(owner); }
+
     public static void main(String[] args) throws IOException {
         // остановку по сигналу (SIGTERM/Ctrl+C) делаем сами — чтобы модули выключились до остановки Minestom
         System.setProperty("minestom.shutdown-on-signal", "false");
+        // дальность обзора чанков (столбцов) — 32; -Dminestom.chunk-view-distance=N в строке запуска важнее. До init:
+        // Minestom читает её в ServerFlag один раз. Клиент берёт min(свою дальность, эту)
+        if (System.getProperty("minestom.chunk-view-distance") == null) System.setProperty("minestom.chunk-view-distance", "32");
         Path eula = Path.of("eula.txt");                                    // как у Paper; Minestom её не требует
         if (!Files.exists(eula)) Files.writeString(eula, "eula=true\n", StandardCharsets.UTF_8);
 
         MinecraftServer server = MinecraftServer.init(new Auth.Online());
 
         // карты — maps/<имя>/ (Anvil); основная — maps/world. Операторы — ops.json
+        ink.hoka.odyssey.server.tall.TallWorld.init(Path.of("maps"));     // высокий мир — до карт и до входа игроков
         var maps = new ink.hoka.odyssey.server.maps.Maps(Path.of("maps"));
         var ops = new ink.hoka.odyssey.server.perms.Ops(Path.of("ops.json"));
         OdysseyServer core = new OdysseyServer(maps, ops);
@@ -74,6 +87,8 @@ public final class OdysseyServer implements OdysseyServerApi {
         GlobalEventHandler events = MinecraftServer.getGlobalEventHandler();
         // основная карта при входе; модуль может выбрать другую в своём обработчике того же события (он вызывается позже)
         events.addListener(AsyncPlayerConfigurationEvent.class, e -> {
+            if (ink.hoka.odyssey.server.tall.TallWorld.enabled)               // моду: позиции блоков — в формате высокого мира + рукопожатие
+                ink.hoka.odyssey.server.tall.Handshake.onConfiguration(e);
             e.setSpawningInstance(main.instance);
             e.getPlayer().setRespawnPoint(main.spawn());
         });
@@ -85,18 +100,30 @@ public final class OdysseyServer implements OdysseyServerApi {
         var cm = MinecraftServer.getCommandManager();
         cm.register(new ink.hoka.odyssey.server.maps.HoMapCommand(maps, ops));
         cm.register(new ink.hoka.odyssey.server.perms.HoOpCommand(ops));
+        cm.register(new ink.hoka.odyssey.server.tall.HoTallCommand(maps, ops));
+        cm.register(new ink.hoka.odyssey.server.tall.HoCubesCommand(maps, ops));
+        ink.hoka.odyssey.server.tall.Handshake.register();
+        ink.hoka.odyssey.server.tall.CubeStreamer.register();
+        ink.hoka.odyssey.server.tall.CubeEntities.register();             // шаг 10: сущности у незагруженных кубов — заморозка
+        ink.hoka.odyssey.server.tall.CubeStore.register();                // шаг 11: выгрузка кубов без интереса
 
         // ванильные правила установки блоков (повороты, соединения, двери/кровати, открывание)
         int rules = ink.hoka.odyssey.server.blocks.BlockRules.registerAll();
         events.addChild(ink.hoka.odyssey.server.blocks.MultiBlocks.node());
+        ink.hoka.odyssey.server.blocks.PickBlock.register(events);           // колёсико — выбрать блок (сервер кладёт предмет)
         LOG.info("правила установки блоков: {}", rules);
 
         // модули: включаются до открытия порта — их команды и слушатели готовы к первому игроку
         core.modules = new ModuleManager(Path.of("module"), core);
+        // генератор планеты модуля в работе (карта загружена / pregen) — модуль не выгружать (MODULES.md «Генератор планеты»)
+        core.modules.addUnloadGuard(ink.hoka.odyssey.server.tall.gen.GeneratorRegistry::guard);
         cm.register(new ModuleCommand(core.modules, ops));
+        // выброс/подбор предметов — модуль items (tearsmilk); ядро своё не вешает (было: дубль → дюп)
         registerStop(core);
         Runtime.getRuntime().addShutdownHook(new Thread(core::shutdown, "shutdown-hook"));
         core.modules.loadAll();
+        ink.hoka.odyssey.server.tall.gen.Pregen.resumeAll(maps.pregenEnv());   // незаконченные pregen — после модулей (их генераторы)
+        ink.hoka.odyssey.server.tall.gen.Pregen.registerTickMonitor();
         startConsole();
 
         int port = parsePort(System.getenv("SERVER_PORT"));
@@ -112,6 +139,10 @@ public final class OdysseyServer implements OdysseyServerApi {
     private void shutdown() {
         if (!stopping.compareAndSet(false, true)) return;
         LOG.info("Остановка Hoka Odyssey…");
+        // карты — ДО модулей: сохранение сверяет кубы с генератором (sameAsGen), а генератор может быть из модуля;
+        // второй проход — то, что модули поменяли при выключении (быстро: только изменённые столбцы)
+        try { ink.hoka.odyssey.server.tall.gen.Pregen.pauseAll(); } catch (Throwable e) { LOG.error("ошибка при остановке pregen", e); }
+        try { maps.saveAllBlocking(); } catch (Throwable e) { LOG.error("ошибка при сохранении карт", e); }
         try { modules.disableAll(); } catch (Throwable e) { LOG.error("ошибка при выключении модулей", e); }
         try { maps.saveAllBlocking(); } catch (Throwable e) { LOG.error("ошибка при сохранении карт", e); }
         try { MinecraftServer.stopCleanly(); } catch (Throwable e) { LOG.error("ошибка при остановке Minestom", e); }
@@ -122,8 +153,18 @@ public final class OdysseyServer implements OdysseyServerApi {
         Command stop = new Command("stop", "end");
         stop.setCondition((sender, cmd) -> !(sender instanceof Player));
         stop.setDefaultExecutor((sender, ctx) -> {
-            core.modules.disableAll();                                         // в тике: модули снимают своё спокойно
-            Thread.ofPlatform().name("shutdown").start(() -> System.exit(0)); // дальше — shutdown(), не из потока тика
+            // сначала карты (генератор модуля ещё жив; сохранение ждём не в тике), потом модули — в тике, спокойно;
+            // повторное сохранение — в shutdown() после disableAll
+            Thread.ofPlatform().name("shutdown").start(() -> {
+                try { ink.hoka.odyssey.server.tall.gen.Pregen.pauseAll(); } catch (Throwable e) { LOG.error("pregen при остановке", e); }
+                try { core.maps.saveAllBlocking(); } catch (Throwable e) { LOG.error("ошибка при сохранении карт", e); }
+                var off = new java.util.concurrent.CompletableFuture<Void>();
+                MinecraftServer.getSchedulerManager().scheduleNextTick(() -> {
+                    try { core.modules.disableAll(); } finally { off.complete(null); }
+                });
+                try { off.get(30, java.util.concurrent.TimeUnit.SECONDS); } catch (Exception e) { LOG.error("выключение модулей: {}", e.toString()); }
+                System.exit(0);                                                // дальше — shutdown()
+            });
         });
         MinecraftServer.getCommandManager().register(stop);
     }

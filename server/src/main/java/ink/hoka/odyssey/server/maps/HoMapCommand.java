@@ -17,6 +17,7 @@ import net.minestom.server.entity.Player;
  *   /homap tp &lt;карта&gt; [игрок]          — перейти на карту (на её точку появления)
  *   /homap create &lt;имя&gt; [flat|void]     — новая карта
  *   /homap delete &lt;карта&gt; confirm      — удалить карту с диска (игроки уйдут на основную)
+ *   /homap unload &lt;карта&gt;            — выгрузить сейчас (игроки уйдут на основную; нужно для /hocubes convert)
  *   /homap setspawn                     — точка появления карты = где вы стоите
  */
 public final class HoMapCommand extends Command {
@@ -54,6 +55,10 @@ public final class HoMapCommand extends Command {
                 ArgumentType.Literal("delete"), mapArg);
         addSyntax((s, c) -> delete(s, c.get(mapArg)), ArgumentType.Literal("delete"), mapArg, ArgumentType.Literal("confirm"));
         addSyntax((s, c) -> setSpawn(s), ArgumentType.Literal("setspawn"));
+        addSyntax((s, c) -> maps.unload(c.get(mapArg)).whenComplete((v, e) -> {
+            if (e != null) err(s, (e.getCause() != null ? e.getCause() : e).getMessage());
+            else ok(s, "Карта «" + c.get(mapArg) + "» выгружена");
+        }), ArgumentType.Literal("unload"), mapArg);
     }
 
     private void help(CommandSender s) {
@@ -61,6 +66,7 @@ public final class HoMapCommand extends Command {
         info(s, "/homap tp <карта> [игрок] — перейти на карту");
         info(s, "/homap create <имя> [flat|void] — новая карта");
         info(s, "/homap delete <карта> confirm — удалить карту");
+        info(s, "/homap unload <карта> — выгрузить карту сейчас");
         info(s, "/homap setspawn — точка появления карты здесь");
     }
 

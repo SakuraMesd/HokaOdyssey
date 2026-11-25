@@ -37,4 +37,11 @@ public interface ModuleContext {
     Optional<OdysseyModule> module(String id);
 
     OdysseyServerApi server();
+
+    /**
+     * Зарегистрировать генератор планеты (map.yml карты: {@code generator: <id>}). Снимается при выключении модуля.
+     * Пока карта с этим генератором загружена (или идёт pregen), модуль не выгрузить и не перезагрузить:
+     * сначала /homap unload &lt;карта&gt;. Исключение — id занят.
+     */
+    void registerGenerator(ink.hoka.odyssey.api.worldgen.GeneratorProvider provider);
 }

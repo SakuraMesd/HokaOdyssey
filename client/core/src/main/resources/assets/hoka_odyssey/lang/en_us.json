@@ -1,0 +1,9 @@
+{
+  "options.hoka_odyssey.vertical": "Vertical Distance",
+  "options.hoka_odyssey.vertical.tooltip": "How many cubes (16 blocks each) above and below you to load and render on Hoka Odyssey cubic-chunk maps. Horizontal distance is the usual Render Distance. Higher sees further up and down but costs memory, traffic and performance. The server may cap it.",
+  "options.hoka_odyssey.vertical.value": "%s cubes",
+  "options.hoka_odyssey.cube_cache": "Cube Cache",
+  "options.hoka_odyssey.cube_cache.tooltip": "How much memory to keep for cubes that left your view on Hoka Odyssey cubic-chunk maps. Coming back shows them instantly instead of downloading again; changed cubes are re-sent by the server. 0 turns the cache off.",
+  "options.hoka_odyssey.cube_cache.value": "%s MB",
+  "options.hoka_odyssey.cube_cache.off": "Off"
+}

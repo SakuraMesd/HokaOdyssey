@@ -1,0 +1,8 @@
+id: axiom
+name: Axiom
+version: 0.1.0
+main: ink.hoka.odyssey.axiom.AxiomModule
+authors: [Takuyamo]
+description: Серверная часть клиентского редактора Axiom (только OP; верфь кораблей закрыта)
+depends: []
+softdepends: []

@@ -4,6 +4,7 @@ plugins { id("com.gradleup.shadow") }
 dependencies {
     implementation(project(":api"))
     implementation("org.slf4j:slf4j-simple:2.0.17")
+    compileOnly("it.unimi.dsi:fastutil:8.5.18")   // поля DynamicChunk (высокий мир); в рантайме — из Minestom
 }
 
 tasks.shadowJar {

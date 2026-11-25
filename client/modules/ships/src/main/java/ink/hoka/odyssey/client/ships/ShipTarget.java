@@ -87,21 +87,39 @@ final class ShipTarget {
 
     boolean has() { return hit != null; }
 
-    /** Рамка выделения вокруг блока-цели (как у игры). */
-    void render(ClientContext.WorldFrame f) {
+    /** Колёсико по блоку корабля под прицелом: серверу «выбрать этот блок» (C2S 6 PICK). true — забрали у игры. */
+    boolean pick(boolean ctrl) {
+        if (hit == null) return false;
         Hit h = hit;
-        if (h == null) return;
+        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+        try (java.io.DataOutputStream out = new java.io.DataOutputStream(bo)) {
+            out.writeByte(6);
+            out.writeInt(h.anchor());
+            out.writeShort(h.dx());
+            out.writeShort(h.dy());
+            out.writeShort(h.dz());
+            out.writeByte(ctrl ? 1 : 0);
+        } catch (java.io.IOException e) {
+            return false;
+        }
+        ctx.send(bo.toByteArray());
+        return true;
+    }
+
+    /** Рамка выделения вокруг блока-цели — как у игры (тем же проходом, ядро 0.26+). true — нарисована. */
+    boolean outline(PoseStack ps, net.minecraft.client.renderer.MultiBufferSource buffers, Vec3 cam, float pt) {
+        Hit h = hit;
+        if (h == null) return false;
         var sh = h.ship().mesh().outline(h.dx(), h.dy(), h.dz());
-        if (sh == null) return;
-        Matrix4f m = h.ship().placeAt(f.partialTick());
-        Vec3 cam = f.camera();
-        PoseStack ps = f.pose();
+        if (sh == null) return false;
+        Matrix4f m = h.ship().placeAt(pt);
         ps.pushPose();
         ps.translate(m.m30() - cam.x, m.m31() - cam.y, m.m32() - cam.z);
         ps.mulPose(m.getNormalizedRotation(new Quaternionf()));
-        ShapeRenderer.renderShape(ps, f.buffers().getBuffer(RenderTypes.lines()), sh, 0, 0, 0, 0x66000000,
+        ShapeRenderer.renderShape(ps, buffers.getBuffer(RenderTypes.lines()), sh, 0, 0, 0, 0x66000000,
                 Minecraft.getInstance().getWindow().getAppropriateLineWidth());
         ps.popPose();
+        return true;
     }
 
     /** Клик игрока: по кораблю — серверу, игре — нет. */

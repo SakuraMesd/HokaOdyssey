@@ -7,7 +7,7 @@ summon:
   margin: 1
 
 templates:
-  max-blocks: 3000
+  max-blocks: 100000
 
 flight:
   max-speed: 50         # блоков/с на полном ходу
@@ -47,6 +47,12 @@ hud:
   color: "#C8CDD6"      # серый
   accent: "#FFFFFF"
 
+auto-level:             # автовыравнивание — только на «планетах», в космосе его нет
+  worlds: [world]       # карты (папки maps/), где оно есть
+  regions: []           # на будущее — участки других карт: - {map: galaxy1, min: [x, y, z], max: [x, y, z]}
+  parked-speed: 5       # °/с — стоящий корабль, на котором никого нет, медленно встаёт ровно (курс тот же)
+  flight-speed: 30      # °/с — в полёте по U (вкл/выкл), пока пилот не кренит (A/D) и не тянет нос вверх/вниз
+
 interact:               # клики по стоящему кораблю-модели (мод находит, куда смотрит игрок)
   reach: 7              # дальше этого (блоков от глаз) клик не принимается
   others: true          # двери, люки, сундуки — может любой игрок (false — только владелец и OP)
@@ -62,3 +68,27 @@ check:                  # проверки сервера (что присыла
   max-strikes: 100      # столько отказов подряд — аварийная посадка
   timeout-ticks: 200    # мод молчит столько тиков — аварийная посадка
   above-world: 256      # насколько выше мира можно подняться
+
+# Физика кораблей (SHIP-PHYSICS.md). Этап 0: только расчёт тела (/hoship body), полёт не меняется.
+physics:
+  enabled: false
+  stage: 0
+  reference-mass: 300       # эталонный корабль (летит как сейчас)
+  mass-exp: 0.5             # масса в динамике: ref·(M/ref)^exp — огромные корабли не каменеют
+  mass:
+    default: 1.0
+    hardness-k: 0.5         # нет в таблице и масках — масса = твёрдость × k (от min до hardness-max)
+    min: 0.05
+    hardness-max: 4.0
+    blocks: { "iron_block": 7.5, "gold_block": 19, "obsidian": 3.0, "copper_block": 7.5 }
+    masks:  { "*_wool": 0.1, "*glass*": 0.3, "*_planks": 0.5, "*_log": 0.7, "*_wood": 0.7,
+              "*deepslate*": 3.0, "*_bricks": 2.5, "cobblestone": 2.5, "stone": 2.5, "dirt": 1.5, "sand": 1.5 }
+    shape:  { "*_slab": 0.5, "*_stairs": 0.75, "*_door": 0.3, "*_trapdoor": 0.3, "*_pane": 0.3,
+              "*_fence*": 0.3, "*_wall": 0.3, "*_button": 0.05, "*_pressure_plate": 0.05,
+              "*_carpet": 0.05, "*_sign": 0.05, "*torch*": 0.05 }
+  engines:
+    "blast_furnace": { kind: main, thrust: 4000, mass: 3,   boost: true }
+    "furnace":       { kind: main, thrust: 1500, mass: 2.5, boost: true }
+    "smoker":        { kind: main, thrust: 2000, mass: 2.5, boost: true }
+    "beacon":        { kind: lift, thrust: 12000, mass: 4 }
+    "lodestone":     { kind: gyro, torque: 4000, mass: 5 }

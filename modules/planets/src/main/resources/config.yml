@@ -1,0 +1,18 @@
+# Планеты. Сторона size, скругление round (блоки), цвет #rrggbb, атмосфера #rrggbbaa (aa=00 — без неё).
+# approach — ближе стольких блоков до поверхности начинается вход: затемнение, перенос на карту target в точку tx ty tz.
+planets:
+  terra:
+    map: cubes
+    x: 0
+    y: 3200
+    z: 2600
+    size: 2048
+    round: 256
+    seed: 20261124
+    color: "#4f8f4a"
+    atmosphere: "#7fb4ff70"
+    approach: 50
+    target: world
+    tx: 0.5
+    ty: 42
+    tz: 0.5

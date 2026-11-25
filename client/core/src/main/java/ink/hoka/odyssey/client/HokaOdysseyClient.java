@@ -39,11 +39,28 @@ public final class HokaOdysseyClient implements ClientModInitializer {
         } catch (Exception ignored) {
         }
         ClientPlayNetworking.registerGlobalReceiver(Net.S2C.TYPE, (p, ctx) -> ModuleManager.handle(p.data()));
+        ClientPlayNetworking.registerGlobalReceiver(Net.W.TYPE, (p, ctx) -> CubeReceiver.handle(p.data(), p.parsed()));
+        // высокий мир: сигнал сервера на этапе входа; на каждом новом входе — сначала ванильный формат
+        net.fabricmc.fabric.api.client.networking.v1.ClientConfigurationConnectionEvents.INIT.register((h, mc) -> TallWorld.net = false);
+        net.fabricmc.fabric.api.client.networking.v1.ClientConfigurationNetworking.registerGlobalReceiver(Net.Tall.TYPE, (p, ctx) -> {
+            TallWorld.net = true;
+            BetterSnowGuard.install();                                     // 0.50: чужой «Better Snow» — мимо (сборка сеток ×2,7)
+            var fl = net.fabricmc.loader.api.FabricLoader.getInstance();
+            var sodium = fl.getModContainer("sodium");
+            ctx.responseSender().sendPacket(new Net.Hi(ModuleManager.coreVersion(),
+                    sodium.isPresent(), sodium.map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse("")));
+            // дальность — заново, уже с потолком TallWorld.VIEW_CAP (первая ушла до сигнала, без него)
+            if (TallWorld.VIEW_CAP > 0) ctx.responseSender().sendPacket(new net.minecraft.network.protocol.common.ServerboundClientInformationPacket(
+                    ctx.client().options.buildPlayerInformation()));
+            org.slf4j.LoggerFactory.getLogger("HokaOdyssey").info("высокий мир: позиции блоков в формате Hoka (±{} по высоте)",
+                    net.minecraft.world.level.dimension.DimensionType.MAX_Y);
+        });
         // сервер объявил канал ядра — значит, это наш сервер: представляемся, он пришлёт список модулей
         C2SPlayChannelEvents.REGISTER.register((handler, sender, client, channels) -> {
             if (channels.contains(Net.C2S.TYPE.id())) client.execute(ModuleManager::hello);
+            if (channels.contains(Net.WC.TYPE.id())) client.execute(() -> { VerticalView.send(true); CubeCache.channelReady(); });   // дальность по высоте и HAVE (0.51) — серверу
         });
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(ModuleManager::unloadAll));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { if (TallWorld.net) org.slf4j.LoggerFactory.getLogger("HokaOdyssey").info("высокий мир, секции: {}", SparseSections.stats() + "; " + CubeReceiver.stats() + "; " + ServerLight.stats() + "; " + TallLight.stats()); TallWorld.net = false; client.execute(ModuleManager::unloadAll); client.execute(() -> { CubeCache.sync(null); CubeCache.disconnected(); }); client.execute(ServerLight::reset); client.execute(ContentRange::reset); client.execute(SectionDirty::clear); client.execute(CubeQueue::clear); client.execute(TallLight::reset); VerticalView.reset(); });
         ClientTickEvents.END_CLIENT_TICK.register(c -> Hooks.tick());
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(Net.NS, "modules"), Hooks::hud);
         ink.hoka.odyssey.client.model.Models.init(new ink.hoka.odyssey.client.model.Models.Source() {

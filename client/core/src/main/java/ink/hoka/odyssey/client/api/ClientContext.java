@@ -75,6 +75,23 @@ public interface ClientContext {
      */
     void onLocalTravel(TravelHook hook);
 
+    /** Сразу после движения своего игрока (пара к onLocalTravel): вернуть то, что поменяли перед ним. */
+    default void onLocalTravelEnd(TravelHook hook) {}
+
+    /**
+     * Весь тик своего игрока (Player.tick): enter — в самом начале, exit — в самом конце, до отправки позиции серверу.
+     * Модуль может на это время перевести игрока в другую систему координат (верфь корабля): тогда ВСЁ в тике — ходьба,
+     * анимация ног, поворот тела, частицы бега, присед у края, вода — считает игра по блокам той системы. Частицы и
+     * звуки из системы в мир — {@link #setSoundFrame}.
+     */
+    default void onLocalTick(TravelHook enter, TravelHook exit) {}
+
+    /**
+     * Звуки, которые игра проигрывает у своего игрока, — из этой системы в мир (yardToWorld), null — как есть. Нужно,
+     * когда движение игрока считается в другой системе (верфь корабля): шаги звучат там, где игрок на самом деле.
+     */
+    default void setSoundFrame(org.joml.Matrix4d yardToWorld) {}
+
     /**
      * Ввод движения своего игрока (после того как игра прочла клавиши): можно поменять keyPresses и вектор хода
      * ({@link #setMove}). Учитывает переназначенные клавиши — читать input, а не GLFW.
@@ -88,17 +105,51 @@ public interface ClientContext {
     void onEntityTilt(EntityTiltHook hook);
 
     /**
+     * Поза модели сущности целиком (важнее onEntityTilt): поворот модели (мир, вокруг ног) и углы тела/головы/наклона
+     * головы УЖЕ в его системе. Нужно, когда углы живут в другой системе (свой игрок на корабле: курс относительно
+     * палубы) — без пересчёта через мировой курс, который на наклонённом корабле прыгает.
+     */
+    default void onEntityPose(EntityPoseHook hook) {}
+
+    /**
+     * Где на самом деле точка из далёкой полосы (верфь корабля, X ≥ 399 000): матрица верфь → мир на кадр pt или null.
+     * Нужна, чтобы рисовать там, где корабль, то, что живёт в верфи: частицы бега, пыль, крошки.
+     */
+    default void setYardResolver(YardResolver resolver) {}
+
+    /**
+     * Взгляд своего игрока в системе модуля {курс, наклон} (null — как у игры) — для покачивания руки от первого лица.
+     * Тогда и «след» руки (xBob/yBob) модуль держит в той же системе.
+     */
+    default void setLocalView(LocalViewHook hook) {}
+
+    /**
      * Клик игрока (ПКМ — use, ЛКМ — attack; attack с held=true — ЛКМ зажата, каждый тик). Вернуть true — клик забран
      * модулем: игра его не обрабатывает (не ставит/не ломает блок мира, не бьёт). Так делаются клики по своим
      * объектам (блоки корабля и т.п.).
      */
     void onClick(ClickHook hook);
 
+    /** Колёсико мыши («выбрать блок»): вернуть true — забрал модуль (блок своего корабля и т.п.), игре не выбирать. */
+    default void onPick(PickHook hook) {}
+
+    /**
+     * Своя рамка выделения (как у игры: тем же проходом, тем же видом линий). pose — в точке камеры, camera — её
+     * положение в мире. Вернуть true — рамка нарисована модулем, игра свою (блока мира) в этом кадре не рисует.
+     */
+    void onOutline(OutlineHook hook);
+
     /** Вектор хода ввода: x — вбок (+ влево), y — вперёд (+ вперёд), как у игры (−1..1). */
     void setMove(net.minecraft.client.player.ClientInput input, float x, float y);
 
     /** Не рисовать руку и предмет в ней от первого лица (кабина, свой вид). Снимается при выгрузке модуля. */
     void hideHand(boolean hide);
+
+    /**
+     * Спрятать экран загрузки мира (вместо него — чёрный экран): для своих переходов с затемнением (вход в планету).
+     * Снимается вызовом с false; на всякий случай само снимается через 15 с.
+     */
+    default void hideLoadingScreen(boolean hide) {}
 
     /**
      * Свои тела для столкновений (корабли, платформы — под любым углом): игра спрашивает, что мешает сущности
@@ -119,7 +170,24 @@ public interface ClientContext {
 
     interface ClickHook { boolean click(boolean attack, boolean held); }
 
+    /** ctrl — с содержимым (Ctrl + колёсико в творческом). */
+    interface PickHook { boolean pick(boolean ctrl); }
+
+    interface OutlineHook {
+        boolean render(com.mojang.blaze3d.vertex.PoseStack pose, net.minecraft.client.renderer.MultiBufferSource buffers,
+                       net.minecraft.world.phys.Vec3 camera, float partialTick);
+    }
+
     interface EntityTiltHook { org.joml.Quaternionfc tilt(net.minecraft.world.entity.Entity entity, float partialTick); }
+
+    /** Поза модели: поворот (мир) и углы в его системе (градусы, как у игры: тело, курс головы, наклон головы). */
+    record EntityPose(org.joml.Quaternionfc tilt, float bodyYaw, float headYaw, float headPitch) {}
+
+    interface EntityPoseHook { EntityPose pose(net.minecraft.world.entity.Entity entity, float partialTick); }
+
+    interface LocalViewHook { float[] view(float partialTick); }
+
+    interface YardResolver { org.joml.Matrix4d toWorld(double x, double y, double z, float partialTick); }
 
     interface WorldHook { void render(WorldFrame frame); }
 
@@ -131,6 +199,9 @@ public interface ClientContext {
     interface Body {
         /** Своя система → мир (только поворот и сдвиг, без масштаба). */
         org.joml.Matrix4fc toWorld();
+
+        /** То же в double — для далёких координат (верфь кораблей: ~400 000, у float шаг 0.03). */
+        default org.joml.Matrix4d toWorldD() { return new org.joml.Matrix4d(toWorld()); }
 
         /** Фигуры (своя система), задевающие область localArea (тоже в своей системе). */
         java.util.List<net.minecraft.world.phys.shapes.VoxelShape> shapes(net.minecraft.world.phys.AABB localArea);

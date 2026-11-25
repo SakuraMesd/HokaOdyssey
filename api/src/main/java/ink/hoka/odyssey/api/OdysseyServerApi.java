@@ -30,4 +30,64 @@ public interface OdysseyServerApi {
 
     /** Имя карты, если мир — карта из maps/ (иначе пусто). */
     java.util.Optional<String> mapName(net.minestom.server.instance.Instance instance);
+
+    /** id зарегистрированных генераторов планет (встроенные flat, void и модулей). */
+    default java.util.SortedSet<String> generatorIds() { return new java.util.TreeSet<>(); }
+
+    // ───────────── кубы 16³ (высокий мир, CUBIC-CHUNKS.md §4.10) ─────────────
+    // Карты с кубами по запросу (store: cubes + cubes: true, ядро 0.4 шаг 10): куб загружен = он в памяти (READY);
+    // писать в незагруженный куб нельзя (IllegalStateException), getBlock там — воздух. Закрепление сразу грузит
+    // рамку и не даёт выгрузить её столбцы. Остальные карты — как раньше: куб загружен = загружен его столбец.
+    // Ниже — запасные реализации поверх столбцов (ядро их переопределяет).
+    // Рамки — в координатах блоков, обе границы включительно (min/max можно передать в любом порядке).
+
+    /** Загружен ли куб с блоком (x, y, z). Незагруженный куб для физики считать твёрдым, писать в него нельзя. */
+    default boolean isCubeLoaded(net.minestom.server.instance.Instance inst, int x, int y, int z) {
+        return inst.isChunkLoaded(x >> 4, z >> 4);
+    }
+
+    default boolean isCubeLoaded(net.minestom.server.instance.Instance inst, net.minestom.server.coordinate.Point p) {
+        return isCubeLoaded(inst, p.blockX(), p.blockY(), p.blockZ());
+    }
+
+    /** Загружены ли все кубы рамки. Не ждёт и ничего не грузит. */
+    default boolean areCubesLoaded(net.minestom.server.instance.Instance inst,
+                                   net.minestom.server.coordinate.Point min, net.minestom.server.coordinate.Point max) {
+        int x0 = Math.min(min.blockX(), max.blockX()) >> 4, x1 = Math.max(min.blockX(), max.blockX()) >> 4;
+        int z0 = Math.min(min.blockZ(), max.blockZ()) >> 4, z1 = Math.max(min.blockZ(), max.blockZ()) >> 4;
+        for (int cx = x0; cx <= x1; cx++) for (int cz = z0; cz <= z1; cz++)
+            if (!inst.isChunkLoaded(cx, cz)) return false;
+        return true;
+    }
+
+    /**
+     * Загрузить все кубы рамки; будущее завершится, когда загружены все. В тике сервера его НЕ ждать (join/get —
+     * зависание): продолжать в thenRun через планировщик или брать {@link #ensureCubes}.
+     */
+    default java.util.concurrent.CompletableFuture<Void> loadCubes(net.minestom.server.instance.Instance inst,
+                                   net.minestom.server.coordinate.Point min, net.minestom.server.coordinate.Point max) {
+        int x0 = Math.min(min.blockX(), max.blockX()) >> 4, x1 = Math.max(min.blockX(), max.blockX()) >> 4;
+        int z0 = Math.min(min.blockZ(), max.blockZ()) >> 4, z1 = Math.max(min.blockZ(), max.blockZ()) >> 4;
+        var loads = new java.util.ArrayList<java.util.concurrent.CompletableFuture<?>>();
+        for (int cx = x0; cx <= x1; cx++) for (int cz = z0; cz <= z1; cz++) loads.add(inst.loadChunk(cx, cz));
+        return java.util.concurrent.CompletableFuture.allOf(loads.toArray(java.util.concurrent.CompletableFuture[]::new));
+    }
+
+    /** Вариант для тика: true — все кубы рамки уже загружены; иначе запускает загрузку недостающих (не ждёт) и даёт false. */
+    default boolean ensureCubes(net.minestom.server.instance.Instance inst,
+                                net.minestom.server.coordinate.Point min, net.minestom.server.coordinate.Point max) {
+        if (areCubesLoaded(inst, min, max)) return true;
+        loadCubes(inst, min, max);
+        return false;
+    }
+
+    /**
+     * Закрепить кубы рамки за владельцем (корабль, плот верфи…): не выгружать, пока не снято {@link #unpin}.
+     * Владелец может держать несколько рамок. Рамка сразу начинает грузиться (без ожидания), её столбцы не выгружаются.
+     */
+    default void pinCubes(net.minestom.server.instance.Instance inst,
+                          net.minestom.server.coordinate.Point min, net.minestom.server.coordinate.Point max, Object owner) {}
+
+    /** Снять все закрепления владельца. */
+    default void unpin(Object owner) {}
 }

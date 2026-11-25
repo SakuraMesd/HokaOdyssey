@@ -11,7 +11,9 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3d;
 import org.joml.Matrix4d;
+import org.joml.Matrix3f;
 import org.joml.Matrix4f;
+import org.joml.Vector3f;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
 
@@ -43,10 +45,6 @@ final class ShipGravity {
     // ввод этого тика
     private float fwd, strafe;
     private boolean jump, sneak, sprint;
-    /** Пауза между прыжками при зажатом пробеле (как у игры — 10 тиков). */
-    private int jumpDelay;
-    /** Пройдено по палубе с прошлого шага (звук шага — каждые ~1.7 блока, как у игры). */
-    private double walked;
 
     ShipGravity(ClientContext ctx) { this.ctx = ctx; }
 
@@ -75,22 +73,50 @@ final class ShipGravity {
     /** Каждый тик: игрок внутри какого корабля (по коробке его блоков) — с запасом, чтобы не дёргало на краю. */
     void select(Iterable<Ship> ships, boolean piloting) {
         LocalPlayer p = Minecraft.getInstance().player;
-        if (p == null || piloting || p.isSpectator() || p.getAbilities().flying || p.isPassenger()) { leave(p, !piloting); return; }
+        if (p == null || piloting || p.isSpectator() || p.isPassenger()) { leave(p, !piloting); return; }
         Ship found = null;
+        if (cooldown > 0) cooldown--;
         for (Ship s : ships) {
-            if (inside(s, p.position(), on != null && on.mesh() == s.mesh() ? 0.6f : 0.1f)) { found = s; break; }
+            if (!inside(s, p.position(), on != null && on.mesh() == s.mesh() ? 0.9f : 0.5f)) continue;
+            // только что вышли — обратно лишь если правда стоим на палубе (иначе на краю дёргает туда-сюда)
+            if (on == null && cooldown > 0 && !grounded(s.mesh(), local(s.place(), p.position()))) continue;
+            found = s;
+            break;
         }
         if (found == null) { leave(p, true); return; }
+        // полёт (креатив, будущие ранцы): у корабля в верфи — летаем по его осям (игра летит в системе верфи); у старых — как раньше
+        if (p.getAbilities().flying && found.mesh().yard == null) { leave(p, true); return; }
         if (on == null || on.mesh() != found.mesh()) enter(p, found);
         else on = found;
         look(p);
-        p.resetFallDistance();
+        if (on.mesh().yard == null) p.resetFallDistance();                      // в верфи падение считает игра (звук и пыль приземления)
         p.setNoGravity(true);                                                   // тяжесть — наша (ядро не прижимает второй раз)
+    }
+
+    /** Слезли с кресла: на этом корабле встать в эту точку верфи (ноги), пока сам вход ещё не случился. */
+    private ShipMesh seedMesh;
+    private Vector3d seedYard;
+
+    void seedDeck(ShipMesh mesh, Vector3d yardFeet) {
+        seedMesh = mesh;
+        seedYard = yardFeet;
     }
 
     private void enter(LocalPlayer p, Ship s) {
         if (on != null) leave(p, true);
+        Vector3f fromUp = shownUp(1f);                                          // «верх» до входа (мир или идущий переход)
         on = s;
+        shipUp = true;                                                          // во всей зоне корабля — его тяжесть (и в полёте)
+        freeTicks = 0;
+        endYard = endWorld = null;
+        yardPos = wSet = null;
+        if (seedMesh == s.mesh() && seedYard != null) {                         // с кресла: стоим ровно здесь на палубе
+            yardPos = seedYard;
+            wSet = new Vector3d(p.getX(), p.getY(), p.getZ());
+        }
+        seedMesh = null;
+        seedYard = null;
+        lBody = Float.NaN;
         Matrix4d w = new Matrix4d(s.place());
         Matrix3d inv = w.get3x3(new Matrix3d()).transpose();
         // взгляд игры → в систему корабля
@@ -102,13 +128,24 @@ final class ShipGravity {
         last = local(s.place(), p.position()).sub(lv);
         ground = false;
         ctx.send(new byte[]{3, 1});                                             // серверу: внутри — вакуум не трогает
+        startBlendFrom(fromUp);
         ctx.logger().info("[гравитация корабля] внутри");
     }
 
+    /** Тиков после выхода, когда корабль не затягивает обратно. */
+    private int cooldown;
+
     private void leave(LocalPlayer p, boolean keepSpeed) {
         if (on == null) return;
+        cooldown = 10;
+        Vector3f fromUp = shownUp(1f);
         if (p != null) p.setNoGravity(false);
         on = null;
+        startBlendFrom(fromUp);
+        endYard = endWorld = null;
+        yardPos = wSet = null;
+        if (p != null && !Float.isNaN(lBody)) { p.xBob = p.xBobO = p.getXRot(); p.yBob = p.yBobO = p.getYRot(); }
+        lBody = Float.NaN;
         last = null;
         ctx.send(new byte[]{3, 0});
         ctx.logger().info("[гравитация корабля] снаружи");
@@ -125,6 +162,7 @@ final class ShipGravity {
         jump = k.jump();
         sneak = k.shift();
         sprint = k.sprint() && fwd > 0 && !sneak;
+        if (yardReady(Minecraft.getInstance().player)) return;                  // ходьба по настоящим блокам — клавиши игре
         in.keyPresses = new Input(false, false, false, false, false, sneak, false);   // присед — игре (поза), ход — наш
         ctx.setMove(in, 0, 0);
     }
@@ -145,85 +183,217 @@ final class ShipGravity {
         Vector3d d = r.transform(dir(lyaw, lpitch));
         float wy = (float) Math.toDegrees(Math.atan2(-d.x, d.z)), wp = (float) Math.toDegrees(Math.asin(Math.clamp(-d.y, -1, 1)));
         wy = p.getYRot() + Mth.wrapDegrees(wy - p.getYRot());                    // без скачка через ±180
+        float dy = wy - p.getYRot(), dp = wp - p.getXRot(), dh = Mth.wrapDegrees(wy - p.getYHeadRot());
         p.setYRot(wy);
         p.setXRot(wp);
-        p.setYHeadRot(wy);
+        p.yRotO += dy;                                                          // как Entity.turn: поворот мышью — сразу, без догоняния
+        p.xRotO += dp;
+        p.yHeadRotO += dh;
+        p.setYHeadRot(p.getYHeadRot() + dh);
     }
 
     // ───────────────────────── движение ─────────────────────────
 
-    /** Игрока сдвинули не ходьбой (страховка вытолкнула из блока) — не считать это скоростью. */
-    void moved(double wx, double wy, double wz) {
-        if (on == null || last == null) return;
-        Matrix3d inv = new Matrix4d(on.place()).get3x3(new Matrix3d()).transpose();
-        last.add(inv.transform(new Vector3d(wx, wy, wz)));
+
+    // ───────────────────────── ходьба по настоящим блокам (верфь) ─────────────────────────
+
+    /**
+     * Тяжесть корабля (true) или мира (false). У корабля в верфи: стоишь на его полу или над головой его крыша —
+     * корабля; снаружи у обшивки (бок, днище наклонённого корабля) — мира, а столкновения всё равно с настоящими блоками.
+     */
+    private boolean shipUp = true;
+    /** Юзер 25ноя: «во всей зоне корабля не должен переворачиваться» — тяжесть корабля везде в его зоне (не только на полу). */
+    static final boolean ZONE_GRAVITY = true;
+    private int freeTicks;
+
+    /** После шага в верфи: где тяжесть — пол корабля под ногами / крыша над головой — корабля, иначе (через 6 тиков) мира. */
+    private void updateShipUp(LocalPlayer p) {
+        if (on == null || on.mesh().yard == null || ZONE_GRAVITY) { shipUp = true; return; }
+        boolean deck = p.onGround() && shipUp;                                  // стоим на полу корабля (Y верфи)
+        if (!deck && p.onGround()) {                                            // при мировой тяжести: «пол» верфи под ногами?
+            var below = p.blockPosition().below();
+            deck = !p.level().getBlockState(below).getCollisionShape(p.level(), below).isEmpty() && p.getDeltaMovement().y <= 0;
+        }
+        boolean roof = false;
+        var head = p.blockPosition().above(2);
+        for (int i = 0; i < 4 && !roof; i++) roof = !p.level().getBlockState(head.above(i)).isAir();
+        boolean want = deck || roof;
+        if (want) freeTicks = 0;
+        else if (++freeTicks < 6) want = shipUp;                                // короткий прыжок/шаг через проём — не переключать
+        if (want != shipUp) {
+            Vector3f from = shownUp(1f);
+            shipUp = want;
+            startBlendFrom(from);
+        }
     }
+
+    /** Шаг движения идёт в системе верфи: мир → верфь (на этот тик), сохранённый взгляд мира. */
+    private Matrix4d toYard;
+    private float savedYaw, savedPitch;
+    /** Скорость в конце прошлого шага: в системе верфи и то, что отдали игре (мир) — узнать, что игра поменяла до шага. */
+    private Vector3d endYard, endWorld;
+    /** Отладочный лог ходьбы [верфь]/[палуба] (выключен: пишет каждый тик). */
+    static boolean DEBUG = false;
+    private int dbg;
+    private static String f2(double d) { return String.format(java.util.Locale.ROOT, "%.2f", d); }
+
+    /**
+     * Корабль в верфи и его блоки у мода есть: движение игрока на этот шаг считает САМА игра — в координатах верфи,
+     * где лежат настоящие блоки корабля. Отсюда всё как на земле: ступени и полублоки, лестницы, трение блоков,
+     * присед у края, покачивание камеры, звуки шагов (переносятся в мир). После шага — обратно в мир (travelEnd).
+     */
+    /** Мир → верфь для корабля, на котором игрок (или null — корабль не в верфи). */
+    private Matrix4d yardMatrix() {
+        int[] y = on == null ? null : on.mesh().yard;
+        if (y == null) return null;
+        return new Matrix4d().translation(y[0] + 0.5, y[1] + on.mesh().seatH, y[2] + 0.5).mul(new Matrix4d(on.place()).invert());
+    }
+
+    /** Ходьба пойдёт по настоящим блокам верфи (корабль в верфи и его блоки у мода есть). */
+    private boolean yardReady(LocalPlayer p) {
+        Matrix4d m = yardMatrix();
+        if (m == null || p == null || p.level() == null) return false;
+        Vector3d at = m.transformPosition(new Vector3d(p.getX(), p.getY(), p.getZ()));
+        return p.level().hasChunkAt(net.minecraft.core.BlockPos.containing(at.x, at.y, at.z));
+    }
+
+    /** Ядро 0.36+: в систему верфи переводится ВЕСЬ тик игрока (иначе — только шаг travel, как раньше). */
+    boolean wholeTick;
+    /** Ядро 0.39+: рука от первого лица считается от палубного взгляда. */
+    boolean handLocal;
+    /** Ноги в верфи в конце прошлого тика и мировая точка, куда тогда поставили игрока (не двигали — едем с палубой). */
+    private Vector3d yardPos, wSet;
+    /** Мировые «прошлые» координаты начала тика (для плавной отрисовки) и поворот курса мир−палуба на этот тик. */
+    private double wxo, wyo, wzo;
+    private float dyaw, dpitch;
+    /**
+     * Углы, которые игра считает сама (тело, голова, раскачка руки) — ХРАНЯТСЯ в системе палубы между тиками. Через
+     * мировой курс их гонять нельзя: на наклонённом корабле мировой курс взгляда прыгает, стоит посмотреть вверх/вниз,
+     * и тело в F5 разворачивало, а руку от первого лица вытягивало. NaN — ещё не было тика на палубе.
+     */
+    private float lBody = Float.NaN, lBodyO, lHeadO, lxBob, lyBob, lxBobO, lyBobO;
+
+    /**
+     * Вход в систему верфи (начало тика игрока): позиция, «прошлая» позиция, скорость, все углы — в координаты верфи.
+     * Дальше игра сама считает весь тик по настоящим блокам корабля: ходьбу, анимацию ног, поворот тела, частицы бега,
+     * присед у края, падение. Выход — {@link #frameExit}.
+     */
+    void frameEnter(LocalPlayer p) {
+        if (on == null || toYard != null || !yardReady(p)) return;              // блоки верфи ещё не пришли
+        Matrix4d m = yardMatrix();
+        Vector3d at;
+        if (yardPos != null && wSet != null && p.getX() == wSet.x && p.getY() == wSet.y && p.getZ() == wSet.z)
+            at = new Vector3d(yardPos);                                         // никто не двигал — стоим там же на палубе (корабль везёт)
+        else
+            at = m.transformPosition(new Vector3d(p.getX(), p.getY(), p.getZ()));   // телепорт, толчок, только вошли
+        Vector3d now = new Vector3d(p.getDeltaMovement().x, p.getDeltaMovement().y, p.getDeltaMovement().z);
+        Vector3d v = endYard != null && endWorld != null && now.distanceSquared(endWorld) < 1e-10
+                ? new Vector3d(endYard)                                         // скорость не трогали — в системе корабля как была
+                : m.transformDirection(now);                                    // толчок извне — как есть
+        savedYaw = p.getYRot();
+        savedPitch = p.getXRot();
+        toYard = m;
+        ctx.setSoundFrame(new Matrix4d(m).invert());                            // звуки и частицы — из верфи в мир
+        {                                                                       // тяжесть — по видимому «верху» (корабль, мир или переход)
+            Vector3f su = shownUp(1f);
+            Vector3d upL = m.transformDirection(new Vector3d(su.x, su.y, su.z)).normalize();
+            if (upL.y < 0.9999 && !p.getAbilities().flying) v.add(-0.08 * 0.98 * upL.x, 0.08 * 0.98 * (1 - upL.y), -0.08 * 0.98 * upL.z);   // игра вычтет 0.08 по Y верфи
+        }
+        p.setNoGravity(false);                                                  // тяжесть — игры (в системе верфи «вниз» = к полу корабля)
+        if (wholeTick) {                                                        // «прошлое» — тоже в верфи: анимация ног и тело по шагу на палубе
+            wxo = p.xo; wyo = p.yo; wzo = p.zo;
+            Vector3d o = m.transformPosition(new Vector3d(p.xo, p.yo, p.zo));
+            if (o.distanceSquared(at) > 4) o.set(at);                           // скачок (вход, телепорт) — без шага
+            p.xo = p.xOld = o.x; p.yo = p.yOld = o.y; p.zo = p.zOld = o.z;
+        }
+        p.setPos(at.x, at.y, at.z);
+        p.setDeltaMovement(v.x, v.y, v.z);
+        dyaw = savedYaw - lyaw;
+        dpitch = savedPitch - lpitch;
+        p.setYRot(lyaw);
+        p.setXRot(lpitch);
+        if (wholeTick) {
+            p.yRotO -= dyaw; p.xRotO -= dpitch;
+            if (Float.isNaN(lBody)) {                                           // первый тик на палубе — из мировых
+                lBody = lBodyO = p.yBodyRot - dyaw; lHeadO = lyaw;
+                lxBob = lxBobO = lpitch; lyBob = lyBobO = lyaw;
+            }
+            p.yBodyRot = lBody; p.yBodyRotO = lBodyO;
+            p.yHeadRot = lyaw; p.yHeadRotO = lHeadO;
+            p.xBob = lxBob; p.xBobO = lxBobO; p.yBob = lyBob; p.yBobO = lyBobO;
+        }
+    }
+
+    /** Взгляд на палубе {курс, наклон} для руки от первого лица (или null — как у игры). */
+    float[] localView() {
+        if (on == null || on.mesh().yard == null || !wholeTick || Float.isNaN(lBody)) return null;
+        return new float[]{lyaw, lpitch};
+    }
+
+    /** Поза своей модели на палубе: поворот — корабля (система взгляда lyaw), углы — палубные. Иначе null. */
+    ink.hoka.odyssey.client.api.ClientContext.EntityPose pose(float pt) {
+        if (on == null || on.mesh().yard == null || !wholeTick || Float.isNaN(lBody)) return null;
+        Quaternionf q = on.placeAt(pt).getNormalizedRotation(new Quaternionf());
+        Vector3f su = shownUp(pt), shipUp = q.transform(new Vector3f(0, 1, 0));
+        if (su.dot(shipUp) < 0.9999f) q = new Quaternionf().rotationTo(shipUp, su).mul(q);   // переход тяжести — модель плавно за ним
+        return new ink.hoka.odyssey.client.api.ClientContext.EntityPose(q, Mth.rotLerp(pt, lBodyO, lBody), lyaw, lpitch);
+    }
+
+    /** Идёт тик в системе верфи: мир → верфь (для земли мира как тела столкновений), иначе null. */
+    Matrix4d yardFrame() { return toYard; }
+
+    /** Конец тика: из верфи обратно в мир (положение, «прошлое», скорость, углы) — до отправки позиции серверу. */
+    void frameExit(LocalPlayer p) {
+        if (toYard == null) return;
+        Matrix4d back = new Matrix4d(toYard).invert();
+        toYard = null;
+        ctx.setSoundFrame(null);
+        if (DEBUG && (++dbg % 100 == 0 || p.input.getMoveVector().lengthSquared() > 0 && dbg % 10 == 0)) {
+            ctx.logger().info("[верфь] ноги {} {} {} | земля {} | шаг {} | ноги.скор {} | yaw {} lyaw {} | кор.тяж {}", f2(p.getX()), f2(p.getY()), f2(p.getZ()),
+                    p.onGround(), f2(Math.hypot(p.getX() - p.xo, p.getZ() - p.zo)), f2(p.walkAnimation.speed()), f2(savedYaw), f2(lyaw), shipUp);
+        }
+        updateShipUp(p);                                                        // ещё в системе верфи: пол/крыша — настоящие блоки
+        yardPos = new Vector3d(p.getX(), p.getY(), p.getZ());
+        Vector3d w = back.transformPosition(new Vector3d(yardPos));
+        endYard = new Vector3d(p.getDeltaMovement().x, p.getDeltaMovement().y, p.getDeltaMovement().z);
+        Vector3d v = back.transformDirection(new Vector3d(endYard));
+        endWorld = new Vector3d(v);
+        p.setPos(w.x, w.y, w.z);
+        if (wholeTick) {
+            p.xo = p.xOld = wxo; p.yo = p.yOld = wyo; p.zo = p.zOld = wzo;
+            p.yRotO += dyaw; p.xRotO += dpitch;
+            lBody = p.yBodyRot; lBodyO = p.yBodyRotO; lHeadO = p.yHeadRot;
+            lxBob = p.xBob; lxBobO = p.xBobO; lyBob = p.yBob; lyBobO = p.yBobO;
+            p.yBodyRot += dyaw; p.yBodyRotO += dyaw;
+            p.yHeadRot += dyaw; p.yHeadRotO += dyaw;
+            // след руки (xBob/yBob) остаётся палубным: рука считается от палубного взгляда (ядро 0.39: setLocalView)
+            if (!handLocal) { p.xBob += dpitch; p.xBobO += dpitch; p.yBob += dyaw; p.yBobO += dyaw; }
+        }
+        p.setDeltaMovement(v.x, v.y, v.z);
+        p.setYRot(p.getYRot() + dyaw);
+        p.setXRot(Mth.clamp(p.getXRot() + dpitch, -90f, 90f));
+        p.setNoGravity(true);                                                   // вне тика — как раньше (тяжесть корабля наша)
+        wSet = new Vector3d(p.getX(), p.getY(), p.getZ());
+        last = local(on != null ? on.place() : new Matrix4f(), p.position());
+    }
+
+    /** Старое ядро (до 0.36): в верфи только шаг travel. */
+    void travelEnd(LocalPlayer p) { if (!wholeTick) frameExit(p); }
 
     /** Перед движением игрока: скорость в системе корабля (как у игры) → в мир. */
     void travel(LocalPlayer p) {
         if (on == null) return;
-        Matrix4d w = new Matrix4d(on.place());
-        Matrix3d rot = w.get3x3(new Matrix3d());
-        Vector3d lp = local(on.place(), p.position());
-        Vector3d disp = last == null ? new Vector3d() : new Vector3d(lp).sub(last);
-        double fr = ground ? 0.546 : 0.91;                                      // трение прошлого тика (как у игры)
-        double hx = disp.x * fr, hz = disp.z * fr, vy = (disp.y - 0.08) * 0.98;
-        boolean g = grounded(lp, p.getBbHeight());
-        if (jumpDelay > 0) jumpDelay--;
-        if (!jump) jumpDelay = 0;
-        if (g && jump && jumpDelay == 0) {
-            jumpDelay = 10;
-            vy = 0.42;
-            if (sprint) {
-                double a = Math.toRadians(lyaw);
-                hx += -Math.sin(a) * 0.2;
-                hz += Math.cos(a) * 0.2;
-            }
-        }
-        // разгон от клавиш — как у игры: вперёд/вбок по курсу взгляда в системе корабля
-        double fx = strafe, fz = fwd;
-        double len = Math.sqrt(fx * fx + fz * fz);
-        if (len > 1) { fx /= len; fz /= len; }                                  // по диагонали не быстрее (как у игры)
-        fx *= 0.98; fz *= 0.98;
-        if (sneak) { fx *= 0.3; fz *= 0.3; }
-        double speed = g ? (sprint ? 0.13 : 0.1) : (sprint ? 0.026 : 0.02);
-        double a = Math.toRadians(lyaw), s = Math.sin(a), c = Math.cos(a);
-        hx += (fx * c - fz * s) * speed;
-        hz += (fz * c + fx * s) * speed;
-        // присед у края — как у игры: не сходить с палубы (уменьшать шаг, пока под ногами есть корабль)
-        if (sneak && g) {
-            double step = 0.05;
-            while (hx != 0 && !grounded(new Vector3d(lp).add(hx, 0, 0), p.getBbHeight())) hx = Math.abs(hx) < step ? 0 : hx - Math.copySign(step, hx);
-            while (hz != 0 && !grounded(new Vector3d(lp).add(0, 0, hz), p.getBbHeight())) hz = Math.abs(hz) < step ? 0 : hz - Math.copySign(step, hz);
-            while (hx != 0 && hz != 0 && !grounded(new Vector3d(lp).add(hx, 0, hz), p.getBbHeight())) {
-                hx = Math.abs(hx) < step ? 0 : hx - Math.copySign(step, hx);
-                hz = Math.abs(hz) < step ? 0 : hz - Math.copySign(step, hz);
-            }
-        }
-        // шаги: по пройденному по палубе, звук — блока корабля под ногами (игра ищет его в мире и не находит)
-        if (g && !sneak) {
-            walked += Math.sqrt(disp.x * disp.x + disp.z * disp.z) * 0.6;
-            if (walked > 1) {
-                walked = 0;
-                ShipMesh m = on.mesh();
-                var st = m.state((int) Math.round(lp.x), (int) Math.floor(lp.y + m.seatH - 0.05), (int) Math.round(lp.z));
-                if (st != null) {
-                    var snd = st.getSoundType();
-                    Minecraft.getInstance().level.playLocalSound(p.getX(), p.getY(), p.getZ(), snd.getStepSound(),
-                            net.minecraft.sounds.SoundSource.PLAYERS, snd.getVolume() * 0.15f, snd.getPitch(), false);
-                }
-            }
-        }
-        Vector3d wv = rot.transform(new Vector3d(hx, vy, hz));
-        p.setDeltaMovement(wv.x, wv.y, wv.z);
-        p.setSprinting(sprint);
-        ground = g;
-        last = lp;
+        if (!wholeTick) frameEnter(p);
+        if (toYard != null) return;                                             // ходит игра — по настоящим блокам верфи
+        // блоки верфи ещё не пришли (только подошёл к кораблю, перезаход) — стоять на месте, без тяжести: через долю
+        // секунды ходьба пойдёт по настоящим блокам (старая самописная ходьба удалена — все корабли в верфи)
+        p.setDeltaMovement(0, 0, 0);
     }
 
     /** Под ногами (в системе корабля) — блок корабля. */
-    private boolean grounded(Vector3d lp, float height) {
-        ShipMesh m = on.mesh();
+    private boolean grounded(Vector3d lp, float height) { return grounded(on.mesh(), lp); }
+
+    private static boolean grounded(ShipMesh m, Vector3d lp) {
         AABB probe = new AABB(lp.x - 0.299, lp.y - 0.05, lp.z - 0.299, lp.x + 0.299, lp.y + 0.0005, lp.z + 0.299);
         int x0 = (int) Math.floor(probe.minX + 0.5), x1 = (int) Math.floor(probe.maxX + 0.5);
         int y0 = (int) Math.floor(probe.minY + m.seatH), y1 = (int) Math.floor(probe.maxY + m.seatH);
@@ -239,18 +409,138 @@ final class ShipGravity {
     // ───────────────────────── камера ─────────────────────────
 
     /** Поворот камеры — вместе с кораблём (w — вес перехода 0..1). Положение глаз ставит ShipsClientModule. */
+    // ───────────────────────── смена гравитации: одна плавная кривая для всего ─────────────────────────
+
+    /** Сколько длится смена «верха» (вошёл в корабль / вышел), секунд. */
+    /** Длительность перехода: вход на корабль и выход (выход — быстрее). */
+    private static final double ENTER_TIME = 1.0, LEAVE_TIME = 0.6;
+    private double blendTime = ENTER_TIME;
+    /** Откуда идёт «верх» (мир) и когда начался переход; null — перехода нет. */
+    private Vector3f blendFrom;
+    private long blendStart;
+    /** Переход заметный (вход/выход — с затемнением и звуком) или тихий (из кресла пилота). */
+    private boolean blendLoud;
+
+    /** Переход от заданного «верха» (выход: «верх» корабля, посчитанный до того, как корабль забыт). */
+    private void startBlendFrom(Vector3f from) {
+        startBlend();
+        blendFrom = new Vector3f(from);
+    }
+
+    /** Начать переход: «верх» поедет от того, что видно сейчас, к новому. */
+    private void startBlend() {
+        boolean quiet = blendFrom != null && !blendLoud && blendT() < 1;       // сразу после кресла пилота (ещё идёт) — без эффектов
+        blendFrom = shownUp(1f);
+        blendStart = System.nanoTime();
+        blendTime = on != null ? ENTER_TIME : LEAVE_TIME;                      // вызывается после смены on: вошли / вышли
+        blendLoud = !quiet;
+        if (quiet) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level != null && mc.player != null)                              // мягкий порыв воздуха
+            mc.level.playLocalSound(mc.player.getX(), mc.player.getY(), mc.player.getZ(), net.minecraft.sounds.SoundEvents.WIND_CHARGE_BURST.value(),
+                    net.minecraft.sounds.SoundSource.PLAYERS, 0.12f, 1.6f, false);
+    }
+
+    /** Доля перехода 0..1 (1 — закончен или не было). */
+    private double blendT() {
+        if (blendFrom == null) return 1;
+        double t = (System.nanoTime() - blendStart) / 1e9 / blendTime;
+        if (t >= 1) { blendFrom = null; return 1; }
+        return t;
+    }
+
+    /** Плавная кривая: медленный разгон, медленная остановка. */
+    private static double ease(double t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+
+    /** Настоящий «верх» тяжести (мир): верх корабля или неба. */
+    private Vector3f targetUp(float pt) {
+        if (on == null || !shipUp) return new Vector3f(0, 1, 0);
+        return on.placeAt(pt).getNormalizedRotation(new Quaternionf()).transform(new Vector3f(0, 1, 0));
+    }
+
+    /** «Верх», который сейчас видно (камера, глаза, модель, тяжесть): во время перехода — плавно к настоящему. */
+    Vector3f shownUp(float pt) {
+        Vector3f to = targetUp(pt);
+        double t = blendT();
+        if (t >= 1) return to;
+        Quaternionf r = new Quaternionf().rotationTo(blendFrom, to);
+        return new Quaternionf().slerp(r, (float) ease(t)).transform(new Vector3f(blendFrom)).normalize();
+    }
+
+    /** Насколько сейчас заметен переход (0..1, пик в середине) — для затемнения краёв экрана. */
+    float pulse() {
+        double t = blendT();
+        return t >= 1 || !blendLoud ? 0 : (float) Math.sin(Math.PI * t);
+    }
+
+    /** Выход из кресла пилота: «верх» — как был в кабине (верх корабля), без перехода. */
+    void seedUp(Vector3f up) {
+        if (up == null) return;
+        blendFrom = new Vector3f(up).normalize();
+        blendStart = System.nanoTime();
+        blendLoud = false;
+    }
+
+    /** Камеру ведёт кто-то другой (пилот). */
+    void resetView() { }
+
+    /** Модель своего игрока: повёрнута от «верха» неба к видимому «верху» (null — ровно). */
+    Quaternionf modelTilt(float pt) {
+        if (on == null && blendFrom == null) return null;
+        Vector3f up = shownUp(pt);
+        if (up.y > 0.99999f) return null;
+        return new Quaternionf().rotationTo(new Vector3f(0, 1, 0), up);
+    }
+
+    /**
+     * Камера. Внутри корабля — вместе с кораблём, снаружи — как у игры; глаза — над ногами по видимому «верху».
+     * При смене взгляд точно за мышью, а «верх» (горизонт) и глаза плавно, по одной кривой, едут к новому.
+     */
     void camera(CameraState s, float pt, float w) {
-        if (on == null) return;
-        if (s.detached) { orbit(s, pt); return; }
-        if (w <= 0) return;
-        Quaternionf ship = on.placeAt(pt).getNormalizedRotation(new Quaternionf());
-        Quaternionf view = new Quaternionf(ship).rotateYXZ((float) Math.PI - (float) Math.toRadians(lyaw), (float) -Math.toRadians(lpitch), 0);
+        if (s.detached) {                                                       // F5 — свой облёт
+            if (on != null) orbit(s, pt);
+            return;
+        }
+        boolean blending = blendT() < 1;
+        if (on == null && !blending) return;                                    // снаружи — камера игры
+        Vector3f up = shownUp(pt);
+        // глаза: над ногами по видимому «верху» (игра ставит их строго вверх по миру)
+        var p = Minecraft.getInstance().player;
+        if (p != null) {
+            double eye = s.y - Mth.lerp(pt, p.yo, p.getY());
+            s.x += up.x * eye;
+            s.y += up.y * eye - eye;
+            s.z += up.z * eye;
+        }
+        // взгляд: внутри — в системе корабля, снаружи — как у игры
+        Quaternionf view;
+        if (on != null) {
+            Quaternionf ship = on.placeAt(pt).getNormalizedRotation(new Quaternionf());
+            view = ship.rotateYXZ((float) Math.PI - (float) Math.toRadians(lyaw), (float) -Math.toRadians(lpitch), 0);
+        } else {
+            view = new Quaternionf().rotationYXZ((float) Math.PI - (float) Math.toRadians(s.yaw), (float) -Math.toRadians(s.pitch), 0);
+        }
+        if (!blending) { apply(s, view); return; }
+        Vector3f f = view.transform(new Vector3f(0, 0, -1));
+        Vector3f cu = new Vector3f(up).sub(new Vector3f(f).mul(f.dot(up)));
+        if (cu.lengthSquared() < 1e-4f) { apply(s, view); return; }            // смотрим вдоль «верха» — как есть
+        cu.normalize();
+        Vector3f right = new Vector3f(f).cross(cu).normalize();
+        apply(s, new Matrix3f(right, cu, new Vector3f(f).negate()).getNormalizedRotation(new Quaternionf()));
+    }
+
+    /** Затемнение краёв экрана на время смены гравитации. */
+    void hud(net.minecraft.client.gui.GuiGraphics g) {
+        float k = pulse();
+        if (k <= 0.01f) return;
+        float a = 0.55f * k;
+        g.blit(net.minecraft.client.renderer.RenderPipelines.VIGNETTE, net.minecraft.resources.Identifier.withDefaultNamespace("textures/misc/vignette.png"),
+                0, 0, 0f, 0f, g.guiWidth(), g.guiHeight(), g.guiWidth(), g.guiHeight(), net.minecraft.util.ARGB.colorFromFloat(1f, a, a, a));
+    }
+
+    private static void apply(CameraState s, Quaternionf q) {
         try {
-            if (w < 1) {
-                Quaternionf game = new Quaternionf().rotationYXZ((float) Math.PI - (float) Math.toRadians(s.yaw), (float) -Math.toRadians(s.pitch), 0);
-                view = game.slerp(view, w);
-            }
-            s.rotation = view;
+            s.rotation = new Quaternionf(q);
         } catch (LinkageError old) {                                            // ядро до 0.21 — без полного поворота
         }
     }

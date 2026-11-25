@@ -21,16 +21,19 @@ import java.util.Map;
  * <pre>
  * S2C 1 ATTACH  int якорь, int -1, float seatH, float курс взлёта, блоки — показать чужой корабль на якоре
  *     2 DETACH  int якорь
- *     3 START   int якорь, double x y z, float курс взлёта, float seatH, UTF-JSON настроек, блоки — ты пилот
+ *     3 START   int якорь, double x y z, float курс взлёта, float seatH, UTF-JSON настроек, byte 1 + int x y z (плот:
+ *               сетка — модели на этом якоре) | byte 0 + блоки — ты пилот
  *     4 END     — полёт окончен (посадка/авария)
  *     5 CORRECT double x y z, float курс наклон крен — сервер не принял положение: вернуться сюда
  *     6 CELL    int якорь, short dx dy dz, int stateId (0 — пусто) — клетка корабля изменилась (дверь, стройка)
+ *     7 LEVEL   byte 1/0 — здесь есть автовыравнивание (планета) / нет (космос): U у пилота
  *     блоки: int n, n × (short dx, short dy, short dz, int stateId) — от клетки пилота, мир при взлёте
  * C2S 1 POSE    double x y z, float курс наклон крен — каждый тик
  *     2 LAND    — посадка (то же, что F)
  *     3 INSIDE  byte 1/0 — игрок внутри корабля (гравитация корабля) / вышел: на это время вакуум его не трогает
  *     4 USE     int якорь, short dx dy dz, byte грань, float точка x y z (0..1 в клетке) — ПКМ по кораблю-модели
  *     5 BREAK   int якорь, short dx dy dz — ЛКМ (сломать блок)
+ *     6 PICK    int якорь, short dx dy dz, byte ctrl — колёсико по блоку корабля (выбрать блок)
  * </pre>
  */
 final class ShipsClient {
@@ -49,6 +52,11 @@ final class ShipsClient {
         api.onReady(MODULE, p -> {
             for (Ship s : mod.ships.values()) {
                 if (s.flight == null || s.flight.anchorAll() == null) continue;   // летящие
+                if (s.yard != null) {                                           // из верфи: якорь — модель (всем), пилоту ещё START
+                    send(p, modelPacket(s, s.flight.anchorAll()));
+                    if (s.flight.pilot == p) startPilot(s.flight);
+                    continue;
+                }
                 if (s.flight.pilot == p) startPilot(s.flight);                  // модуль перезагрузился посреди полёта — продолжить
                 else send(p, attach(s.flight));
             }
@@ -74,8 +82,10 @@ final class ShipsClient {
 
     void start(Flight f) {
         startPilot(f);
-        byte[] b = attach(f);
-        for (Player p : MinecraftServer.getConnectionManager().getOnlinePlayers()) if (p != f.pilot()) send(p, b);
+        if (f.ship.yard == null) {                                              // корабль из верфи остальные уже видят (модель на том же якоре)
+            byte[] b = attach(f);
+            for (Player p : MinecraftServer.getConnectionManager().getOnlinePlayers()) if (p != f.pilot()) send(p, b);
+        }
         hideVanilla(f.pilot(), List.of("mount", "crosshair", "hotbar", "health", "armor", "food", "air", "xp", "xp_level", "held_item"));   // низ экрана — приборы корабля
     }
 
@@ -94,9 +104,22 @@ final class ShipsClient {
             byte[] js = settings.getBytes(StandardCharsets.UTF_8);
             out.writeInt(js.length);
             out.write(js);
-            parts(out, f);
+            if (f.ship.yard != null) {                                          // 1: сетка — модели на этом якоре (ATTACH), блоков нет
+                out.writeByte(1);
+                out.writeInt(f.ship.yard[1]); out.writeInt(f.ship.yard[2]); out.writeInt(f.ship.yard[3]);
+            } else {
+                out.writeByte(0);
+                parts(out, f);
+            }
         }));
         if (q[4] != 0 || q[5] != 0 || q[3] != f.blockTurn()) correct(f, q[0], q[1], q[2], q[3], q[4], q[5]);   // текущий курс/наклон/крен
+    }
+
+    /** Пилоту: полёт окончен (корабль из верфи остаётся моделью на том же якоре — остальным ничего не шлём). */
+    void endPilot(Flight f) {
+        if (!f.pilot().isOnline()) return;
+        send(f.pilot(), new byte[]{4});
+        hideVanilla(f.pilot(), List.of());
     }
 
     void stop(Flight f) {
@@ -129,7 +152,25 @@ final class ShipsClient {
         for (Player p : MinecraftServer.getConnectionManager().getOnlinePlayers()) send(p, b);
     }
 
+    /** Пилоту: можно ли здесь автовыравнивание (U). */
+    void level(Flight f, boolean allowed) {
+        send(f.pilot(), new byte[]{7, (byte) (allowed ? 1 : 0)});
+    }
+
     /** Клетка корабля изменилась — всем с модом. */
+    /** Крышка сундука корабля: сколько смотрят (0 — закрыть). Мод анимирует свою копию сундука. */
+    void lid(int anchor, int dx, int dy, int dz, int viewers) {
+        byte[] b = bytes(out -> {
+            out.writeByte(8);
+            out.writeInt(anchor);
+            out.writeShort(dx);
+            out.writeShort(dy);
+            out.writeShort(dz);
+            out.writeByte(Math.min(127, viewers));
+        });
+        for (Player p : MinecraftServer.getConnectionManager().getOnlinePlayers()) send(p, b);
+    }
+
     void cell(int anchor, int dx, int dy, int dz, int stateId) {
         byte[] b = bytes(out -> {
             out.writeByte(6);
@@ -165,7 +206,15 @@ final class ShipsClient {
                 out.writeShort(q[2]);
                 out.writeInt(b == null ? 0 : b.stateId());
             }
+            yard(out, s);
         });
+    }
+
+    /** Хвост пакета корабля: где лежит его плот в верфи (клетка пилота) — мод ходит по настоящим блокам там. */
+    private static void yard(DataOutputStream out, Ship s) throws IOException {
+        if (s.yard == null) { out.writeByte(0); return; }
+        out.writeByte(1);
+        out.writeInt(s.yard[1]); out.writeInt(s.yard[2]); out.writeInt(s.yard[3]);
     }
 
     private static byte[] attach(Flight f) {
@@ -176,6 +225,7 @@ final class ShipsClient {
             out.writeFloat((float) f.seatHeight());
             out.writeFloat((float) f.blockTurn());
             parts(out, f);
+            yard(out, f.ship);
         });
     }
 
@@ -193,7 +243,7 @@ final class ShipsClient {
     /** Настройки полёта для мода — разделы flight, aim, camera, hud конфига (мод читает их по тем же именам). */
     private Map<String, Object> settings() {
         Map<String, Object> m = new LinkedHashMap<>();
-        for (String k : new String[]{"flight", "aim", "camera", "hud"}) {
+        for (String k : new String[]{"flight", "aim", "camera", "hud", "auto-level"}) {
             Object o = mod.config().get(k);
             if (o != null) m.put(k, o);
         }
@@ -211,6 +261,12 @@ final class ShipsClient {
                 int a = in.readInt(), dx = in.readShort(), dy = in.readShort(), dz = in.readShort(), face = in.readByte();
                 float hx = in.readFloat(), hy = in.readFloat(), hz = in.readFloat();
                 mod.interact.use(p, a, dx, dy, dz, face, hx, hy, hz);
+                return;
+            }
+            if (op == 6) {                                                     // колёсико по блоку корабля
+                int a = in.readInt(), dx = in.readShort(), dy = in.readShort(), dz = in.readShort();
+                boolean ctrl = in.readUnsignedByte() != 0;
+                mod.interact.pick(p, a, dx, dy, dz, ctrl);
                 return;
             }
             if (op == 5) {

@@ -36,7 +36,30 @@ final class Ship {
     /** Вещи сундуков/бочек корабля-модели: клетка «dx,dy,dz» → вещи по ячейкам (JSON, пусто — нет вещи). */
     java.util.Map<String, java.util.List<String>> mchests;
 
+    /**
+     * Верфь (SHIPYARD.md): номер плота и клетка пилота в нём {k, x, y, z}; null — корабль ещё не в верфи. Клетка
+     * корабля (dx,dy,dz) от пилота (как mparts / Flight.parts) = блок плота (x+dx, y+dy, z+dz) — настоящий блок мира.
+     */
+    int[] yard;
+    /** Ориентация блоков в плоте (курс взлёта, как mturn) и коробка клеток {minDx,minDy,minDz,maxDx,maxDy,maxDz}. */
+    float yardTurn;
+    int[] yardBox;
+    /** Из какого чертежа построен плот (другой корабль — плот не его) и номера брошенных плотов (не занимать снова). */
+    String yardTemplate;
+    java.util.List<Integer> oldYards;
+
+    /** Бросить плот (корабль сменился): блоки остаются, номер больше не выдаётся. */
+    void dropYard() {
+        if (yard == null) return;
+        if (oldYards == null) oldYards = new java.util.ArrayList<>();
+        oldYards.add(yard[0]);
+        yard = null; yardBox = null; yardTemplate = null;
+    }
+
     transient ShipTemplate t;
+    /** Кубы плота закреплены в ядре (Shipyard.pin); pinnedIn — в каком мире (карту перезагрузили — закрепить заново). */
+    transient boolean pinned;
+    transient net.minestom.server.instance.Instance pinnedIn;
     transient Flight flight;
 
     UUID ownerId() { return UUID.fromString(owner); }

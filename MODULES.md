@@ -91,6 +91,57 @@ SpaceApi space = services().require(SpaceApi.class);
    своего модуля, не через глобальный обработчик: иначе после перезагрузки старая версия модуля останется в памяти.
 8. Async-задачи должны завершаться по `Thread.interrupted()` — при выключении модуля ядро ждёт их не дольше 3 с.
 
+## Генератор планеты
+
+Каждая планета — отдельная высокая карта (`maps/<планета>/map.yml`: `tall: true`, `store: cubes`) со своим
+модулем-генератором. Пример целиком — `modules/noisegen` (генератор `noise-test`, синусный рельеф).
+
+```java
+public final class MarsModule extends OdysseyModule {
+    protected void onEnable() { registerGenerator(new MarsProvider()); }   // снимется при выключении сам
+}
+
+public final class MarsProvider implements GeneratorProvider {
+    public String id() { return "mars"; }                // map.yml: generator: mars
+    public int version() { return 1; }                   // поменял рельеф — увеличь
+    public Bounds defaultBounds() { return new Bounds(-1000, 1000); }   // где вообще есть блоки (Y; size — квадрат X/Z)
+    public WorldGenerator create(GenSettings s) { return new MarsGen(s.seed()); }   // экземпляр на карту
+}
+
+final class MarsGen implements WorldGenerator {
+    public void generate(CubeBuffer out) {               // куб 16³: out.cx/cy/cz, set/setAbs/fill/fillY/biome
+        for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) { /* ... */ }
+    }
+    public boolean hasBlocks(int cx, int cy, int cz) { return (cy << 4) <= 300; }       // выше — небо: generate не зовут
+    public Block uniform(int cx, int cy, int cz) { return (cy << 4) + 15 < -200 ? Block.STONE : null; }   // недра
+    public int highest(int x, int z, int yFrom, int yTo, HeightKind k) { return UNKNOWN; }   // не уверен — UNKNOWN
+}
+```
+
+Правила генератора:
+1. **Детерминированный и потокобезопасный.** Ядро зовёт его параллельно из многих потоков; один и тот же куб
+   обязан всегда выходить одинаковым (случайность — только хэш от `seed` и координат, без `Math.random`, без
+   общих `HashMap`). Тогда на диск пишутся только правки игроков — планету 100k×100k можно держать. Проверка:
+   `/hocubes gentest <карта>`. Недетерминированный (`deterministic() = false`) — каждый куб ложится на диск,
+   только для маленьких карт.
+2. **`hasBlocks` и `uniform` — главное для скорости.** На планете высотой ~2000 блоков ~125 кубов на столбец;
+   если генератор быстро говорит «здесь пусто» / «здесь сплошной камень», генерируются только 3–8 кубов у
+   поверхности. Врать нельзя (`gentest` проверяет).
+3. **`highest`** — верх колонки без генерации кубов (свет). Ошибка портит свет; не уверен — `UNKNOWN`, тогда
+   высоты возьмёт индекс pregen (`/hocubes pregen`) или ядро посчитает по кубам.
+4. **Деревья и камни на стыке кубов**: якоря фич — от хэша ячейки сетки (сид + координаты ячейки), каждый куб
+   перебирает ячейки вокруг себя и рисует фичу через `setAbs` — лишнее (не свой куб) отбрасывается. Радиус фичи
+   держите ≤ 16 блоков.
+5. **Поменяли логику — `version()` +1.** Правки игроков на диске останутся, нетронутое сгенерируется новой
+   версией, индекс pregen старой версии перестанет использоваться (нужен новый pregen).
+
+map.yml планеты: `generator: mars`, `seed: <число>`, по желанию `gen_min_y`/`gen_max_y`/`gen_size` (поверх
+`defaultBounds`) и `generator_options: {…}` (в `GenSettings.options`). `generator_seen` пишет ядро.
+
+**Перезагрузка модуля-генератора** запрещена, пока карта с ним загружена или идёт pregen (иначе на одной карте
+смешались бы кубы двух версий). Цикл разработки: `/homap unload mars` → `homodule reload marsgen` → снова на
+карту. Основная карта `world` грузится до модулей — её генератор только встроенный (`flat`/`void`).
+
 ## Консоль сервера
 
 | Команда | Что делает |

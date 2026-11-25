@@ -24,13 +24,30 @@ public final class Hooks {
     static final List<Owned<ClientContext.CameraHook>> CAMERA = new ArrayList<>();
     static final List<Owned<ClientContext.WorldHook>> WORLD = new ArrayList<>();
     static final List<Owned<ClientContext.TravelHook>> TRAVEL = new ArrayList<>();
+    static final List<Owned<ClientContext.TravelHook>> TRAVEL_END = new ArrayList<>();
+    static final List<Owned<ClientContext.TravelHook>> TICK_ENTER = new ArrayList<>();
+    static final List<Owned<ClientContext.EntityPoseHook>> POSE = new ArrayList<>();
+    static final List<Owned<ClientContext.PickHook>> PICK = new ArrayList<>();
+    static volatile Owned<ClientContext.YardResolver> yardResolver;
+    static volatile Owned<ClientContext.LocalViewHook> localView;
+    static final List<Owned<ClientContext.TravelHook>> TICK_EXIT = new ArrayList<>();
+    /** Звуки у своего игрока — из этой системы в мир (ClientContext.setSoundFrame), null — как есть. */
+    public static volatile org.joml.Matrix4d soundFrame;
     static final List<Owned<ClientContext.InputHook>> INPUT = new ArrayList<>();
     static final List<Owned<ClientContext.EntityTiltHook>> TILT = new ArrayList<>();
     static final List<Owned<ClientContext.ClickHook>> CLICK = new ArrayList<>();
+    static final List<Owned<ClientContext.OutlineHook>> OUTLINE = new ArrayList<>();
+    /** В этом кадре рамку нарисовал модуль (второй вызов игры — для прозрачной рамки — тоже пропустить). */
+    public static boolean outlineDrawn;
     static final List<Owned<ClientContext.CollisionHook>> COLLISION = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     /** Модули, которые просят не рисовать руку от первого лица (кабина корабля и т.п.). */
     static final java.util.Set<String> HIDE_HAND = new java.util.HashSet<>();
+
+    /** Экран загрузки мира спрятан (чёрный) до этого момента, мс (0 — не спрятан). */
+    private static volatile long hideLoadingUntil;
+    public static void hideLoading(boolean hide) { hideLoadingUntil = hide ? System.currentTimeMillis() + 15_000 : 0; }
+    public static boolean hideLoading() { return hideLoadingUntil > System.currentTimeMillis(); }
 
     public static boolean hideHand() { return !HIDE_HAND.isEmpty(); }
 
@@ -47,9 +64,18 @@ public final class Hooks {
         CAMERA.removeIf(o -> o.owner().equals(owner));
         WORLD.removeIf(o -> o.owner().equals(owner));
         TRAVEL.removeIf(o -> o.owner().equals(owner));
+        TRAVEL_END.removeIf(o -> o.owner().equals(owner));
+        TICK_ENTER.removeIf(o -> o.owner().equals(owner));
+        POSE.removeIf(o -> o.owner().equals(owner));
+        PICK.removeIf(o -> o.owner().equals(owner));
+        if (yardResolver != null && yardResolver.owner().equals(owner)) yardResolver = null;
+        if (localView != null && localView.owner().equals(owner)) localView = null;
+        TICK_EXIT.removeIf(o -> o.owner().equals(owner));
+        soundFrame = null;
         INPUT.removeIf(o -> o.owner().equals(owner));
         TILT.removeIf(o -> o.owner().equals(owner));
         CLICK.removeIf(o -> o.owner().equals(owner));
+        OUTLINE.removeIf(o -> o.owner().equals(owner));
         COLLISION.removeIf(o -> o.owner().equals(owner));
         HIDE_HAND.remove(owner);
     }
@@ -61,9 +87,18 @@ public final class Hooks {
         CAMERA.clear();
         WORLD.clear();
         TRAVEL.clear();
+        TRAVEL_END.clear();
+        TICK_ENTER.clear();
+        POSE.clear();
+        PICK.clear();
+        yardResolver = null;
+        localView = null;
+        TICK_EXIT.clear();
+        soundFrame = null;
         INPUT.clear();
         TILT.clear();
         CLICK.clear();
+        OUTLINE.clear();
         rotation = null;
         COLLISION.clear();
         HIDE_HAND.clear();
@@ -94,9 +129,39 @@ public final class Hooks {
     public static boolean hasCamera() { return !CAMERA.isEmpty(); }
 
     /** Перед движением своего игрока (миксин LivingEntity.travel). */
+    public static void travelEnd(net.minecraft.client.player.LocalPlayer p) {
+        if (TRAVEL_END.isEmpty()) return;
+        for (var o : List.copyOf(TRAVEL_END)) safe(o.owner(), () -> o.hook().before(p));
+    }
+
+    /** Начало тика своего игрока (миксин Player.tick HEAD). */
+    public static void tickEnter(net.minecraft.client.player.LocalPlayer p) {
+        if (TICK_ENTER.isEmpty()) return;
+        for (var o : List.copyOf(TICK_ENTER)) safe(o.owner(), () -> o.hook().before(p));
+    }
+
+    /** Конец тика своего игрока (Player.tick TAIL) — до отправки позиции серверу. */
+    public static void tickExit(net.minecraft.client.player.LocalPlayer p) {
+        if (TICK_EXIT.isEmpty()) return;
+        for (var o : List.copyOf(TICK_EXIT)) safe(o.owner(), () -> o.hook().before(p));
+    }
+
     public static void travel(net.minecraft.client.player.LocalPlayer p) {
         if (TRAVEL.isEmpty()) return;
         for (var o : List.copyOf(TRAVEL)) safe(o.owner(), () -> o.hook().before(p));
+    }
+
+    /** Рамка выделения от модулей; true — нарисована (игре свою не рисовать). */
+    public static boolean outline(com.mojang.blaze3d.vertex.PoseStack pose, net.minecraft.client.renderer.MultiBufferSource buffers,
+                                  net.minecraft.world.phys.Vec3 camera, float pt) {
+        if (OUTLINE.isEmpty()) return false;
+        boolean drawn = false;
+        for (var o : List.copyOf(OUTLINE)) {
+            boolean[] r = {false};
+            safe(o.owner(), () -> r[0] = o.hook().render(pose, buffers, camera, pt));
+            drawn |= r[0];
+        }
+        return drawn;
     }
 
     /** Клик игрока — модулям; true — забран (игра его не обрабатывает). */
@@ -108,6 +173,45 @@ public final class Hooks {
             if (r[0]) return true;
         }
         return false;
+    }
+
+    /** Колёсико мыши — модулям; true — забрал. */
+    public static boolean pick(boolean ctrl) {
+        for (var o : List.copyOf(PICK)) {
+            boolean[] r = {false};
+            safe(o.owner(), () -> r[0] = o.hook().pick(ctrl));
+            if (r[0]) return true;
+        }
+        return false;
+    }
+
+    /** Поза модели от модулей (первая не-null) или null. */
+    public static ClientContext.EntityPose pose(net.minecraft.world.entity.Entity e, float pt) {
+        if (POSE.isEmpty()) return null;
+        for (var o : List.copyOf(POSE)) {
+            ClientContext.EntityPose[] r = {null};
+            safe(o.owner(), () -> r[0] = o.hook().pose(e, pt));
+            if (r[0] != null) return r[0];
+        }
+        return null;
+    }
+
+    /** Взгляд своего игрока в системе модуля {курс, наклон} или null. */
+    public static float[] localView(float pt) {
+        var h = localView;
+        if (h == null) return null;
+        float[][] r = {null};
+        safe(h.owner(), () -> r[0] = h.hook().view(pt));
+        return r[0];
+    }
+
+    /** Верфь → мир для точки полосы верфи (кадр pt) или null. */
+    public static org.joml.Matrix4d yardToWorld(double x, double y, double z, float pt) {
+        var r = yardResolver;
+        if (r == null) return null;
+        org.joml.Matrix4d[] m = {null};
+        safe(r.owner(), () -> m[0] = r.hook().toWorld(x, y, z, pt));
+        return m[0];
     }
 
     /** Поворот модели сущности от модулей (первый не-null) или null. */

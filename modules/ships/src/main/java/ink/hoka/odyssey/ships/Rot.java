@@ -132,6 +132,57 @@ final class Rot {
         return new double[]{h[0], y2, h[1]};
     }
 
+    /** Углы {курс, наклон, крен} кватерниона q в виде Y(курс)·X(наклон)·Z(крен) (как quat(yaw, pitch, roll, 0)). */
+    static double[] euler(float[] q) {
+        double[] f = rotate(q, 0, 0, 1);
+        double pitch = Math.toDegrees(Math.asin(Math.max(-1, Math.min(1, -f[1]))));
+        double yaw = Math.toDegrees(Math.atan2(-f[0], f[2]));
+        float[] q0 = quat(yaw, pitch, 0);
+        float[] r = mul(new float[]{-q0[0], -q0[1], -q0[2], q0[3]}, q);
+        double[] u = rotate(r, 0, 1, 0);
+        double roll = Math.toDegrees(Math.atan2(-u[0], u[1]));
+        return new double[]{wrap(yaw), pitch, wrap(roll)};
+    }
+
+    /** Тот же курс, но ровно (наклон и крен 0). Нос вертикально — курс по «верху». */
+    static float[] level(float[] q) {
+        double[] f = rotate(q, 0, 0, 1);
+        double hx = -f[0], hz = f[2];
+        if (hx * hx + hz * hz < 1e-6) {
+            double[] u = rotate(q, 0, 1, 0);
+            double sg = f[1] < 0 ? 1 : -1;                                  // нос вниз — «верх» смотрит по курсу
+            hx = -u[0] * sg;
+            hz = u[2] * sg;
+        }
+        return quat(Math.toDegrees(Math.atan2(hx, hz)), 0, 0, 0);
+    }
+
+    /** Угол между поворотами (радианы). */
+    static double angle(float[] a, float[] b) {
+        double d = Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]);
+        return 2 * Math.acos(Math.min(1, d));
+    }
+
+    /** Сферическая интерполяция a → b на долю t. */
+    static float[] slerp(float[] a, float[] b, double t) {
+        double d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+        float[] bb = b;
+        if (d < 0) { d = -d; bb = new float[]{-b[0], -b[1], -b[2], -b[3]}; }
+        double k0, k1;
+        if (d > 0.9995) { k0 = 1 - t; k1 = t; }
+        else {
+            double th = Math.acos(d), sn = Math.sin(th);
+            k0 = Math.sin((1 - t) * th) / sn;
+            k1 = Math.sin(t * th) / sn;
+        }
+        float[] r = new float[4];
+        double len = 0;
+        for (int i = 0; i < 4; i++) { r[i] = (float) (a[i] * k0 + bb[i] * k1); len += r[i] * r[i]; }
+        len = Math.sqrt(len);
+        for (int i = 0; i < 4; i++) r[i] /= (float) len;
+        return r;
+    }
+
     /** Угол [-180, 180). */
     static double wrap(double deg) {
         deg %= 360;

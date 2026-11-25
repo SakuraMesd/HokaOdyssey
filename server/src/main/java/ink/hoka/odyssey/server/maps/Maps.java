@@ -98,24 +98,125 @@ public final class Maps {
         GameMap m = loaded.get(DEFAULT);
         if (m != null) return m;
         if (!exists(DEFAULT)) return create(DEFAULT, Generator.FLAT);
-        return load(DEFAULT);
+        m = load(DEFAULT);
+        // основная карта грузится ДО модулей: её генератор обязан быть встроенным (flat/void); планеты — отдельные карты
+        if (m == null) throw new IllegalStateException("основная карта «" + DEFAULT + "» не загрузилась — генератор в map.yml "
+                + "должен быть встроенным (flat/void), генераторы модулей — только для отдельных карт (см. лог)");
+        return m;
     }
 
-    /** Карта по имени — загружается при необходимости. null — такой папки нет. */
+    /** Карты, которые сейчас переводятся в другой формат (/hocubes convert) — не загружать. */
+    private final Set<String> busy = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Карты, которые сейчас выгружаются (из loaded уже убраны, но ещё сохраняются): не загружать заново и не
+     * конвертировать — иначе второй мир/конвертер прочтёт файлы до последнего сохранения старого.
+     */
+    private final Set<String> unloading = ConcurrentHashMap.newKeySet();
+
+    /** Занять выгруженную карту под конвертацию: false — загружена, выгружается или уже занята. */
+    public synchronized boolean lockForConvert(String name) {
+        if (loaded.containsKey(name) || unloading.contains(name)) return false;
+        return busy.add(name);
+    }
+
+    public void unlockConvert(String name) { busy.remove(name); }
+
+    /** Карта по имени — загружается при необходимости. null — такой папки нет (или карта сейчас конвертируется). */
     public synchronized GameMap load(String name) {
         GameMap m = loaded.get(name);
         if (m != null) return m;
+        if (busy.contains(name)) { LOG.warn("карта «{}» сейчас конвертируется — не загружаю", name); return null; }
+        if (unloading.contains(name)) { LOG.warn("карта «{}» сейчас выгружается — не загружаю", name); return null; }
         Path d = dir.resolve(name);
         if (!NAME.matcher(name).matches() || !Files.isDirectory(d)) return null;
         ModuleConfig meta = new ModuleConfig(d.resolve("map.yml"));
         Generator gen = Optional.ofNullable(Generator.of(meta.getString("generator", "flat"))).orElse(Generator.FLAT);
-        InstanceContainer inst = MinecraftServer.getInstanceManager().createInstanceContainer(new AnvilLoader(d));
-        inst.setChunkSupplier(LightingChunk::new);
-        inst.setGenerator(generator(gen));
+        InstanceContainer inst;
+        ink.hoka.odyssey.server.tall.gen.CubeGens.Resolved rg = null;
+        if (meta.getBoolean("tall", false) && ink.hoka.odyssey.server.tall.TallWorld.key(name) != null && isCubeStore(meta)) {
+            rg = ink.hoka.odyssey.server.tall.gen.CubeGens.resolve(name, d, meta);
+            if (rg.error() != null) { LOG.error("карта «{}» не загружена: {}", name, rg.error()); return null; }
+            // занять генератор сразу (запрет выгрузки модуля); модуль успели выгрузить между resolve и сюда — не грузим
+            if (!ink.hoka.odyssey.server.tall.gen.GeneratorRegistry.acquire("загружена карта " + name, rg.gen().provider)) {
+                LOG.error("карта «{}» не загружена: генератор «{}» только что выгружен/заменён", name, rg.gen().id());
+                return null;
+            }
+        }
+        if (meta.getBoolean("tall", false) && ink.hoka.odyssey.server.tall.TallWorld.key(name) != null) {
+            // высокий мир: Anvil не держит такую высоту — своё хранение (maps/<карта>/tall/), свет — свой (TallChunk)
+            // store: cubes — регионы кубов (шаг 7, /hocubes convert), .htw из tall/ — запасной источник; иначе файл .htw на столбец
+            net.minestom.server.instance.ChunkLoader loader = isCubeStore(meta)
+                    ? new ink.hoka.odyssey.server.tall.CubeRegionLoader(d, d.resolve("tall"))
+                    : new ink.hoka.odyssey.server.tall.TallLoader(d.resolve("tall"));
+            // шаг 10: кубы — по запросу (CubeStore), только на кубовом протоколе (игроку шлются лишь READY-кубы);
+            // map.yml cube_lazy: false — по-старому, все кубы столбца при его загрузке
+            if (loader instanceof ink.hoka.odyssey.server.tall.CubeRegionLoader cl) {
+                cl.setLazy(ink.hoka.odyssey.server.tall.TallWorld.cubesMap(name) && meta.getBoolean("cube_lazy", true));
+                // шаг 11: кубы без интереса 30 с — из памяти (только с ленивой загрузкой); map.yml cube_unload: false — держать
+                cl.setUnload(meta.getBoolean("cube_unload", true));
+                cl.setGen(rg.gen());                                   // генератор планеты (map.yml generator) — до первого столбца
+            } else if (!"flat".equals(meta.getString("generator", "flat")))
+                LOG.warn("карта «{}» на .htw: генераторы планет — только для store: cubes, здесь всегда flat", name);
+            inst = MinecraftServer.getInstanceManager().createInstanceContainer(ink.hoka.odyssey.server.tall.TallWorld.key(name), loader);
+            inst.setWorldBorder(ink.hoka.odyssey.server.tall.TallWorld.border());
+            // store: cubes — CubeColumn (шаг 9: свой Chunk, кубы разреженно); .htw — TallChunk, как раньше
+            if (isCubeStore(meta)) inst.setChunkSupplier(ink.hoka.odyssey.server.tall.CubeColumn::generated);
+            else inst.setChunkSupplier(ink.hoka.odyssey.server.tall.TallChunk::generated);   // свой свет, разреженные секции, своя генерация
+            if (ink.hoka.odyssey.server.tall.TallWorld.cubesMap(name)) ink.hoka.odyssey.server.tall.TallWorld.markCubes(inst);
+            // генератор Minestom не ставим: он пишет во все 1876 секций (TallChunk.generated генерирует сам)
+        } else {
+            inst = MinecraftServer.getInstanceManager().createInstanceContainer(new AnvilLoader(d));
+            inst.setChunkSupplier(LightingChunk::new);
+            inst.setGenerator(generator(gen));
+        }
         m = new GameMap(name, inst, d, meta);
         loaded.put(name, m);
-        LOG.info("карта «{}» загружена ({})", name, gen.key());
+        if (rg != null) {
+            ink.hoka.odyssey.server.tall.gen.CubeGens.markSeen(name, meta, rg);
+        }
+        LOG.info("карта «{}» загружена ({}{})", name, rg != null ? rg.gen().tag() : gen.key(), isCubeStore(meta)
+                ? ", регионы кубов" + (ink.hoka.odyssey.server.tall.CubeStore.lazy(inst) ? ", кубы по запросу" : "")
+                        + (ink.hoka.odyssey.server.tall.CubeStore.unloading(inst) ? " и выгрузка" : "") : "");
         return m;
+    }
+
+    /** Карта хранится регионами кубов (map.yml {@code store: cubes}). */
+    static boolean isCubeStore(ModuleConfig meta) { return "cubes".equalsIgnoreCase(meta.getString("store", "htw")); }
+
+    /** Папка карты (для конвертера /hocubes convert). */
+    public Path dir(String name) { return dir.resolve(name); }
+
+    /** map.yml карты (для конвертера: store: cubes). */
+    public ModuleConfig meta(String name) { return new ModuleConfig(dir.resolve(name).resolve("map.yml")); }
+
+    /** После выгрузки карты: закрыть её файлы регионов (иначе их не переименовать/удалить). */
+    private static void closeFiles(GameMap m) {
+        if (m.instance.getChunkLoader() instanceof ink.hoka.odyssey.server.tall.CubeRegionLoader l) l.close();
+        ink.hoka.odyssey.server.tall.Cubes.forget(m.instance);                // закрепления кубов выгруженной карты
+        ink.hoka.odyssey.server.tall.gen.GeneratorRegistry.release("загружена карта " + m.name);   // модуль-генератор можно перезагружать
+    }
+
+    /** Генератор загруженной карты (для pregen/gentest/size) или null. */
+    public ink.hoka.odyssey.server.tall.gen.ModuleCubeGen liveGen(String name) {
+        GameMap m = loaded.get(name);
+        return m == null ? null : ink.hoka.odyssey.server.tall.gen.CubeGens.module(m.instance);
+    }
+
+    /** Карта загружена или выгружается (её файлы ещё открыты). */
+    public boolean inUse(String name) { return loaded.containsKey(name) || unloading.contains(name); }
+
+    /** Окружение для /hocubes pregen: папки, map.yml, замок как у convert, генератор загруженной карты. */
+    public ink.hoka.odyssey.server.tall.gen.Pregen.Env pregenEnv() {
+        Maps self = this;
+        return new ink.hoka.odyssey.server.tall.gen.Pregen.Env() {
+            @Override public Path dir(String map) { return self.dir(map); }
+            @Override public ModuleConfig meta(String map) { return self.meta(map); }
+            @Override public boolean lock(String map) { return self.lockForConvert(map); }
+            @Override public void unlock(String map) { self.unlockConvert(map); }
+            @Override public ink.hoka.odyssey.server.tall.gen.ModuleCubeGen liveGen(String map) { return self.liveGen(map); }
+            @Override public java.util.SortedSet<String> names() { return self.names(); }
+        };
     }
 
     private static net.minestom.server.instance.generator.Generator generator(Generator g) {
@@ -140,6 +241,7 @@ public final class Maps {
         try { Files.createDirectories(d); } catch (IOException e) { throw new IllegalStateException("не создать " + d + ": " + e.getMessage()); }
         ModuleConfig meta = new ModuleConfig(d.resolve("map.yml"));
         meta.set("generator", gen.key());
+        meta.set("seed", new java.security.SecureRandom().nextLong());       // сид генератора (высокие карты-планеты)
         meta.set("created", new java.util.Date().toString());
         double y = gen == Generator.VOID ? 65 : 41;
         meta.set("spawn.x", 0.5); meta.set("spawn.y", y); meta.set("spawn.z", 0.5);
@@ -147,7 +249,7 @@ public final class Maps {
         meta.save();
         GameMap m = load(name);
         if (gen == Generator.VOID) {                                              // площадка, чтобы не упасть
-            m.instance.loadChunk(0, 0).thenRun(() -> {
+            ink.hoka.odyssey.server.tall.Cubes.loadCubes(m.instance, new net.minestom.server.coordinate.Vec(-2, 64, -2), new net.minestom.server.coordinate.Vec(2, 64, 2)).thenRun(() -> {
                 for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) m.instance.setBlock(x, 64, z, Block.STONE);
             });
         }
@@ -175,7 +277,7 @@ public final class Maps {
         }
         Path d = dir.resolve(name);
         return moved.thenRun(() -> {
-            if (m != null) MinecraftServer.getSchedulerManager().scheduleNextTick(() -> MinecraftServer.getInstanceManager().unregisterInstance(m.instance));
+            if (m != null) { closeFiles(m); MinecraftServer.getSchedulerManager().scheduleNextTick(() -> MinecraftServer.getInstanceManager().unregisterInstance(m.instance)); }
             deleteTree(d);
             LOG.info("карта «{}» удалена", name);
         });
@@ -212,6 +314,8 @@ public final class Maps {
             for (GameMap m : loaded.values()) save(m);
         }).delay(TaskSchedule.minutes(5)).repeat(TaskSchedule.minutes(5)).schedule();
         MinecraftServer.getSchedulerManager().buildTask(this::unloadIdle).delay(TaskSchedule.minutes(1)).repeat(TaskSchedule.minutes(1)).schedule();
+        // раз в 10 с (было 30): в быстром полёте столбцы без кубов копились десятками тысяч, а тик Minestom обходит все
+        MinecraftServer.getSchedulerManager().buildTask(this::reapColumns).delay(TaskSchedule.seconds(10)).repeat(TaskSchedule.seconds(10)).schedule();
     }
 
     private void unloadIdle() {
@@ -220,11 +324,102 @@ public final class Maps {
             if (DEFAULT.equals(m.name)) continue;
             if (!m.instance.getPlayers().isEmpty()) { m.emptySince = now; continue; }
             if (now - m.emptySince < IDLE_UNLOAD_MS) continue;
-            loaded.remove(m.name);
+            synchronized (this) { if (loaded.remove(m.name) == null) continue; unloading.add(m.name); }
             save(m).thenRun(() -> MinecraftServer.getSchedulerManager().scheduleNextTick(() -> {
-                if (m.instance.getPlayers().isEmpty()) MinecraftServer.getInstanceManager().unregisterInstance(m.instance);
-                LOG.info("карта «{}» выгружена (пустая 10 мин)", m.name);
+                try {
+                    if (!m.instance.getPlayers().isEmpty() || unsaved(m) > 0) {   // зашли/не сохранилось — карта остаётся
+                        loaded.put(m.name, m);
+                        m.emptySince = System.currentTimeMillis();
+                        return;
+                    }
+                    MinecraftServer.getInstanceManager().unregisterInstance(m.instance);
+                    closeFiles(m);
+                    LOG.info("карта «{}» выгружена (пустая 10 мин)", m.name);
+                } finally { unloading.remove(m.name); }
             }));
+        }
+    }
+
+    /**
+     * Выгрузить карту сейчас (/homap unload): игроков — на основную, сохранить, убрать из памяти. Основную нельзя.
+     * Будущее завершается, когда карта выгружена и её файлы закрыты.
+     */
+    public synchronized CompletableFuture<Void> unload(String name) {
+        if (DEFAULT.equals(name)) return CompletableFuture.failedFuture(new IllegalArgumentException("основную карту «world» выгрузить нельзя"));
+        GameMap m = loaded.remove(name);
+        if (m == null) return CompletableFuture.failedFuture(new IllegalArgumentException("карта «" + name + "» не загружена"));
+        unloading.add(name);
+        GameMap def = defaultMap();
+        List<CompletableFuture<Void>> fs = new ArrayList<>();
+        for (Player p : m.instance.getPlayers()) {
+            p.sendMessage(net.kyori.adventure.text.Component.text("Карта «" + name + "» выгружена — вы на основной карте.", net.kyori.adventure.text.format.NamedTextColor.YELLOW));
+            fs.add(p.setInstance(def.instance, def.spawn()));
+        }
+        CompletableFuture<Void> done = new CompletableFuture<>();
+        CompletableFuture.allOf(fs.toArray(CompletableFuture[]::new)).thenCompose(v -> save(m)).whenComplete((v, e) ->
+                MinecraftServer.getSchedulerManager().scheduleNextTick(() -> {
+                    try {
+                        int left = unsaved(m);
+                        if (left > 0 || !m.instance.getPlayers().isEmpty()) {   // не всё записалось — из памяти не убираем
+                            loaded.put(m.name, m);
+                            done.completeExceptionally(new IllegalStateException("не сохранено столбцов: " + left
+                                    + " (см. лог) — карта оставлена загруженной"));
+                            return;
+                        }
+                        MinecraftServer.getInstanceManager().unregisterInstance(m.instance);
+                        closeFiles(m);
+                        LOG.info("карта «{}» выгружена командой", m.name);
+                        done.complete(null);
+                    } catch (Throwable t) { done.completeExceptionally(t); }
+                    finally { unloading.remove(m.name); }
+                }));
+        return done;
+    }
+
+    /** Столбцов высоких карт, правки которых ещё не на диске (сохранение не удалось). */
+    private static int unsaved(GameMap m) {
+        int n = 0;
+        for (var ch : m.instance.getChunks())
+            if (ch instanceof ink.hoka.odyssey.server.tall.TallColumn c && c.isModified()) n++;
+        return n;
+    }
+
+    /** Столбцов высоких карт выгружено всего / пропущено из-за сущностей (для /hocubes stats). */
+    public static volatile long columnsReaped, columnsKeptForEntities;
+
+    /**
+     * Высокие карты: столбец, который никто не видит дольше минуты, — из памяти (изменённый сначала на диск). Не
+     * трогаем полосу верфи кораблей (якоря и плоты) и столбцы с сущностями (выгрузка Minestom их удалила бы).
+     * Карта с выгрузкой кубов (шаг 11): ленивый столбец — когда в нём не осталось кубов (их выгрузил CubeStore),
+     * нет игроков-зрителей и сущностей; минуту не ждём — кубы уже прождали своё.
+     */
+    private void reapColumns() {
+        long now = System.currentTimeMillis();
+        for (GameMap m : List.copyOf(loaded.values())) {
+            var inst = m.instance;
+            for (var ch : List.copyOf(inst.getChunks())) {
+                if (!(ch instanceof ink.hoka.odyssey.server.tall.TallColumn tc)) continue;
+                var c = ch;
+                if (c.getChunkX() * 16 >= ink.hoka.odyssey.server.tall.TallChunk.YARD_X0) continue;
+                if (ink.hoka.odyssey.server.tall.Cubes.isColumnPinned(inst, c.getChunkX(), c.getChunkZ())) continue;   // закреплено (корабль…)
+                if (c instanceof ink.hoka.odyssey.server.tall.CubeColumn cc && cc.busy()) continue;   // кубы грузятся / их ждут
+                // не только getViewers(): кольцо 33 обзора игрока в зрителях столбца не числится (CHUNK_VIEW_DISTANCE 32),
+                // а скелет у клиента есть — выгрузка оставляла бы у него пустоту, которую Minestom уже не перешлёт
+                if (ink.hoka.odyssey.server.tall.CubeStreamer.watched(tc)) { ink.hoka.odyssey.server.tall.TallWorld.seen(tc, now); continue; }
+                boolean byCubes = c instanceof ink.hoka.odyssey.server.tall.CubeColumn cc && cc.isLazy()
+                        && ink.hoka.odyssey.server.tall.CubeStore.unloading(inst);
+                if (byCubes) { if (!((ink.hoka.odyssey.server.tall.CubeColumn) c).noCubes()) continue; }   // кубы ещё в памяти
+                else if (now - ink.hoka.odyssey.server.tall.TallWorld.seenAt(tc) < 60_000) continue;
+                if (!inst.getChunkEntities(c).isEmpty()) { columnsKeptForEntities++; ink.hoka.odyssey.server.tall.TallWorld.seen(tc, now); continue; }
+                inst.saveChunkToStorage(c).thenRun(() -> MinecraftServer.getSchedulerManager().scheduleNextTick(() -> {
+                    if (!c.isLoaded() || ink.hoka.odyssey.server.tall.CubeStreamer.watched(tc) || tc.isModified() || !inst.getChunkEntities(c).isEmpty()) return;
+                    if (ink.hoka.odyssey.server.tall.Cubes.isColumnPinned(inst, c.getChunkX(), c.getChunkZ())) return;
+                    if (c instanceof ink.hoka.odyssey.server.tall.CubeColumn cc && cc.busy()) return;
+                    if (byCubes && !((ink.hoka.odyssey.server.tall.CubeColumn) c).noCubes()) return;   // куб успели загрузить
+                    inst.unloadChunk(c);
+                    columnsReaped++;
+                }));
+            }
         }
     }
 

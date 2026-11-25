@@ -74,8 +74,24 @@ final class Flight {
         }
         Map<Long, Block> cells = new HashMap<>();
         Pos pivot;
-        if (ship.state == Ship.State.MODEL) {
+        if (ship.state == Ship.State.MODEL && ship.yard != null) {
+            // корабль из верфи: блоки остаются в плоте, якорь модели — тот же (модуль им владеет), поза — m*
+            for (int i = 0; i < ship.mparts.size(); i++) {
+                int[] q = ship.mparts.get(i);
+                Block b = Block.fromState(ship.mblocks.get(i));
+                if (b != null && !b.isAir()) cells.put(key(q[0], q[1], q[2]), b);
+            }
+            yardHull(cells);
+            anchor = mod.parked.get(ship.owner);
+            x = ship.mx; y = ship.my; z = ship.mz;
+            yaw = ship.myaw; pitch = ship.mpitch; roll = ship.mroll;
+            Pos at = new Pos(x, y, z, (float) yaw, 0f);
+            pilot.teleport(at);                                                 // по пилоту сервер грузит чанки
+            launch(at);
+            return;
+        } else if (ship.state == Ship.State.MODEL) {
             // взлёт со стоянки-модели: блоки — из сохранённого, положение — где стоял
+            // корабль из верфи: mparts уже собраны из плота (ShipsModule.takeOff → syncFromYard)
             for (int i = 0; i < ship.mparts.size(); i++) {
                 int[] q = ship.mparts.get(i);
                 Block b = Block.fromState(ship.mblocks.get(i));
@@ -122,6 +138,24 @@ final class Flight {
         return new Pos(x, y, z, (float) yaw, 0f);
     }
 
+    /** Внешние клетки корабля из верфи (по клеткам mparts) — для проверки «не в блоках ли». */
+    private void yardHull(Map<Long, Block> cells) {
+        hull.clear();
+        for (var e : cells.entrySet()) {
+            long k = e.getKey();
+            int dx = (int) (k << 1 >> 43), dy = (int) (k << 22 >> 43), dz = (int) (k << 43 >> 43);
+            boolean outer = false;
+            for (int[] d : DIRS) if (!cells.containsKey(key(dx + d[0], dy + d[1], dz + d[2]))) { outer = true; break; }
+            if (outer) hull.add(new Part(dx, dy, dz, e.getValue()));
+        }
+        hullDirty = false;
+    }
+
+    /** Клетки корабля из верфи поменялись (стройка в полёте) — внешние клетки заново при следующем положении. */
+    void cellsChanged() { hullDirty = true; }
+
+    private boolean hullDirty;
+
     private void hullOf(Map<Long, Block> cells) {
         for (Part p : parts) {
             boolean outer = false;
@@ -153,7 +187,7 @@ final class Flight {
             });
             anchor.setInstance(instance, pivot.withView(0f, 0f)).join();
         }
-        anchor.updateViewableRule(v -> v != pilot);
+        if (ship.yard == null) anchor.updateViewableRule(v -> v != pilot);      // корабль из верфи: якорь видят все (и пилот)
 
         ship.state = Ship.State.FLYING;
         ship.flight = this;
@@ -190,6 +224,10 @@ final class Flight {
         yaw = nyaw;
         pitch = Math.clamp(npitch, -90, 90);
         roll = Rot.wrap(nroll);                                                 // крен любой — хоть вверх ногами
+        if (ship.yard != null) {                                                // одна поза: её же читают верфь, палуба, сохранение
+            ship.mx = x; ship.my = y; ship.mz = z;
+            ship.myaw = (float) yaw; ship.mpitch = (float) pitch; ship.mroll = (float) roll;
+        }
         lastPose = ticks;
         strikes = Math.max(0, strikes - 1);
         anchor.teleport(new Pos(x, y, z, 0f, 0f));
@@ -204,6 +242,15 @@ final class Flight {
 
     /** Корабль заметно в блоках (по внешним клеткам, с допуском) — с курсом, наклоном и креном, как у мода. */
     private boolean insideBlocks(double px, double py, double pz, double pyaw, double ppitch, double proll) {
+        if (hullDirty && ship.yard != null && ship.mparts != null) {
+            Map<Long, Block> cells = new HashMap<>();
+            for (int i = 0; i < ship.mparts.size(); i++) {
+                int[] q = ship.mparts.get(i);
+                Block b = Block.fromState(ship.mblocks.get(i));
+                if (b != null && !b.isAir()) cells.put(key(q[0], q[1], q[2]), b);
+            }
+            yardHull(cells);
+        }
         if (hull.isEmpty()) return false;
         int step = Math.max(1, hull.size() / Math.max(1, mod.config().getInt("check.samples", 64)));
         int hit = 0, limit = mod.config().getInt("check.hits", 4);
@@ -212,7 +259,7 @@ final class Flight {
             Part p = hull.get(i);
             double[] h = Rot.rotate(q, p.dx, p.dy + 0.5 - seatH, p.dz);
             int bx = (int) Math.floor(px + h[0]), by = (int) Math.floor(py + h[1]), bz = (int) Math.floor(pz + h[2]);
-            if (!instance.isChunkLoaded(bx >> 4, bz >> 4)) continue;
+            if (!mod.server().isCubeLoaded(instance, bx, by, bz)) continue;
             if (solid(instance.getBlock(bx, by, bz)) && ++hit >= limit) return true;
         }
         return false;
@@ -229,10 +276,21 @@ final class Flight {
         }
     }
 
+    /** Последнее, что сказали пилоту про автовыравнивание (null — ещё ничего). */
+    private Boolean levelSent;
+
     /** Каждый тик сервера: мод пропал — посадить корабль. */
     void tick() {
         if (finished) return;
         ticks++;
+        if (ship.yard != null) {
+            if (ticks % 20 == 0) Shipyard.ensureLoaded(mod, instance, ship);    // плот — всё время полёта в памяти
+            if (ticks % 100 == 0) mod.saveShipsAsync();                         // упадёт сервер — корабль там, где летел
+        }
+        if (ticks % 10 == 1) {                                                   // планета/космос — пилоту (для U)
+            boolean ok = mod.leveler.allowed(mod.server().mapName(instance).orElse(null), x, y, z);
+            if (levelSent == null || levelSent != ok) { levelSent = ok; mod.client.level(this, ok); }
+        }
         if (ticks - lastPose > mod.config().getInt("check.timeout-ticks", 200)) {
             pilot.sendMessage(Component.text("Мод не отвечает — аварийная посадка", NamedTextColor.RED));
             emergency();
@@ -250,8 +308,38 @@ final class Flight {
     Entity anchorPilot() { return null; }
     Player pilot() { return pilot; }
     double seatHeight() { return seatH; }
+
+    /** Тело корабля по текущим клеткам (SHIP-PHYSICS.md, этап 0). Оси — как у parts (от сиденья). */
+    ShipPhysics.Body body(ShipPhysics.Config cfg) {
+        List<ShipPhysics.Cell> cells = new ArrayList<>(parts.size());
+        for (Part p : parts) cells.add(new ShipPhysics.Cell(p.dx(), p.dy(), p.dz(), p.block()));
+        return ShipPhysics.compute(cells, seatH, cfg);
+    }
     double blockTurn() { return baseYaw; }
     double[] pose() { return new double[]{x, y, z, yaw, pitch, roll}; }
+
+    // ───────────────────────── клетки в полёте (клики пассажиров: двери, сундуки, стройка) ─────────────────────────
+
+    /** Блок в клетке или null. */
+    Block cell(int dx, int dy, int dz) {
+        for (Part p : parts) if (p.dx == dx && p.dy == dy && p.dz == dz) return p.block;
+        return null;
+    }
+
+    /** Поменять клетку (null — убрать). Внешние клетки для проверки «в блоках» — заново. */
+    void setCell(int dx, int dy, int dz, Block b) {
+        if (ship.yard != null) { instance.setBlock(Shipyard.cell(ship, dx, dy, dz), b == null ? Block.AIR : b); mod.yardStream.changed(ship, dx, dy, dz); }
+        parts.removeIf(p -> p.dx == dx && p.dy == dy && p.dz == dz);
+        if (b != null && !b.isAir()) parts.add(new Part(dx, dy, dz, b));
+        Map<Long, Block> cells = new HashMap<>();
+        for (Part p : parts) cells.put(key(p.dx, p.dy, p.dz), p.block);
+        hull.clear();
+        hullOf(cells);
+    }
+
+    int cellCount() { return parts.size(); }
+
+    Instance instance() { return instance; }
 
     /** Блоки корабля для мода: dx, dy, dz от клетки пилота (мир) и id состояния блока. */
     List<int[]> partsForClient() {
@@ -278,6 +366,7 @@ final class Flight {
      */
     boolean land(boolean force) {
         if (finished) return true;
+        if (ship.yard != null) { park(); return true; }                         // корабль из верфи: стоит моделью, блоки — в плоте
         double lim = mod.config().getDouble("flight.land-max-pitch", 30);
         if (!force && Math.abs(pitch) > lim) { warn("Выровняйте нос корабля (сейчас " + Math.round(-pitch) + "°, можно до ±" + Math.round(lim) + "°)"); return false; }
         if (!force && Math.abs(Rot.wrap(roll)) > lim) { warn("Выровняйте крен корабля (сейчас " + Math.round(Rot.wrap(roll)) + "°, можно до ±" + Math.round(lim) + "°)"); return false; }
@@ -304,7 +393,7 @@ final class Flight {
             pos.add(new Vec(sx + r[0], sy + p.dy, sz + r[1]));
         }
         for (Vec w : pos) {
-            if (!instance.isChunkLoaded(w.blockX() >> 4, w.blockZ() >> 4)) { warn("Здесь не сесть: мир ещё не загружен"); return false; }
+            if (!mod.server().isCubeLoaded(instance, w)) { warn("Здесь не сесть: мир ещё не загружен"); return false; }
             if (solid(instance.getBlock(w))) { warn("Здесь не сесть: мешают блоки (x " + w.blockX() + " y " + w.blockY() + " z " + w.blockZ() + ")"); return false; }
         }
         for (int i = 0; i < parts.size(); i++) instance.setBlock(pos.get(i), Rot.block(parts.get(i).block, q), false);
@@ -322,10 +411,25 @@ final class Flight {
      */
     void park() {
         if (finished) return;
+        if (ship.yard != null) {                                                // корабль из верфи: просто перестал лететь
+            ship.state = Ship.State.MODEL;
+            ship.mx = x; ship.my = y; ship.mz = z;
+            ship.myaw = (float) yaw; ship.mpitch = (float) pitch; ship.mroll = (float) roll;
+            ship.map = mod.server().mapName(instance).orElse(ship.map);
+            Entity keep = anchor;
+            anchor = null;                                                      // якорь остаётся у модуля (parked)
+            if (keep != null) { keep.updateViewableRule(v -> true); mod.parked.put(ship.owner, keep); }
+            mod.client.endPilot(this);
+            Vec seat = new DeckEntities.Frame(ship, Rot.quat(yaw, pitch, roll, ship.mturn), new Vec(x, y, z), seatH)
+                    .toWorld(new Vec(ship.yard[1] + 0.5, ship.yard[2] + 1.02, ship.yard[3] + 0.5));
+            finish(mod.client.ready(pilot) ? null : new Pos(seat.x(), seat.y(), seat.z(), (float) yaw, 0f));   // с модом встаёт сам мод (у кресла)
+            if (pilot.isOnline()) pilot.sendMessage(Component.text("Корабль остался здесь. Снова в полёт — F у места пилота.", NamedTextColor.GREEN));
+            return;
+        }
         ship.state = Ship.State.MODEL;
         ship.mx = x; ship.my = y; ship.mz = z;
         ship.myaw = (float) yaw; ship.mpitch = (float) pitch; ship.mroll = (float) roll;
-        ship.mturn = (float) baseYaw;
+        ship.mturn = (float) baseYaw;                                           // у корабля из верфи = yardTurn (взлетел из модели плота)
         ship.mseatH = (float) seatH;
         ship.mparts = new ArrayList<>(parts.size());
         ship.mblocks = new ArrayList<>(parts.size());
@@ -337,6 +441,15 @@ final class Flight {
         finish(new Pos(x, y - seatH + 1.02, z, (float) yaw, 0f));               // встать на сиденье
         mod.park(ship, keep);
         pilot.sendMessage(Component.text("Корабль остался здесь. Снова в полёт — /hoship fly рядом с ним.", NamedTextColor.GREEN));
+        if (ship.yard == null) {                                                // впервые стоит моделью — блоки в верфь (настоящие)
+            Ship s = ship;
+            Shipyard.build(mod, s, instance).thenAccept(n -> mod.scheduler().run(() -> {
+                mod.saveShips();
+                var a = mod.parked.get(s.owner);
+                if (a != null) mod.client.attachModel(s, a);                     // моду — где плот
+                mod.logger().info("корабль {} ({}) перенесён в верфь: плот {}, блоков {}", s.ownerName, s.template, s.yard[0], n);
+            })).exceptionally(e -> { mod.logger().warn("верфь: не перенести корабль {}: {}", s.ownerName, e.toString()); return null; });
+        }
     }
 
     /** Целочисленный поворот смещения (dx, dz) на q × 90° по часовой — как Rot.yaw, но без погрешностей. */
@@ -357,6 +470,7 @@ final class Flight {
      */
     void emergency() {
         if (finished) return;
+        if (ship.yard != null) { park(); return; }                              // корабль из верфи — висит, где летел
         try {
             if (pilot.isOnline() && pilot.getInstance() == instance && land(true)) return;
         } catch (Throwable e) {
@@ -378,7 +492,7 @@ final class Flight {
             pilot.setGameMode(gm);
             pilot.setAllowFlying(allowFly || gm == GameMode.CREATIVE);
             pilot.setFlying(flying && pilot.isAllowFlying());
-            if (pilot.getInstance() == instance) pilot.teleport(at);
+            if (at != null && pilot.getInstance() == instance) pilot.teleport(at);
         }
         ship.flight = null;
         mod.saveShips();

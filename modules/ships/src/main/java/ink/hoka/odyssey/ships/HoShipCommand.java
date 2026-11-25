@@ -67,6 +67,18 @@ final class HoShipCommand extends Command {
             if (f == null) err(p, "Вы не управляете кораблём");
             else f.land();
         });
+        player("body", this::body);
+        player("deck", p -> {                                                   // админ: встать на сиденье своего корабля-модели
+            if (!isOp(p)) { deny(p); return; }
+            Ship s = mod.ships.get(p.getUuid().toString());
+            if (s == null || s.state != Ship.State.MODEL) { err(p, "Корабль не стоит моделью"); return; }
+            p.setFlying(false);
+            p.teleport(new net.minestom.server.coordinate.Pos(s.mx, s.my - s.mseatH + 1.02, s.mz, s.myaw, 0));
+        });
+        addSyntax((s, c) -> { if (s instanceof Player p) yard(p, "build"); }, ArgumentType.Literal("yard"), ArgumentType.Literal("build"));
+        addSyntax((s, c) -> { if (s instanceof Player p) yard(p, "tp"); }, ArgumentType.Literal("yard"), ArgumentType.Literal("tp"));
+        addSyntax((s, c) -> { if (s instanceof Player p) yard(p, "back"); }, ArgumentType.Literal("yard"), ArgumentType.Literal("back"));
+        addSyntax((s, c) -> { if (s instanceof Player p) yard(p, "turn"); }, ArgumentType.Literal("yard"), ArgumentType.Literal("turn"));
         player("dismiss", p -> { if (!mod.dismiss(p)) err(p, "У вас нет корабля"); });
 
         admin("sel1", p -> mark(p, (ss, b) -> { ss.sel1 = b; return "угол 1"; }));
@@ -118,7 +130,7 @@ final class HoShipCommand extends Command {
     private boolean isOp(Player p) { return mod.server().isOp(p); }
 
     private void help(CommandSender s) {
-        info(s, "/hoship list — корабли  |  summon <корабль> — призвать  |  fly / land — взлёт / посадка  |  dismiss — убрать");
+        info(s, "/hoship list — корабли  |  summon <корабль> — призвать  |  fly / land — взлёт / посадка  |  body — масса и двигатели  |  dismiss — убрать");
         if (!(s instanceof Player p) || isOp(p))
             info(s, "Админ: постройте корабль → sel1, sel2 (углы), seat (место пилота; смотрите вперёд), chest (сундуки), zone1/zone2 + zoneadd (где строить) → save <имя>. forward — перед у готового корабля");
     }
@@ -233,8 +245,8 @@ final class HoShipCommand extends Command {
         int[] d = dims(ss);
         long volume = (long) d[0] * d[1] * d[2];
         if (d[0] > 128 || d[1] > 128 || d[2] > 128 || volume > 500_000) { err(p, "Выделение слишком большое: " + d[0] + "×" + d[1] + "×" + d[2] + " (до 128 по стороне)"); return; }
-        for (int cx = x0 >> 4; cx <= (x0 + d[0] - 1) >> 4; cx++) for (int cz = z0 >> 4; cz <= (z0 + d[2] - 1) >> 4; cz++)
-            if (!p.getInstance().isChunkLoaded(cx, cz)) { err(p, "Часть корабля в незагруженном мире — подойдите ближе"); return; }
+        if (!mod.server().areCubesLoaded(p.getInstance(), new net.minestom.server.coordinate.Vec(x0, y0, z0),
+                new net.minestom.server.coordinate.Vec(x0 + d[0] - 1, y0 + d[1] - 1, z0 + d[2] - 1))) { err(p, "Часть корабля в незагруженном мире — подойдите ближе"); return; }
         int[] seat = rel(ss.seat, x0, y0, z0, d);
         if (seat == null) { err(p, "Место пилота вне выделения"); return; }
         Instance inst = p.getInstance();
@@ -303,4 +315,61 @@ final class HoShipCommand extends Command {
     static void ok(CommandSender s, String t) { s.sendMessage(Component.text(t, NamedTextColor.GREEN)); }
     static void info(CommandSender s, String t) { s.sendMessage(Component.text(t, NamedTextColor.AQUA)); }
     static void err(CommandSender s, String t) { s.sendMessage(Component.text(t, NamedTextColor.RED)); }
+
+    /** /hoship body — масса, центр масс, инерция и двигатели корабля, которым управляешь (этап 0 физики). */
+    private void body(Player p) {
+        Flight f = mod.flightOf(p);
+        if (f == null) { err(p, "Сядьте за штурвал своего корабля (/hoship fly)"); return; }
+        var b = f.body(new ShipPhysics.Config(mod.config()));
+        double[] c = b.com(), I = b.inertia();
+        p.sendMessage(net.kyori.adventure.text.Component.text(String.format(java.util.Locale.ROOT,
+                "Корабль: блоков с массой %d, масса %.1f т (в динамике %.1f т)%nЦентр масс от сиденья: x %.2f, y %.2f, z %.2f%n"
+                        + "Инерция Ixx %.0f, Iyy %.0f, Izz %.0f%nДвигателей %d: тяга вперёд %.0f, назад %.0f, вверх %.0f, вниз %.0f (т·б/с²)",
+                b.blocks(), b.mass(), b.massEff(), c[0], c[1], c[2], I[0], I[1], I[2], b.engines().size(),
+                b.thrustForward(), b.thrustBack(), b.thrustUp(), b.thrustDown()), net.kyori.adventure.text.format.NamedTextColor.AQUA));
+    }
+
+    /** Где админ был до /hoship yard tp. */
+    private final java.util.Map<java.util.UUID, net.minestom.server.coordinate.Pos> beforeYard = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Верфь, этап 2 (админ): build — перенести блоки своего корабля в плот верфи (настоящие блоки), tp — встать на
+     * корабль в верфи и проверить, что всё работает как в обычном мире, back — вернуться.
+     */
+    private void yard(Player p, String what) {
+        if (!isOp(p)) { err(p, "Только для админа (проверка верфи)"); return; }
+        if (what.equals("back")) {
+            var to = beforeYard.remove(p.getUuid());
+            if (to == null) { err(p, "Вы не в верфи"); return; }
+            p.teleport(to);
+            return;
+        }
+        Ship s = mod.ships.get(p.getUuid().toString());
+        if (s == null || s.t == null) { err(p, "У вас нет корабля (/hoship summon)"); return; }
+        var inst = mod.instanceOf(s);
+        if (inst == null) { err(p, "Карта корабля не загружена"); return; }
+        if (what.equals("turn")) {                                              // нос плота не туда — развернуть на 180°
+            if (s.yard == null) { err(p, "Корабль ещё не в верфи"); return; }
+            s.yardTurn = (s.yardTurn + 180) % 360;
+            if (s.state == Ship.State.MODEL) mod.summonYard(p, s);
+            mod.saveShips();
+            info(p, "Корабль развёрнут: нос плота " + Math.round(s.yardTurn) + "°");
+            return;
+        }
+        if (what.equals("build")) {
+            if (s.state != Ship.State.MODEL || s.mparts == null) { err(p, "Сначала поставьте корабль моделью: взлетите (/hoship fly) и нажмите F"); return; }
+            Shipyard.build(mod, s, inst).thenAccept(n -> {
+                mod.saveShips();
+                var a = mod.parked.get(s.owner);
+                if (a != null) mod.client.attachModel(s, a);                     // моду — где плот (ходьба по настоящим блокам)
+                info(p, "Корабль перенесён в верфь: плот " + s.yard[0] + ", блоков " + n + ". /hoship yard tp — встать на него");
+            }).exceptionally(e -> { err(p, "Не вышло: " + e); return null; });
+            return;
+        }
+        if (s.yard == null) { err(p, "Корабль ещё не в верфи: /hoship yard build"); return; }
+        if (p.getInstance() != inst) { err(p, "Корабль на другой карте: " + s.map); return; }
+        beforeYard.putIfAbsent(p.getUuid(), p.getPosition());
+        p.teleport(Shipyard.seat(s));
+        info(p, "Вы на корабле в верфи. Это обычные блоки мира — двери, сундуки, ступени, ломание. /hoship yard back — назад");
+    }
 }

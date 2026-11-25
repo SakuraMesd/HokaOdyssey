@@ -1,0 +1,7 @@
+{
+  "id": "planets",
+  "version": "0.2.10",
+  "main": "ink.hoka.odyssey.client.planets.PlanetsClientModule",
+  "authors": ["Takuyamo"],
+  "description": "Планеты: модель скруглённого куба издали, затемнение при входе в планету"
+}

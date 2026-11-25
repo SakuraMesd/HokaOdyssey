@@ -27,6 +27,14 @@ public abstract class EntityTiltMixin {
     @Inject(method = "extractRenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V",
             at = @At("TAIL"))
     private void hokaOdyssey$extract(LivingEntity e, LivingEntityRenderState s, float pt, CallbackInfo ci) {
+        var pose = Hooks.pose(e, pt);
+        if (pose != null) {                                                     // углы уже в системе поворота
+            s.bodyRot = pose.bodyYaw();
+            s.yRot = Mth.wrapDegrees(pose.headYaw() - pose.bodyYaw());
+            s.xRot = pose.headPitch();
+            s.setData(HOKA_TILT, pose.tilt() == null ? null : new Quaternionf(pose.tilt()));
+            return;
+        }
         var t = Hooks.tilt(e, pt);
         if (t == null) { s.setData(HOKA_TILT, null); return; }
         Quaternionf q = new Quaternionf(t);

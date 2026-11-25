@@ -80,4 +80,7 @@ public abstract class OdysseyModule {
     public final Services services() { return context().services(); }
 
     public final OdysseyServerApi server() { return context().server(); }
+
+    /** Генератор планеты (map.yml generator: id). Снимается при выключении модуля. */
+    public final void registerGenerator(ink.hoka.odyssey.api.worldgen.GeneratorProvider provider) { context().registerGenerator(provider); }
 }

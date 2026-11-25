@@ -49,6 +49,10 @@ public final class ShipsModule extends OdysseyModule {
     private final VacuumBridge vacuum = new VacuumBridge(this);
     /** Клики по кораблю-модели: двери, сундуки, стройка. */
     final ShipInteract interact = new ShipInteract(this);
+    final YardStreamer yardStream = new YardStreamer(this);
+    final DeckEntities deck = new DeckEntities(this);
+    /** Автовыравнивание (только на «планетах»). */
+    final ShipLeveler leveler = new ShipLeveler(this);
 
     /** Мост к модулю «Невесомость» (если он есть). */
     VacuumBridge vacuum() { return vacuum; }
@@ -103,18 +107,28 @@ public final class ShipsModule extends OdysseyModule {
         });
         registerCommand(new HoShipCommand(this));
         scheduler().repeat(this::tickFlights, 1, 1);
+        scheduler().repeat(() -> {
+            try { leveler.tick(); } catch (Throwable e) { logger().error("автовыравнивание: {}", e.toString()); }
+        }, 1, 1);
         client.enable();
         interact.enable();
+        yardStream.enable();
+        deck.enable();
         for (Ship s : ships.values()) if (s.state == Ship.State.MODEL) spawnModel(s);
+        migrateToYard();                                                        // старые корабли — на настоящие блоки верфи
+        Shipyard.pinAll(this);                                                  // плоты — закрепить сразу (кубы по запросу, ядро 0.4)
+        scheduler().repeat(() -> Shipyard.pinAll(this), 100, 100);             // и в мирах, загруженных позже
         logger().info("чертежей: {}, кораблей игроков: {}", templates.size(), ships.size());
     }
 
     @Override
     protected void onDisable() {
         interact.disable();
+        leveler.disable();
         for (Ship s : ships.values()) if (s.flight != null) s.flight.emergency();
         for (Entity a : parked.values()) a.remove();                            // корабли-модели остаются в ships.json
         parked.clear();
+        for (Ship s : ships.values()) Shipyard.unpin(this, s);                 // закрепления плотов — снять (модуль выключен)
         saveShips();
         client.disable();
     }
@@ -232,13 +246,33 @@ public final class ShipsModule extends OdysseyModule {
             for (Ship s : list) {
                 s.t = templates.get(s.template);
                 if (s.t == null) { logger().warn("корабль {}: нет чертежа «{}» — отложен", s.ownerName, s.template); unresolved.add(s); continue; }
-                if (s.state == Ship.State.FLYING) s.state = Ship.State.STOWED;       // сервер упал в полёте
+                if (s.state == Ship.State.FLYING)                                    // сервер упал в полёте: из верфи — висит, где летел
+                    s.state = s.yard != null && s.mparts != null ? Ship.State.MODEL : Ship.State.STOWED;
                 ships.put(s.owner, s);
             }
         } catch (Exception e) {
             shipsBroken = true;
             logger().error("ships.json не прочитан ({}) — файл не будет перезаписан; исправьте его и перезагрузите модуль", e.toString());
             try { Files.copy(f, f.resolveSibling("ships.json.broken"), java.nio.file.StandardCopyOption.REPLACE_EXISTING); } catch (IOException ignored) { }
+        }
+    }
+
+    /** Сохранить без задержки тика: JSON — сейчас, запись на диск — в фоне (в полёте каждые 5 с). */
+    void saveShipsAsync() {
+        if (shipsBroken) return;
+        List<Ship> all = new ArrayList<>(ships.values());
+        all.addAll(unresolved);
+        String json = GSON.toJson(all);
+        Thread.ofVirtual().start(() -> writeShips(json));
+    }
+
+    private synchronized void writeShips(String json) {
+        try {
+            Path f = dataFolder().resolve("ships.json"), tmp = dataFolder().resolve("ships.json.tmp");
+            Files.writeString(tmp, json, StandardCharsets.UTF_8);
+            Files.move(tmp, f, java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            logger().error("ships.json не записан: {}", e.toString());
         }
     }
 
@@ -303,6 +337,9 @@ public final class ShipsModule extends OdysseyModule {
     }
 
     void takeOff(Player p, Ship s) {
+        if (s.yard == null) { p.sendMessage(Component.text("Корабль переносится в верфь — повторите через секунду", NamedTextColor.YELLOW)); if (s.state == Ship.State.PARKED) toYard(s); return; }
+        if (s.yard != null && s.state == Ship.State.PARKED) { p.sendMessage(Component.text("Корабль в верфи — призовите его заново (/hoship summon)", NamedTextColor.RED)); return; }
+        if (s.yard != null && s.state == Ship.State.MODEL && !syncFromYard(s)) { p.sendMessage(Component.text("Верфь загружается — повторите через секунду", NamedTextColor.YELLOW)); return; }
         if (s.state != Ship.State.PARKED && s.state != Ship.State.MODEL) { p.sendMessage(Component.text("Корабль сейчас не стоит на месте", NamedTextColor.RED)); return; }
         if (summoning.contains(s.owner)) { p.sendMessage(Component.text("Корабль переносится — подождите", NamedTextColor.RED)); return; }
         if (flightOf(p) != null) { p.sendMessage(Component.text("Вы уже управляете кораблём", NamedTextColor.RED)); return; }
@@ -334,6 +371,70 @@ public final class ShipsModule extends OdysseyModule {
     }
 
     /** Убрать блоки стоящего корабля. */
+    /**
+     * Корабль, стоящий блоками в мире (старый вид или только что призванный по чертежу), — в верфь: блоки мира (с
+     * вещами сундуков) → клетки модели и плот, из мира убрать, корабль стоит моделью на том же месте.
+     */
+    void toYard(Ship s) {
+        Instance inst = instanceOf(s);
+        if (inst == null || s.state != Ship.State.PARKED || s.t == null) return;
+        ShipTemplate t = s.t;
+        Vec seat = s.seatWorld();
+        List<int[]> parts = new ArrayList<>();
+        List<String> states = new ArrayList<>();
+        List<Block> full = new ArrayList<>();
+        List<Vec> taken = new ArrayList<>();
+        for (int y = 0; y < t.sy; y++) for (int z = 0; z < t.sz; z++) for (int x = 0; x < t.sx; x++) {
+            if (t.block(x, y, z).isAir() && !t.inZone(x, y, z)) continue;
+            Vec w = s.world(x, y, z);
+            Block b = inst.getBlock(w);
+            if (b.isAir()) continue;
+            parts.add(new int[]{w.blockX() - seat.blockX(), w.blockY() - seat.blockY(), w.blockZ() - seat.blockZ()});
+            states.add(b.state());
+            full.add(b);
+            taken.add(w);
+        }
+        for (Vec w : taken) inst.setBlock(w, Block.AIR, false);
+        for (Vec w : taken) inst.setBlock(w, Block.AIR);                        // второй проход — обновить соседей снаружи
+        float turn = (float) ShipTemplate.yawOf(Rot.dir(t.forwardDir(), s.rot));
+        s.mparts = parts;
+        s.mblocks = states;
+        s.mturn = turn;
+        s.myaw = turn; s.mpitch = 0; s.mroll = 0;
+        s.mseatH = (float) config().getDouble("flight.seat-height", 0.5);
+        s.mx = seat.x() + 0.5; s.my = seat.y() + s.mseatH; s.mz = seat.z() + 0.5;
+        s.state = Ship.State.MODEL;
+        s.yard = null;
+        spawnModel(s);
+        saveShips();
+        Shipyard.build(this, s, inst, full).thenAccept(n -> scheduler().run(() -> {
+            saveShips();
+            Entity a = parked.get(s.owner);
+            if (a != null) client.attachModel(s, a);                            // моду — где плот
+            logger().info("корабль {} ({}) — в верфь: плот {}, блоков {}", s.ownerName, s.template, s.yard[0], n);
+        })).exceptionally(e -> { logger().warn("верфь: не перенести корабль {}: {}", s.ownerName, e.toString()); return null; });
+    }
+
+    /** Старые корабли (без верфи) — в верфь при включении модуля. */
+    private void migrateToYard() {
+        for (Ship s : ships.values()) {
+            if (s.yard != null) continue;
+            Instance inst = instanceOf(s);
+            if (inst == null) continue;
+            if (s.state == Ship.State.MODEL && s.mparts != null && s.mblocks != null) {   // стоит моделью — плот из клеток модели
+                Shipyard.build(this, s, inst).thenAccept(n -> scheduler().run(() -> {
+                    saveShips();
+                    Entity a = parked.get(s.owner);
+                    if (a != null) client.attachModel(s, a);
+                    logger().info("корабль {} ({}) — в верфь: плот {}, блоков {}", s.ownerName, s.template, s.yard[0], n);
+                })).exceptionally(e -> { logger().warn("верфь: не перенести корабль {}: {}", s.ownerName, e.toString()); return null; });
+            } else if (s.state == Ship.State.PARKED && s.t != null) {          // стоит блоками — дождаться чанков и перенести
+                int[] sz = s.size();
+                server().loadCubes(inst, new Vec(s.ax, s.ay, s.az), new Vec(s.ax + sz[0], s.ay + sz[1], s.az + sz[2])).thenRun(() -> scheduler().run(() -> toYard(s)));
+            }
+        }
+    }
+
     void clear(Instance inst, Ship s) {
         if (inst == null || s.state != Ship.State.PARKED) return;
         ShipTemplate t = s.t;
@@ -351,6 +452,8 @@ public final class ShipsModule extends OdysseyModule {
         String uid = p.getUuid().toString();
         Ship old = ships.get(uid);
         if (old != null && old.state == Ship.State.FLYING) { p.sendMessage(Component.text("Ваш корабль в полёте — сначала посадка", NamedTextColor.RED)); return; }
+        if (old != null && old.yard != null && !t.name.equals(old.yardTemplate)) { Shipyard.unpin(this, old); old.dropYard(); }   // другой корабль — плот не его
+        if (old != null && old.yard != null && summonYard(p, old)) return;
         Instance inst = p.getInstance();
         String map = server().mapName(inst).orElse(null);
         if (map == null) { p.sendMessage(Component.text("Здесь корабль не призвать", NamedTextColor.RED)); return; }
@@ -360,11 +463,8 @@ public final class ShipsModule extends OdysseyModule {
         int radius = config().getInt("summon.radius", 40), margin = config().getInt("summon.margin", 1);
         int[] s2 = Rot.size(t.sx, t.sz, rot);
         int reach = radius + Math.max(s2[0], s2[1]) + margin + 1;
-        List<CompletableFuture<?>> chunks = new ArrayList<>();
-        for (int cx = (at.blockX() - reach) >> 4; cx <= (at.blockX() + reach) >> 4; cx++)
-            for (int cz = (at.blockZ() - reach) >> 4; cz <= (at.blockZ() + reach) >> 4; cz++) chunks.add(inst.loadChunk(cx, cz));
         p.sendActionBar(Component.text("Ищу свободное место для корабля…", NamedTextColor.AQUA));
-        CompletableFuture.allOf(chunks.toArray(CompletableFuture[]::new)).exceptionally(ex -> { summoning.remove(uid); return null; }).thenRun(() -> scheduler().async(() -> {
+        server().loadCubes(inst, at.sub(reach, reach, reach), at.add(reach, reach, reach)).exceptionally(ex -> { summoning.remove(uid); return null; }).thenRun(() -> scheduler().async(() -> {
             Ship probe = new Ship();
             probe.t = t; probe.rot = rot;
             int[] found;
@@ -397,10 +497,8 @@ public final class ShipsModule extends OdysseyModule {
                 s.ax = spot[0]; s.ay = spot[1]; s.az = spot[2]; s.rot = rot;
                 place(inst, s);
                 ships.put(uid, s);
-                saveShips();
-                Vec seat = s.seatWorld();
-                p.sendMessage(Component.text("Корабль «" + t.name + "» здесь: " + seat.blockX() + " " + seat.blockY() + " " + seat.blockZ()
-                        + ". ПКМ по месту пилота — взлёт.", NamedTextColor.GREEN));
+                toYard(s);                                                      // сразу на настоящие блоки верфи
+                p.sendMessage(Component.text("Корабль «" + t.name + "» здесь. F у места пилота — за управление.", NamedTextColor.GREEN));
             });
         }));
     }
@@ -449,8 +547,132 @@ public final class ShipsModule extends OdysseyModule {
         if (s.state == Ship.State.MODEL) unpark(s);
         else clear(instanceOf(s), s);
         ships.remove(s.owner);
+        Shipyard.unpin(this, s);
         saveShips();
         p.sendMessage(Component.text("Корабль убран", NamedTextColor.YELLOW));
+        return true;
+    }
+
+    /**
+     * Корабль из верфи: модель (mparts/mblocks, mturn) собирается ЦЕЛИКОМ из плота — он единственная правда (там
+     * настоящие блоки: стройка, двери, сундуки). Ориентация — плота (yardTurn). Плот не загружен — модель не трогаем.
+     */
+    boolean syncFromYard(Ship s) {
+        Instance inst = instanceOf(s);
+        if (inst == null || s.yard == null) return false;
+        if (s.yardBox == null) {                                                // старый плот: найти коробку по блокам
+            s.yardTurn = s.mturn;
+            s.yardBox = scanBox(inst, s, 40);
+            if (s.yardBox == null) return false;
+        }
+        int[] b = s.yardBox;
+        if (!server().ensureCubes(inst, Shipyard.boxMin(s), Shipyard.boxMax(s))) return false;   // без ожидания: грузится — позже
+        java.util.List<int[]> parts = new java.util.ArrayList<>();
+        java.util.List<String> blocks = new java.util.ArrayList<>();
+        for (int dy = b[1]; dy <= b[4]; dy++) for (int dz = b[2]; dz <= b[5]; dz++) for (int dx = b[0]; dx <= b[3]; dx++) {
+            Block bl = inst.getBlock(s.yard[1] + dx, s.yard[2] + dy, s.yard[3] + dz);
+            if (bl.isAir()) continue;
+            parts.add(new int[]{dx, dy, dz});
+            blocks.add(bl.state());
+        }
+        if (parts.isEmpty()) return false;
+        s.mparts = parts;
+        s.mblocks = blocks;
+        s.mturn = s.yardTurn;
+        return true;
+    }
+
+    /** Коробка непустых блоков плота вокруг клетки пилота (радиус r) или null. */
+    private int[] scanBox(Instance inst, Ship s, int r) {
+        int[] b = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
+        Vec c = new Vec(s.yard[1], s.yard[2], s.yard[3]);
+        if (!server().ensureCubes(inst, c.sub(r, r, r), c.add(r, r, r))) return null;   // без ожидания: грузится — позже
+        for (int dy = -r; dy <= r; dy++) for (int dz = -r; dz <= r; dz++) for (int dx = -r; dx <= r; dx++) {
+            if (inst.getBlock(s.yard[1] + dx, s.yard[2] + dy, s.yard[3] + dz).isAir()) continue;
+            b[0] = Math.min(b[0], dx); b[1] = Math.min(b[1], dy); b[2] = Math.min(b[2], dz);
+            b[3] = Math.max(b[3], dx); b[4] = Math.max(b[4], dy); b[5] = Math.max(b[5], dz);
+        }
+        if (b[0] > b[3]) return null;
+        int m = Shipyard.BOX_MARGIN;
+        return new int[]{b[0] - m, b[1] - m, b[2] - m, b[3] + m, b[4] + m, b[5] + m};
+    }
+
+    /**
+     * Призыв корабля, который уже в верфи: блоками в мир его не ставим (копия разошлась бы с плотом) — моделью
+     * перед игроком, на высоте его глаз, носом туда, куда он смотрит. Блоки — из плота.
+     */
+    /**
+     * Перенести плот корабля в верфь другой карты: блоки (с вещами сундуков — NBT блока) — в новый плот, старый
+     * очистить. Чужие блоки в новом плоте (у карты есть рельеф там, где верфь) — убрать. Плот — только коробка корабля.
+     */
+    CompletableFuture<Boolean> moveYard(Ship s, Instance to, String toMap) {
+        Instance from = instanceOf(s);
+        if (from == null || s.yard == null || s.yardBox == null) return CompletableFuture.completedFuture(false);
+        int k = Shipyard.allocate(this, toMap);
+        int[] st = Shipyard.seatOf(k), ny = {k, st[0], st[1], st[2]}, oy = s.yard, b = s.yardBox;
+        CompletableFuture<Boolean> done = new CompletableFuture<>();
+        CompletableFuture.allOf(
+                server().loadCubes(from, new Vec(oy[1] + b[0], oy[2] + b[1], oy[3] + b[2]), new Vec(oy[1] + b[3], oy[2] + b[4], oy[3] + b[5])),
+                server().loadCubes(to, new Vec(ny[1] + b[0], ny[2] + b[1], ny[3] + b[2]), new Vec(ny[1] + b[3], ny[2] + b[4], ny[3] + b[5]))
+        ).whenComplete((v, ex) -> scheduler().run(() -> {
+            if (ex != null) { done.complete(false); return; }
+            try {
+                int n = 0;
+                for (int dy = b[1]; dy <= b[4]; dy++) for (int dz = b[2]; dz <= b[5]; dz++) for (int dx = b[0]; dx <= b[3]; dx++) {
+                    Block src = from.getBlock(oy[1] + dx, oy[2] + dy, oy[3] + dz);
+                    int tx = ny[1] + dx, ty = ny[2] + dy, tz = ny[3] + dz;
+                    if (src.isAir()) {
+                        if (!to.getBlock(tx, ty, tz).isAir()) to.setBlock(tx, ty, tz, Block.AIR, false);   // рельеф карты в верфи
+                        continue;
+                    }
+                    to.setBlock(tx, ty, tz, src, false);
+                    from.setBlock(oy[1] + dx, oy[2] + dy, oy[3] + dz, Block.AIR, false);
+                    n++;
+                }
+                s.yard = ny;
+                s.map = toMap;
+                s.oldYards = null;                                              // брошенные плоты были на старой карте
+                Shipyard.pin(this, to, s);                                      // закрепление — на новый плот
+                logger().info("корабль {} перенесён с карты в верфь «{}»: плот {}, блоков {}", s.ownerName, toMap, k, n);
+                done.complete(true);
+            } catch (Throwable t) {
+                logger().error("перенос корабля {} на карту {}: {}", s.ownerName, toMap, t.toString());
+                done.complete(false);
+            }
+        }));
+        return done;
+    }
+
+    boolean summonYard(Player p, Ship s) {
+        if (s.yard == null) return false;
+        Instance inst = p.getInstance();
+        String map = server().mapName(inst).orElse(null);
+        if (map == null) { p.sendMessage(Component.text("Здесь корабль не призвать", NamedTextColor.RED)); return true; }
+        if (!map.equals(s.map)) {                                               // другая карта — корабль переезжает в её верфь
+            if (!summoning.add(s.owner)) { p.sendMessage(Component.text("Корабль уже переносится — подождите", NamedTextColor.RED)); return true; }
+            if (s.state == Ship.State.PARKED && instanceOf(s) != null) clear(instanceOf(s), s);
+            if (s.state == Ship.State.MODEL) unpark(s);
+            p.sendActionBar(Component.text("Переношу корабль на эту карту…", NamedTextColor.AQUA));
+            moveYard(s, inst, map).thenAccept(ok -> scheduler().run(() -> {
+                summoning.remove(s.owner);
+                if (!ok) { p.sendMessage(Component.text("Не удалось перенести корабль с карты «" + s.map + "»", NamedTextColor.RED)); return; }
+                saveShips();
+                if (p.isOnline()) summonYard(p, s);
+            }));
+            return true;
+        }
+        if (!syncFromYard(s)) { p.sendMessage(Component.text("Верфь загружается — повторите через секунду", NamedTextColor.YELLOW)); return true; }
+        if (s.state == Ship.State.PARKED) clear(instanceOf(s), s);
+        if (s.state == Ship.State.MODEL) unpark(s);
+        Pos at = p.getPosition();
+        double yaw = Math.toRadians(at.yaw());
+        double dist = config().getDouble("yard.summon-distance", 12);
+        s.mx = at.x() - Math.sin(yaw) * dist; s.my = at.y() + 2; s.mz = at.z() + Math.cos(yaw) * dist;
+        s.myaw = at.yaw(); s.mpitch = 0; s.mroll = 0;
+        s.mseatH = (float) config().getDouble("flight.seat-height", 0.5);
+        s.state = Ship.State.MODEL;
+        park(s, null);
+        p.sendMessage(Component.text("Корабль «" + s.template + "» здесь (модель из верфи). F у места пилота — за управление.", NamedTextColor.GREEN));
         return true;
     }
 }

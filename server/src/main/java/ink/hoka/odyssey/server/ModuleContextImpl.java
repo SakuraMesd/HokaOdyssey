@@ -65,6 +65,12 @@ final class ModuleContextImpl implements ModuleContext {
     }
 
     @Override
+    public synchronized void registerGenerator(ink.hoka.odyssey.api.worldgen.GeneratorProvider provider) {
+        check();
+        ink.hoka.odyssey.server.tall.gen.GeneratorRegistry.register(descriptor.id(), provider);
+    }
+
+    @Override
     public Path dataFolder() {
         try { Files.createDirectories(dataFolder); } catch (IOException e) { throw new IllegalStateException(e); }
         return dataFolder;
@@ -98,6 +104,7 @@ final class ModuleContextImpl implements ModuleContext {
             MinecraftServer.getGlobalEventHandler().removeChild(events);
             for (Command c : commands) MinecraftServer.getCommandManager().unregister(c);
             commands.clear();
+            ink.hoka.odyssey.server.tall.gen.GeneratorRegistry.unregisterOwner(descriptor.id());
         }
         for (Task t : tasks) t.cancel();
         tasks.clear();

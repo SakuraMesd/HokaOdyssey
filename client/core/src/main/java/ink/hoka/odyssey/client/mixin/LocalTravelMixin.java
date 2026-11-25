@@ -16,4 +16,9 @@ public abstract class LocalTravelMixin {
     private void hokaOdyssey$travel(Vec3 input, CallbackInfo ci) {
         if ((Object) this instanceof LocalPlayer p) Hooks.travel(p);
     }
+
+    @Inject(method = "travel", at = @At("TAIL"))
+    private void hokaOdyssey$travelEnd(Vec3 input, CallbackInfo ci) {
+        if ((Object) this instanceof LocalPlayer p) Hooks.travelEnd(p);
+    }
 }

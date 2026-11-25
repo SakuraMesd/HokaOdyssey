@@ -1,0 +1,9 @@
+# Планеты: модель издали (клиентский модуль planets) + вход с затемнением
+id: planets
+name: Планеты
+version: 0.1.0
+main: ink.hoka.odyssey.planets.PlanetsModule
+authors: [Takuyamo]
+description: Планеты-модели (скруглённый куб), вход в планету за 50 блоков с затемнением
+depends: [clientmods]
+softdepends: []

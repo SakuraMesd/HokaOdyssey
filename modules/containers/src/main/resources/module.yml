@@ -1,0 +1,8 @@
+id: containers
+name: Контейнеры
+version: 0.1.0
+main: ink.hoka.odyssey.containers.ContainersModule
+authors: [Takuyamo]
+description: Сундуки, сундуки-ловушки, бочки в мире (вещи в NBT блока) — нужны и верфи кораблей
+depends: []
+softdepends: []
