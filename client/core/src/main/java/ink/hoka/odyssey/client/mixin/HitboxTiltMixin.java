@@ -6,6 +6,7 @@ import net.minecraft.gizmos.Gizmos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
+import org.joml.Quaternionfc;
 import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -16,6 +17,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * Хитбокс (F3+B) сущности, модель которой повёрнута модулем (onEntityTilt), — повёрнутым так же, вокруг ног:
  * именно такую коробку (стоит по палубе корабля) считают столкновения ядра. Плюс линия глаз и стрелка взгляда.
+ * <p>
+ * Поза onEntityPose со сдвигом offset — коробка модели рисуется так же, как модель (сдвиг, потом поворот),
+ * чтобы было видно, где модель на самом деле. Поза без offset — как в 0.48.0 (только onEntityTilt).
  */
 @Mixin(EntityHitboxDebugRenderer.class)
 public abstract class HitboxTiltMixin {
@@ -23,10 +27,16 @@ public abstract class HitboxTiltMixin {
     @Inject(method = "showHitboxes", at = @At("HEAD"), cancellable = true)
     private void hokaOdyssey$tilted(Entity e, float pt, boolean server, CallbackInfo ci) {
         if (server) return;
-        var t = Hooks.tilt(e, pt);
+        Quaternionfc t = null;
+        Vec3 feet = e.getPosition(pt);
+        var pose = Hooks.pose(e, pt);
+        if (pose != null && pose.tilt() != null && pose.offset() != null) {
+            t = pose.tilt();
+            feet = feet.add(pose.offset().x(), pose.offset().y(), pose.offset().z());
+        }
+        if (t == null) t = Hooks.tilt(e, pt);
         if (t == null) return;
         Quaternionf q = new Quaternionf(t);
-        Vec3 feet = e.getPosition(pt);
         float hw = e.getBbWidth() / 2, h = e.getBbHeight(), eye = e.getEyeHeight();
         Vec3[] c = new Vec3[8];
         for (int i = 0; i < 8; i++) c[i] = at(q, feet, (i & 1) == 0 ? -hw : hw, (i & 2) == 0 ? 0 : h, (i & 4) == 0 ? -hw : hw);

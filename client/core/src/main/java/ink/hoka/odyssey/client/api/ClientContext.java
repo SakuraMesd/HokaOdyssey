@@ -180,8 +180,19 @@ public interface ClientContext {
 
     interface EntityTiltHook { org.joml.Quaternionfc tilt(net.minecraft.world.entity.Entity entity, float partialTick); }
 
-    /** Поза модели: поворот (мир) и углы в его системе (градусы, как у игры: тело, курс головы, наклон головы). */
-    record EntityPose(org.joml.Quaternionfc tilt, float bodyYaw, float headYaw, float headPitch) {}
+    /**
+     * Поза модели: поворот (мир) и углы в его системе (градусы, как у игры: тело, курс головы, наклон головы).
+     * offset — сдвиг модели в мировых осях (блоки) от позиции сущности до точки, вокруг которой она поворачивается
+     * на tilt; null — поворот вокруг ног, как раньше (свободный полёт — вокруг середины тела, стоя на стене — ноги
+     * на стене, а рамка сущности остаётся ровной).
+     */
+    record EntityPose(org.joml.Quaternionfc tilt, float bodyYaw, float headYaw, float headPitch,
+                      org.joml.Vector3fc offset) {
+        /** Без сдвига — как раньше: уже собранные модули работают без изменений. */
+        public EntityPose(org.joml.Quaternionfc tilt, float bodyYaw, float headYaw, float headPitch) {
+            this(tilt, bodyYaw, headYaw, headPitch, null);
+        }
+    }
 
     interface EntityPoseHook { EntityPose pose(net.minecraft.world.entity.Entity entity, float partialTick); }
 

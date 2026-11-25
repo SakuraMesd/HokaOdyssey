@@ -13,8 +13,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Подбор: предмет летит в середину тела игрока — игра считает её по вертикали мира. Своему игроку на корабле (поза
- * модели от модуля) — по «верху» корабля, иначе на корабле на боку предмет улетал вбок.
+ * Подбираемый предмет летит к середине повёрнутого тела своего игрока: «вверх» — по tilt позы.
+ * Плюс offset, если он задан (иначе предмет летит к телу, повёрнутому вокруг ног, а не к показанному).
  */
 @Mixin(ItemPickupParticle.class)
 public abstract class PickupTargetMixin {
@@ -30,8 +30,10 @@ public abstract class PickupTargetMixin {
         if (pose == null || pose.tilt() == null) return;
         Vector3f up = pose.tilt().transform(new Vector3f(0, 1, 0), new Vector3f());
         double h = p.getEyeHeight() / 2.0;
-        targetX = p.getX() + up.x * h;
-        targetY = p.getY() + up.y * h;
-        targetZ = p.getZ() + up.z * h;
+        var off = pose.offset();
+        double ox = off == null ? 0 : off.x(), oy = off == null ? 0 : off.y(), oz = off == null ? 0 : off.z();
+        targetX = p.getX() + ox + up.x * h;
+        targetY = p.getY() + oy + up.y * h;
+        targetZ = p.getZ() + oz + up.z * h;
     }
 }

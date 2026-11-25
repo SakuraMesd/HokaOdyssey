@@ -16,25 +16,31 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Поворот модели сущности от модулей (ClientContext.onEntityTilt): при сборе состояния модели — запомнить поворот и
- * перевести углы тела/головы в его систему (взгляд в мире тот же); при отрисовке — повернуть модель вокруг ног.
+ * Поворот модели сущности от модулей. Поза целиком (ClientContext.onEntityPose) — углы как есть, поворот tilt и
+ * сдвиг offset; иначе поворот onEntityTilt — углы тела/головы переводятся в его систему (взгляд в мире тот же).
+ * При отрисовке (начало setupRotations, PoseStack — в мировых осях, уже со scale сущности): сдвинуть на offset,
+ * затем повернуть на tilt (то есть вокруг ног модели после сдвига).
  */
 @Mixin(LivingEntityRenderer.class)
 public abstract class EntityTiltMixin {
 
     @Unique private static final RenderStateDataKey<Quaternionf> HOKA_TILT = RenderStateDataKey.create(() -> "hoka_odyssey:tilt");
+    /** Сдвиг модели (мир, блоки) из EntityPose.offset. */
+    @Unique private static final RenderStateDataKey<Vector3f> HOKA_OFFSET = RenderStateDataKey.create(() -> "hoka_odyssey:offset");
 
     @Inject(method = "extractRenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V",
             at = @At("TAIL"))
     private void hokaOdyssey$extract(LivingEntity e, LivingEntityRenderState s, float pt, CallbackInfo ci) {
         var pose = Hooks.pose(e, pt);
-        if (pose != null) {                                                     // углы уже в системе поворота
+        if (pose != null) {
             s.bodyRot = pose.bodyYaw();
             s.yRot = Mth.wrapDegrees(pose.headYaw() - pose.bodyYaw());
             s.xRot = pose.headPitch();
             s.setData(HOKA_TILT, pose.tilt() == null ? null : new Quaternionf(pose.tilt()));
+            s.setData(HOKA_OFFSET, pose.offset() == null ? null : new Vector3f(pose.offset()));
             return;
         }
+        s.setData(HOKA_OFFSET, null);
         var t = Hooks.tilt(e, pt);
         if (t == null) { s.setData(HOKA_TILT, null); return; }
         Quaternionf q = new Quaternionf(t);
@@ -54,6 +60,10 @@ public abstract class EntityTiltMixin {
 
     @Inject(method = "setupRotations", at = @At("HEAD"))
     private void hokaOdyssey$rotate(LivingEntityRenderState s, PoseStack pose, float bodyRot, float scale, CallbackInfo ci) {
+        // сдвиг — до поворота, в мировых осях. PoseStack здесь уже умножен на scale сущности
+        // (LivingEntityRenderer.submit: scale(s, s, s) → setupRotations), а offset — в блоках мира: делим на scale.
+        Vector3f off = s.getData(HOKA_OFFSET);
+        if (off != null && scale > 1e-6f) pose.translate(off.x / scale, off.y / scale, off.z / scale);
         Quaternionf q = s.getData(HOKA_TILT);
         if (q != null) pose.mulPose(q);
     }
