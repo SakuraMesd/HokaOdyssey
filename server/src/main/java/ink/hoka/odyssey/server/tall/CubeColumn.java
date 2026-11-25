@@ -435,18 +435,20 @@ public final class CubeColumn extends Chunk implements TallColumn {
                 int y = CoordConversion.chunkBlockIndexGetY(k);
                 if ((y >> 4) - MIN_SECTION != i) continue;                    // не из этого куба — не трогать
                 entries.put(k, b);
-                if (b.handler() != null && b.handler().isTickable()) tickable.put(k, b);
+                if (b.handler() != null && b.handler().isTickable()) { tickable.put(k, b); tickableAdded(); }
                 if (b.handler() != null) { handlers.add(b); handlerAt.add(k); }
             }
             cubes.release(i);
             if (CubeCacheModel.anyActive() && cubes.isReal(i)) storeHash(i, CubeHash.of(cubes.get(i)));   // кэш клиентов: версия куба — здесь, в рабочем потоке
             int[] top0 = new int[256];
             for (int c = 0; c < 256; c++) top0[c] = st.heights.skyTop(c);
+            int mv = st.heights.motionVer;
             if (st.heights.fix(cubes, MIN_SECTION, i, unknown)) {           // шаг 13: skyTop уточнился — пересвет полосы
                 skyOld = new int[256];
                 skyNew = new int[256];
                 for (int c = 0; c < 256; c++) { skyOld[c] = top0[c]; skyNew[c] = st.heights.skyTop(c); }
             }
+            if (mv != st.heights.motionVer) CubeStreamer.heightsChanged(this);   // op 17 (0.56): верх для дождя уточнился
             int y0 = (i + MIN_SECTION) << 4;
             int was = CubeMark.rel(d.mark());
             stale = was != CubeMark.NONE && was != CubeMark.rel(y0, st.heights::skyTop);   // высоты сдвинулись, пока куб лежал на диске
@@ -643,7 +645,7 @@ public final class CubeColumn extends Chunk implements TallColumn {
         final Block last;
         if (handler != null || block.hasNbt() || block.registry().isBlockEntity()) last = entries.put(index, block);
         else last = entries.remove(index);
-        if (handler != null && handler.isTickable()) tickable.put(index, block);
+        if (handler != null && handler.isTickable()) { tickable.put(index, block); tickableAdded(); }
         else tickable.remove(index);
 
         // высоты, память, свет, «на диск» — до обработчиков: они могут ставить блоки сами
@@ -651,8 +653,8 @@ public final class CubeColumn extends Chunk implements TallColumn {
         int t0 = st.heights.get(HeightIndex.Kind.SKY, x, z);
         st.heights.update(cubes, MIN_SECTION, x, y, z, block.stateId(), lazy ? unknown : null);
         if (block.isAir()) cubes.release(i);                               // куб опустел — память назад
-        if (m0 != st.heights.get(HeightIndex.Kind.MOTION, x, z) || s0 != st.heights.get(HeightIndex.Kind.SURFACE, x, z))
-            skeleton.invalidate();
+        if (m0 != st.heights.get(HeightIndex.Kind.MOTION, x, z)) { skeleton.invalidate(); CubeStreamer.heightsChanged(this); }   // op 17 (0.56)
+        else if (s0 != st.heights.get(HeightIndex.Kind.SURFACE, x, z)) skeleton.invalidate();
         boolean cubeLight = CubeLight.active(this);
         st.changed(this, i, !cubeLight);
         if (cubeLight)                                                      // шаг 12: свет кубами — 3×3×3 (+ полоса skyTop)
@@ -728,9 +730,50 @@ public final class CubeColumn extends Chunk implements TallColumn {
     /** Высоты ведёт HeightIndex (из палитр) — с диска не берём. */
     @Override public void loadHeightmapsFromNBT(CompoundBinaryTag heightmaps) { assertWriteLock(); }
 
+    /**
+     * Столбец в переборе тика Minestom (элемент своей партиции). Без тикающих блоков он из перебора вынут
+     * (ThreadDispatcher.removeElement): ~5 тыс. вызовов tick() с промахом кэша на isEmpty стоили ~1,7 мс/тик (s55).
+     * Появился тикающий блок — обратно (updateElement). Переходы — под tickLock, чтобы снятие и возврат не разошлись.
+     */
+    private boolean ticking = true;                                        // Minestom кладёт столбец в перебор при загрузке
+    private final Object tickLock = new Object();
+    /** -Dhoka.cubes.tickskip=false — не вынимать столбцы из перебора тика. */
+    static final boolean TICK_SKIP = !"false".equalsIgnoreCase(System.getProperty("hoka.cubes.tickskip"));
+    /** Отладка: столбцов вынуто из перебора тика / возвращено. */
+    static volatile long tickOff, tickOn;
+
+    /** Тест/отладка: столбец сейчас в переборе тика Minestom. */
+    boolean inTick() { synchronized (tickLock) { return ticking; } }
+
+    /** В tickable добавили блок: столбец вынут из перебора тика — вернуть. Звать после put. */
+    private void tickableAdded() {
+        if (!TICK_SKIP) return;
+        synchronized (tickLock) {
+            if (ticking) return;
+            var proc = MinecraftServer.process();
+            if (proc == null) return;
+            ticking = true;
+            dispatcher(proc).updateElement(this, this);                   // партиция уже снята (выгрузка) — Minestom пропустит
+            tickOn++;
+        }
+    }
+
+    /** Диспетчер тиков без дженериков: элемент у него типизирован как Entity, а столбец — Tickable (так и хранится). */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static net.minestom.server.thread.ThreadDispatcher dispatcher(net.minestom.server.ServerProcess proc) {
+        return (net.minestom.server.thread.ThreadDispatcher) proc.dispatcher();
+    }
+
     @Override
     public void tick(long time) {
-        if (tickable.isEmpty()) return;
+        if (tickable.isEmpty()) {
+            if (TICK_SKIP) synchronized (tickLock) {
+                // put в другом потоке до tickableAdded: либо видим его здесь, либо tickableAdded увидит ticking = false
+                var proc = MinecraftServer.process();
+                if (ticking && tickable.isEmpty() && proc != null) { ticking = false; dispatcher(proc).removeElement(this); tickOff++; }
+            }
+            return;
+        }
         tickable.int2ObjectEntrySet().fastForEach(e -> {
             final Block b = e.getValue();
             final BlockHandler h = b.handler();

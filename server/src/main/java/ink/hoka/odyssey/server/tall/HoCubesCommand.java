@@ -329,7 +329,10 @@ public final class HoCubesCommand extends Command {
         s.sendMessage(Component.text(CubeStreamer.stats(), NamedTextColor.AQUA));
         s.sendMessage(Component.text(CubeLight.stats(), NamedTextColor.AQUA));
         s.sendMessage(Component.text("столбцов выгружено (никто не видел минуту): " + ink.hoka.odyssey.server.maps.Maps.columnsReaped
-                + ", оставлено из-за сущностей: " + ink.hoka.odyssey.server.maps.Maps.columnsKeptForEntities, NamedTextColor.AQUA));
+                + ", оставлено из-за сущностей: " + ink.hoka.odyssey.server.maps.Maps.columnsKeptForEntities
+                + "; чанков обычных карт выгружено: " + ink.hoka.odyssey.server.maps.Maps.plainReaped
+                + ", ждут выгрузки: " + ink.hoka.odyssey.server.maps.Maps.reapQueued()
+                + "; столбцов вне перебора тика: снято " + CubeColumn.tickOff + ", возвращено " + CubeColumn.tickOn, NamedTextColor.AQUA));
         s.sendMessage(Component.text(CubeEntities.stats() + "; закреплено рамок " + Cubes.frames() + " (владельцев " + Cubes.owners() + ")", NamedTextColor.AQUA));
         if (CubeStore.violations.get() > 0)
             s.sendMessage(Component.text("⚠ нарушений правила записи (в незагруженный/выгружаемый куб): " + CubeStore.violations.get() + " (первый стек — в логе)", NamedTextColor.RED));

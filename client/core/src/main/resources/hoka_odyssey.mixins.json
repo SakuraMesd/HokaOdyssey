@@ -63,7 +63,9 @@
     "DebugCubesMixin",
     "LightQueueBudgetMixin",
     "ViewCapMixin",
-    "ClientLevelUnloadMixin"
+    "ClientLevelUnloadMixin",
+    "HeightmapAccessor",
+    "WeatherTallMixin"
   ],
   "injectors": {
     "defaultRequire": 1

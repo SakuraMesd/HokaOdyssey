@@ -43,6 +43,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *   16 SKY_FLOOR (0.54) varint n; n × (int cx, int cz, int floorSec): куб столбца с секцией ≥ floorSec без своей
  *             записи op 11/14 — небо 15, блоки 0 (как SKY_FULL|BLK_ZERO); явная запись сильнее; MAX_VALUE — правила нет.
  *             Идёт после op 11 того же столбца; пол у клиента только опускается (поднимать не нужно — см. skyFloor)
+ *   17 HEIGHTS (0.56) varint n; n × (int cx, int cz, 256 × short h, индекс z*16+x): MOTION_BLOCKING как у ванильной
+ *             карты высот — Y над верхним блокирующим (верх + 1), блоков нет — TallWorld.MIN_Y. После скелета столбца
+ *             и при каждой смене (в т.ч. вне окна). Последний пришедший — верный.
+ *   0.56: op 11/14 идут и для кольца ±1 куб за окном ±v (биты HALO) — блоков там у клиента нет, свет держим свежим
  * C2S hoka_odyssey:wc (этап 5, ядро 0.45.0+):
  *   2 VIEW    varint — «Дальность по высоте» из настроек клиента (кубов вверх и вниз); при входе и при смене
  *   3 WANT    (0.51) varint n; n × (long pos, byte что: 1 блоки, 2 свет) — промах кэша: прислать целиком
@@ -108,6 +112,14 @@ public final class CubeStreamer {
         long[] qBuf = new long[0];
         /** op 16 (0.54): пол «неба по умолчанию», отправленный клиенту, по столбцам (секция Y). Нет — клиент правила не знает. */
         final Map<Long, Integer> floors = new ConcurrentHashMap<>();
+        /**
+         * Сдвиг окна по Y порциями (shift): столбцы (ключи sent), которым ещё нужен update() под текущее окно, ближние
+         * к игроку первыми; pendAt — следующий. Новая смена Y до конца прохода — список заново из всего sent.
+         */
+        long[] pend = new long[0];
+        int pendAt, pendN, shiftTicks;
+        /** op 17 (0.56) для пришедших скелетов: шлёт тик пачками (после скелета — порядок соблюдён). */
+        final java.util.concurrent.ConcurrentLinkedQueue<Long> heightsQ = new java.util.concurrent.ConcurrentLinkedQueue<>();
     }
 
     private static final Map<UUID, State> STATES = new ConcurrentHashMap<>();
@@ -143,10 +155,11 @@ public final class CubeStreamer {
                 if (old != null) {
                     cacheDrop(p, tc, old);                                  // повторный скелет: старые кубы клиент унёс в кэш
                     // слои движка клиента могли остаться — «последняя запись не всё 15» помнить и дальше
-                    for (int i = old.nextSetBit(NDEF); i >= 0; i = old.nextSetBit(i + 1)) mask.set(i);
+                    for (int i = old.nextSetBit(NDEF); i >= 0 && i < HALO; i = old.nextSetBit(i + 1)) mask.set(i);   // HALO — нет: свет заново
                 }
                 try { update(p, st, tc, mask); }
                 catch (RuntimeException ex) { failed("отправка столбца " + tc.getChunkX() + " " + tc.getChunkZ(), ex); }   // недосланное дошлёт heal
+                if (heightsOp(p)) st.heightsQ.add(key(e.getChunkX(), e.getChunkZ()));   // 0.56: высоты MOTION_BLOCKING (дождь/снег) — пачкой в тике
                 // ленивая карта: столбец пришёл скелетом (воздух) — окно сузить сразу, тем же пакетом, а не в след. тике
                 if (CubeStore.lazy(inst)) window(p, st);
             }
@@ -247,13 +260,15 @@ public final class CubeStreamer {
 
     private static State state(Player p) {
         State st = STATES.computeIfAbsent(p.getUuid(), u -> new State());
-        if (st.instance != p.getInstance()) { st.sent.clear(); st.floors.clear(); st.sy = Integer.MIN_VALUE; st.wa = st.wb = Integer.MIN_VALUE; st.instance = p.getInstance(); }
+        if (st.instance != p.getInstance()) { st.sent.clear(); st.floors.clear(); st.heightsQ.clear(); st.pendAt = st.pendN = 0; st.sy = Integer.MIN_VALUE; st.wa = st.wb = Integer.MIN_VALUE; st.instance = p.getInstance(); }
         return st;
     }
 
-    /** Каждый тик: дослать ставшие READY кубы; игрок сменил секцию по высоте — сдвинуть окно во всех видимых столбцах. */
+    /** Каждый тик: дослать ставшие READY кубы; игрок сменил секцию по высоте — сдвинуть окно во всех видимых столбцах (порциями). */
     private static void tick() {
         drainReady();
+        drainHeights();
+        long deadline = System.nanoTime() + SHIFT_BUDGET_NS;              // общий бюджет сдвига окна на тик
         for (Player p : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
             Instance inst = p.getInstance();
             boolean cubes = TallWorld.isCubes(inst);
@@ -263,41 +278,107 @@ public final class CubeStreamer {
             if (st == null || st.instance != inst) continue;
             try {
                 wants(p, st);                                               // кэш 0.51: промахи клиента — кубы/свет целиком
+                if (!st.heightsQ.isEmpty()) {                               // op 17 пришедших скелетов
+                    List<int[]> hs = new ArrayList<>();
+                    for (Long k; (k = st.heightsQ.poll()) != null; )      // высоты — на сейчас (не старее op 17 из drainHeights)
+                        if (st.sent.containsKey(k) && inst.getChunk((int) (k >> 32), (int) (long) k) instanceof TallColumn tc) hs.add(heights(tc));
+                    if (!hs.isEmpty()) writeHeights(p, hs);
+                }
                 purgeQueue(p, st);                                          // устаревшие/повторные записи очереди Minestom — вон
                 synchronized (st.touched) { st.touched.clear(); }          // не отменённые действия — ресинк не нужен
                 int sy = p.getPosition().blockY() >> 4;
-                if (sy == st.sy && vertical(p) == st.v) {
-                    // раз в секунду: недосланное и незапрошенное — дослать/запросить; столбцы вплотную к игроку — 4 раза
-                    // в секунду (дыра под ногами после телепорта закрывается за ≤0,25 с, а не ≤1 с)
-                    if (++st.heal % 20 == 0) heal(p, st, inst, Integer.MAX_VALUE);
-                    else if (st.heal % 5 == 0) heal(p, st, inst, 2);
-                    if (CubeStore.lazy(inst)) window(p, st);                // загрузились кубы — окно клиента шире
+                if (sy != st.sy || vertical(p) != st.v) {
+                    st.sy = sy;
+                    st.v = vertical(p);
+                    window(p, st);
+                    plan(p, st);                                            // все столбцы sent — в очередь сдвига, ближние первыми
+                }
+                if (st.pendAt < st.pendN) {                                 // идёт сдвиг — он сам и есть досылка (heal не нужен)
+                    shift(p, st, inst, deadline);
+                    if (CubeStore.lazy(inst)) window(p, st);
                     continue;
                 }
-                st.sy = sy;
-                st.v = vertical(p);
-                window(p, st);
-                // S2: свет всех столбцов — общими пакетами по 128 кубов (было: пакет на столбец, ~4,5 тыс. за переход)
-                LightBatch lb = new LightBatch(p);
-                BATCH.set(lb);
-                try {
-                    for (var en : st.sent.entrySet()) {
-                        long k = en.getKey();
-                        Chunk c = inst.getChunk((int) (k >> 32), (int) k);
-                        // сбой одного столбца не должен оставить остальные без сдвига окна (их кубы у клиента «пропадут»)
-                        if (c instanceof TallColumn tc) {
-                            try { update(p, st, tc, en.getValue()); }
-                            catch (RuntimeException ex) { failed("окно столбца " + tc.getChunkX() + " " + tc.getChunkZ(), ex); }
-                        }
-                    }
-                } finally {
-                    BATCH.remove();
-                    lb.flush();
-                }
+                // раз в секунду: недосланное и незапрошенное — дослать/запросить; столбцы вплотную к игроку — 4 раза
+                // в секунду (дыра под ногами после телепорта закрывается за ≤0,25 с, а не ≤1 с)
+                if (++st.heal % 20 == 0) heal(p, st, inst, Integer.MAX_VALUE);
+                else if (st.heal % 5 == 0) heal(p, st, inst, 2);
+                if (CubeStore.lazy(inst)) window(p, st);                    // загрузились кубы — окно клиента шире
             } catch (RuntimeException ex) {
                 failed("тик игрока " + p.getUsername(), ex);
             }
         }
+    }
+
+    /** Бюджет сдвига окна по Y на тик (на всех игроков): -Dhoka.cubes.shift-us, по умолчанию 1500 мкс. */
+    static final long SHIFT_BUDGET_NS = 1000L * Math.max(100, Integer.getInteger("hoka.cubes.shift-us", 1500));
+    /** Столбцов за тик игроку не меньше этого: сдвиг идёт, даже если бюджет съел другой игрок. */
+    static final int SHIFT_MIN = 8;
+    /** Отладка: столбцов сдвинуто порциями; последний законченный проход — столбцов и тиков; прервано новой сменой Y. */
+    static volatile long shiftCols, shiftRestarts;
+    static volatile int lastShiftCols, lastShiftTicks;
+
+    /**
+     * Смена секции по Y: все столбцы sent — в очередь сдвига по расстоянию от игрока (Чебышёв, ближние первыми;
+     * подсчётом, O(n)). Незаконченный прошлый проход отбрасывается: update() идемпотентен к текущему окну — уже
+     * сдвинутые столбцы сдвинутся ещё раз (снимут/дошлют разницу), остальные — сразу в новое окно. Что у клиента,
+     * описывает маска sent: кубы не теряются, вне окна их выгрузит update(). Пока столбец ждёт, у клиента в нём
+     * старое окно (кубы сверх нового держит и CubeStore: они в sent — interest).
+     */
+    private static void plan(Player p, State st) {
+        long[] keys = new long[st.sent.size() + 64];
+        int n = 0;
+        for (Long k : st.sent.keySet()) { if (n == keys.length) keys = java.util.Arrays.copyOf(keys, n * 2); keys[n++] = k; }
+        int pcx = p.getPosition().blockX() >> 4, pcz = p.getPosition().blockZ() >> 4;
+        st.pend = order(keys, n, pcx, pcz);
+        if (st.pendAt < st.pendN) shiftRestarts++;
+        st.pendAt = 0;
+        st.pendN = n;
+        st.shiftTicks = 0;
+    }
+
+    /** Первые n ключей по Чебышёву от (pcx, pcz), ближние первыми (сортировка подсчётом). */
+    static long[] order(long[] keys, int n, int pcx, int pcz) {
+        int[] d = new int[n];
+        int maxD = 0;
+        for (int j = 0; j < n; j++) {
+            long k = keys[j];
+            d[j] = (int) Math.min(4095L, Math.max(Math.abs((long) (int) (k >> 32) - pcx), Math.abs((long) (int) k - pcz)));
+            if (d[j] > maxD) maxD = d[j];
+        }
+        int[] at = new int[maxD + 2];
+        for (int j = 0; j < n; j++) at[d[j] + 1]++;
+        for (int j = 1; j < at.length; j++) at[j] += at[j - 1];
+        long[] out = new long[n];
+        for (int j = 0; j < n; j++) out[at[d[j]]++] = keys[j];
+        return out;
+    }
+
+    /** Порция сдвига: столбцы из очереди, пока не вышел бюджет тика (не меньше SHIFT_MIN). Свет пустых — общей пачкой. */
+    private static void shift(Player p, State st, Instance inst, long deadline) {
+        LightBatch lb = new LightBatch(p);
+        BATCH.set(lb);
+        int done = 0;
+        try {
+            while (st.pendAt < st.pendN) {
+                if (done >= SHIFT_MIN && System.nanoTime() >= deadline) break;
+                long k = st.pend[st.pendAt++];
+                BitSet mask = st.sent.get(k);
+                if (mask == null) continue;                                 // столбец уже забыт (выгрузка/вне обзора)
+                // сбой одного столбца не должен оставить остальные без сдвига окна; недосланное дошлёт heal
+                if (inst.getChunk((int) (k >> 32), (int) k) instanceof TallColumn tc) {
+                    try { update(p, st, tc, mask); }
+                    catch (RuntimeException ex) { failed("окно столбца " + tc.getChunkX() + " " + tc.getChunkZ(), ex); }
+                    done++;
+                }
+            }
+        } finally {
+            BATCH.remove();
+            lb.flush();
+        }
+        shiftCols += done;
+        st.shiftTicks++;
+        // проход закончен: следующая подстраховка — полная, через секунду (как раньше после смены секции)
+        if (st.pendAt >= st.pendN) { lastShiftCols = st.pendN; lastShiftTicks = st.shiftTicks; st.heal = 0; }
     }
 
     /** Отладка: сбоев отправки (дошлёт heal), устаревших скелетов из очереди Minestom (вне обзора — не учтены). */
@@ -396,6 +477,20 @@ public final class CubeStreamer {
             if (inView(p, cx, cz) || nearPos(p, cx, cz)) return true;
             State st = STATES.get(p.getUuid());
             if (st != null && st.instance == inst && st.sent.containsKey(k)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Обычная карта (Maps.reapColumns): чанк в обзоре Minestom у кого-то из игроков карты (в т.ч. ждёт в очереди
+     * отправки) или в зрительской дальности от позиции (+1 — позиция могла уйти вперёд центра). O(игроков).
+     */
+    public static boolean nearAnyPlayer(Instance inst, int cx, int cz) {
+        for (Player p : inst.getPlayers()) {
+            if (inView(p, cx, cz)) return true;
+            var pos = p.getPosition();
+            int d = Math.max(Math.abs(cx - (pos.blockX() >> 4)), Math.abs(cz - (pos.blockZ() >> 4)));
+            if (d <= Math.max(p.effectiveViewDistance(), net.minestom.server.ServerFlag.CHUNK_VIEW_DISTANCE) + 1) return true;
         }
         return false;
     }
@@ -680,21 +775,27 @@ public final class CubeStreamer {
                 if (mask == null) continue;
                 try {
                     int from = Math.max(0, st.sy - st.v - min), to = Math.min(secs.size() - 1, st.sy + st.v - min);
-                    List<Integer> add = new ArrayList<>(), lit = new ArrayList<>();
+                    List<Integer> add = new ArrayList<>(), lit = new ArrayList<>(), halo = new ArrayList<>();
+                    boolean ho = haloOp(p);
                     for (int i : e.getValue()) {
+                        if ((i == from - 1 || i == to + 1) && ho && !mask.get(HALO + i) && !halo.contains(i) && c.ready(i)) { halo.add(i); continue; }   // кольцо ±1 (0.56)
                         if (i < from || i > to || mask.get(LIT + i) || lit.contains(i) || !c.ready(i)) continue;   // успели выгрузить — не слать
                         lit.add(i);
                         if (secs.get(i).blockPalette().count() > 0) add.add(i);
                     }
-                    if (lit.isEmpty()) continue;
+                    if (lit.isEmpty() && halo.isEmpty()) continue;
                     if (!add.isEmpty()) {
                         writeCubes(p, c, add, true);
                         for (int i : add) mask.set(i);
                         sentCubes += add.size();
                     }
+                    List<Integer> all = new ArrayList<>(lit);               // кольцо — только свет (блоков у клиента там нет)
+                    all.addAll(halo);
+                    all.sort(null);
                     int[] fl = skyFloor(p, st, c, sun);
-                    sendLight(p, c, skipSky(p, c, mask, lightNeeded(c, lit, add, mask, sun), fl[0]), sun);
+                    sendLight(p, c, skipSky(p, c, mask, lightNeeded(c, all, add, mask, sun), fl[0]), sun);
                     sendFloor(p, st, c, fl[1]);                             // op 16 — после op 11 столбца
+                    for (int h : halo) mask.set(HALO + h);
                     for (int i : lit) mask.set(LIT + i);                   // после света: сбой — heal дошлёт и куб, и свет
                 } catch (RuntimeException ex) {
                     failed("досылка кубов " + c.getChunkX() + " " + c.getChunkZ() + " игроку " + p.getUsername(), ex);
@@ -868,9 +969,23 @@ public final class CubeStreamer {
         // Без неба — ещё отправленные кубы без света (прошлая отправка сорвалась после блоков).
         boolean sun = c.getInstance().getCachedDimensionType().hasSkylight();
         List<Integer> lit = new ArrayList<>(add);
+        // HALO (0.56): свет куба, свежий у клиента с кольца ±1 — входя в окно, второй раз его не слать
         for (int i = rdy.nextSetBit(0); i >= 0; i = rdy.nextSetBit(i + 1))
-            if (!mask.get(LIT + i) && !add.contains(i) && (sun || mask.get(i))) lit.add(i);
+            if (!mask.get(LIT + i) && !mask.get(HALO + i) && !add.contains(i) && (sun || mask.get(i))) lit.add(i);
+        // кольцо ±1 куб за окном (0.56): у клиента там слой света, по которому он освещает грани края окна, —
+        // держать свежим (relightCubes по битам HALO). Был в окне (LIT) или уже в кольце (HALO) — свет у клиента свежий.
+        List<Integer> halo = new ArrayList<>(2);
+        BitSet haloNow = new BitSet();
+        if (haloOp(p)) for (int h : new int[]{from - 1, to + 1}) {
+            if (h < 0 || h >= secs.size() || !c.ready(h)) continue;        // не в памяти — свет придёт с drainReady
+            haloNow.set(h);
+            if (!mask.get(LIT + h) && !mask.get(HALO + h) && (sun || CubeLight.active(c) && CubeLight.blockLit((CubeColumn) c, h))) halo.add(h);
+        }
+        lit.addAll(halo);
         lit.sort(null);
+        mask.clear(HALO, HALO + secs.size());
+        for (int h = haloNow.nextSetBit(0); h >= 0; h = haloNow.nextSetBit(h + 1))
+            if (!halo.contains(h)) mask.set(HALO + h);                     // свет у клиента уже свежий; новые — после отправки
         mask.clear(LIT, LIT + from);
         mask.clear(LIT + to + 1, LIT + secs.size());
         for (int i = from; i <= to; i++) if (!rdy.get(i)) mask.clear(LIT + i);   // не загружен (или выгружен) — у игрока его нет (правило записи)
@@ -906,6 +1021,7 @@ public final class CubeStreamer {
         // LIT — только после отправки: сбой выше оставит кубы без LIT, и heal их дошлёт (раньше биты ставились до
         // света, и после исключения в CubeLight куб считался отправленным навсегда)
         for (int i = rdy.nextSetBit(0); i >= 0; i = rdy.nextSetBit(i + 1)) mask.set(LIT + i);
+        for (int h : halo) mask.set(HALO + h);
     }
 
     /**
@@ -1030,6 +1146,12 @@ public final class CubeStreamer {
         List<Integer> idx = new ArrayList<>();
         for (int i = Math.max(0, st.sy - st.v - min); i <= Math.min(n - 1, st.sy + st.v - min); i++) idx.add(i);
         boolean sun = c.getInstance().getCachedDimensionType().hasSkylight();
+        BitSet hm = st.sent.get(key(c.getChunkX(), c.getChunkZ()));
+        if (hm != null && haloOp(p)) {                                 // и кольцо ±1 за окном (0.56)
+            int lo = st.sy - st.v - min - 1, hi = st.sy + st.v - min + 1;
+            if (lo >= 0 && hm.get(HALO + lo)) idx.add(0, lo);
+            if (hi < n && hm.get(HALO + hi)) idx.add(hi);
+        }
         if (lightOp(p)) {                                              // op 11: изменившиеся кубы целиком (небо и блоки)
             LightData l = full(c, idx, sun);
             LightData o = before == null ? null : (sun ? withFull(slice(c, before, idx, sun), idx) : slice(c, before, idx, sun));
@@ -1057,7 +1179,7 @@ public final class CubeStreamer {
         BitSet mask = st.sent.get(key(c.getChunkX(), c.getChunkZ()));
         if (mask == null) return;
         List<Integer> idx = new ArrayList<>();
-        for (int i = changed.nextSetBit(0); i >= 0 && i < LIT; i = changed.nextSetBit(i + 1)) if (mask.get(LIT + i)) idx.add(i);
+        for (int i = changed.nextSetBit(0); i >= 0 && i < LIT; i = changed.nextSetBit(i + 1)) if (mask.get(LIT + i) || mask.get(HALO + i)) idx.add(i);   // и кольцо ±1 (0.56)
         if (idx.isEmpty()) return;
         if (lightOp(p)) { writeLight(p, c, CubeLight.data(c, idx, true), idx, c.getInstance().getCachedDimensionType().hasSkylight(), true); return; }
         LightData l = CubeLight.data(c, idx, true);
@@ -1285,6 +1407,88 @@ public final class CubeStreamer {
         floorsSent += fl.size();
     }
 
+    // ───────────── 0.56: кольцо света ±1 и op 17 HEIGHTS ─────────────
+
+    /** С какой версии ядро берёт свет кольца ±1 за окном и op 17. */
+    static final int[] HALO_CORE = {0, 56, 0};
+    static final byte OP_HEIGHTS = 17;
+    /** -Dhoka.light.halo=false — кольцо выключено. */
+    static final boolean HALO_ON = !"false".equalsIgnoreCase(System.getProperty("hoka.light.halo"));
+
+    static boolean haloOp(Player p) { return HALO_ON && lightOp(p) && Handshake.coreAtLeast(p, HALO_CORE); }
+
+    static boolean heightsOp(Player p) { return Handshake.coreAtLeast(p, HALO_CORE); }
+
+    /** Столбцы, у которых сменилась карта высот MOTION_BLOCKING (CubeColumn) — разослать op 17 в тике. */
+    private static final java.util.Set<TallColumn> HEIGHTS_DIRTY = ConcurrentHashMap.newKeySet();
+    /** Столбцов op 17 за тик не больше (массовая правка — остаток следующим тиком). */
+    static final int HEIGHTS_PER_TICK = 256;
+    /** Отладка: столбцов op 17 разослано. */
+    static volatile long heightsSent;
+
+    /** Высоты MOTION_BLOCKING столбца сменились (любой поток). Слать будет тик — только ядрам 0.56+. */
+    static void heightsChanged(TallColumn c) {
+        if (TallWorld.isCubes(c.getInstance())) HEIGHTS_DIRTY.add(c);
+    }
+
+    /**
+     * Запись op 17 столбца: {cx, cz, 256 высот}. Высота — как значение ванильной карты MOTION_BLOCKING: Y первого
+     * блока над верхним «блокирующим движение» (верх + 1); блоков нет — TallWorld.MIN_Y. Индекс z*16+x.
+     * Для кубов не в памяти (ленивая карта) верх — оценка сверху (как HeightIndex), уточнится при загрузке.
+     */
+    static int[] heights(TallColumn c) {
+        int[] e = new int[258];
+        e[0] = c.getChunkX();
+        e[1] = c.getChunkZ();
+        HeightIndex h = c.st().heights;
+        for (int i = 0; i < 256; i++) {
+            int y = h.get(HeightIndex.Kind.MOTION, i & 15, i >> 4);
+            e[2 + i] = y == HeightIndex.NONE ? TallWorld.MIN_Y : y + 1;
+        }
+        return e;
+    }
+
+    /** op 17 HEIGHTS: varint n; n × (int cx, int cz, 256 × short высота). По 64 столбца в пакете. */
+    static void writeHeights(Player p, List<int[]> cols) {
+        for (int s = 0; s < cols.size(); s += 64) {
+            List<int[]> part = cols.subList(s, Math.min(cols.size(), s + 64));
+            p.sendPacket(new PluginMessagePacket(CHANNEL, NetworkBuffer.makeArray(buf -> {
+                buf.write(NetworkBuffer.BYTE, OP_HEIGHTS);
+                buf.write(NetworkBuffer.VAR_INT, part.size());
+                for (int[] e : part) {
+                    buf.write(NetworkBuffer.INT, e[0]);
+                    buf.write(NetworkBuffer.INT, e[1]);
+                    for (int i = 2; i < 258; i++) buf.write(NetworkBuffer.SHORT, (short) e[i]);
+                }
+            })));
+        }
+        heightsSent += cols.size();
+    }
+
+    /** Тик: сменившиеся высоты — тем, кому столбец отправлен (ядро 0.56+); и вне окна (крышу построили выше). */
+    private static void drainHeights() {
+        if (HEIGHTS_DIRTY.isEmpty()) return;
+        Map<Player, List<int[]>> by = null;
+        int n = 0;
+        for (var it = HEIGHTS_DIRTY.iterator(); it.hasNext() && n < HEIGHTS_PER_TICK; ) {
+            TallColumn c = it.next();
+            it.remove();
+            if (!c.isLoaded()) continue;
+            int[] e = null;
+            for (Player p : receivers(c)) {
+                if (!heightsOp(p)) continue;
+                if (e == null) { e = heights(c); n++; }
+                if (by == null) by = new HashMap<>();
+                by.computeIfAbsent(p, k -> new ArrayList<>()).add(e);
+            }
+        }
+        if (by == null) return;
+        for (var en : by.entrySet()) {
+            try { writeHeights(en.getKey(), en.getValue()); }
+            catch (RuntimeException ex) { failed("op 17 игроку " + en.getKey().getUsername(), ex); }
+        }
+    }
+
     // ───────────── кэш кубов клиента (0.51) ─────────────
 
     /** Модель кэша игрока, если ссылки ему можно слать для этого столбца (ядро 0.51+, HAVE с бюджетом, кубовая карта, не верфь). */
@@ -1423,9 +1627,9 @@ public final class CubeStreamer {
             for (long[] w : e.getValue()) {
                 int i = posY(w[0]) - min;
                 if (i < 0 || i >= size) continue;
-                if (!c.ready(i)) { mask.clear(i); mask.clear(LIT + i); CubeCacheModel.wantIgnored++; continue; }
+                if (!c.ready(i)) { mask.clear(i); mask.clear(LIT + i); mask.clear(HALO + i); CubeCacheModel.wantIgnored++; continue; }
                 if ((w[1] & 1) != 0) { if (mask.get(i)) { blocks.add(i); CubeCacheModel.wantBlocks++; } else CubeCacheModel.wantIgnored++; }
-                if ((w[1] & 2) != 0) { if (mask.get(LIT + i)) { light.add(i); CubeCacheModel.wantLight++; } else CubeCacheModel.wantIgnored++; }
+                if ((w[1] & 2) != 0) { if (mask.get(LIT + i) || mask.get(HALO + i)) { light.add(i); CubeCacheModel.wantLight++; } else CubeCacheModel.wantIgnored++; }
             }
             try {
                 if (!blocks.isEmpty()) writeCubes(p, c, new ArrayList<>(blocks), false);
@@ -1472,6 +1676,11 @@ public final class CubeStreamer {
      * записью шлём и выше пола: у клиента мог остаться слой движка с тенью (op 4 его не стирает). Живут и вне окна.
      */
     private static final int NDEF = 2 * LIT;
+    /**
+     * Биты от HALO (0.56): куб кольца ±1 за окном, свет которого у клиента свежий (шлём и правки — relightCubes).
+     * Клиент освещает грани края окна по слою соседа за окном; без кольца там оставался свет с прошлого раза.
+     */
+    private static final int HALO = 3 * LIT;
 
     /** Свет столбца только для этих секций (бит маски света = индекс секции + 1: нулевой — под миром). */
     private static LightData slice(TallColumn c, LightData full, List<Integer> idx, boolean sun) {
@@ -1537,6 +1746,8 @@ public final class CubeStreamer {
                 + "; пустых без света op 11 не слано " + lightSkipped
                 + "; op 16: кубов без записи " + skyDefault + ", полов отправлено " + floorsSent + (FLOOR_ON ? "" : " (ВЫКЛ)")
                 + (FLOOR_CHECK ? ", расхождений floorcheck " + floorMismatch : "")
+                + "; сдвиг окна: столбцов " + shiftCols + ", последний " + lastShiftCols + " за " + lastShiftTicks + " тик., прервано " + shiftRestarts
+                + "; op 17 столбцов " + heightsSent
                 + "; правило записи: отменено " + cancelled + ", кубов ресинк " + resyncCubes
                 + "; кубов загружено " + CubeStore.loads.get() + ", в очереди " + CubeStore.queued()
                 + ", ошибок чтения " + CubeStore.loadErrors.get() + ", запись в незагруженный " + CubeStore.violations.get()

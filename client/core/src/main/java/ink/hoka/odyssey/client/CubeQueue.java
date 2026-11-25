@@ -111,7 +111,7 @@ public final class CubeQueue {
                 if (e.level != mc.level) { drop(e); if (e == stop) return; continue; }   // мир сменился
                 CubeReceiver.Parsed p = e.p;
                 switch (p.op) {
-                    case 5, 6, 15, 16 -> { CubeReceiver.applySimple(e.level, p); Q.poll(); }
+                    case 5, 6, 15, 16, 17 -> { CubeReceiver.applySimple(e.level, p); Q.poll(); }
                     case 14 -> {                                       // 0.51: свет из кэша (как op 11)
                         List<Long> ps = new ArrayList<>(p.pos.length);
                         List<ServerLight.Cube> cs = new ArrayList<>(p.pos.length);

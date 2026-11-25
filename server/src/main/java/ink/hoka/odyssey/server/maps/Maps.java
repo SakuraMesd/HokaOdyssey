@@ -316,6 +316,8 @@ public final class Maps {
         MinecraftServer.getSchedulerManager().buildTask(this::unloadIdle).delay(TaskSchedule.minutes(1)).repeat(TaskSchedule.minutes(1)).schedule();
         // раз в 10 с (было 30): в быстром полёте столбцы без кубов копились десятками тысяч, а тик Minestom обходит все
         MinecraftServer.getSchedulerManager().buildTask(this::reapColumns).delay(TaskSchedule.seconds(10)).repeat(TaskSchedule.seconds(10)).schedule();
+        // выгрузка — порциями каждый тик (см. reapColumns)
+        MinecraftServer.getSchedulerManager().buildTask(this::drainReap).repeat(TaskSchedule.tick(1)).schedule();
     }
 
     private void unloadIdle() {
@@ -384,21 +386,45 @@ public final class Maps {
         return n;
     }
 
-    /** Столбцов высоких карт выгружено всего / пропущено из-за сущностей (для /hocubes stats). */
-    public static volatile long columnsReaped, columnsKeptForEntities;
+    /** Столбцов высоких карт выгружено всего / пропущено из-за сущностей (для /hocubes stats); чанков обычных карт выгружено. */
+    public static volatile long columnsReaped, columnsKeptForEntities, plainReaped;
+    /** Сейчас в очереди выгрузки (сохранены/сохраняются, ждут порции). */
+    public static int reapQueued() { return REAP_N.get(); }
+
+    /** Выгрузок столбцов за тик не больше: -Dhoka.maps.reap-per-tick (по умолчанию 48). */
+    static final int REAP_PER_TICK = Math.max(1, Integer.getInteger("hoka.maps.reap-per-tick", 48));
+    /** Обычная карта: чанк без игроков рядом дольше этого — из памяти. */
+    static final long PLAIN_IDLE_MS = 60_000;
+    /** Основная карта: чанки вокруг точки появления (Чебышёв) не выгружаем — вход без ожидания. */
+    static final int SPAWN_KEEP = 2;
+
+    /** Сохранённый столбец, ждущий выгрузки (порциями в тике, drainReap). */
+    private record Reap(GameMap m, net.minestom.server.instance.Chunk c, boolean byCubes) {}
+    private final java.util.concurrent.ConcurrentLinkedQueue<Reap> reapQ = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private static final java.util.concurrent.atomic.AtomicInteger REAP_N = new java.util.concurrent.atomic.AtomicInteger();
+    /** Столбцы в сохранении/очереди — второй раз не ставить. */
+    private final Set<net.minestom.server.instance.Chunk> reapPending = ConcurrentHashMap.newKeySet();
+    /** Обычные карты: когда чанк последний раз был рядом с игроком (только поток планировщика). */
+    private final Map<net.minestom.server.instance.Chunk, Long> plainSeen = new WeakHashMap<>();
 
     /**
-     * Высокие карты: столбец, который никто не видит дольше минуты, — из памяти (изменённый сначала на диск). Не
+     * Раз в 10 с — кандидаты на выгрузку; сохраняются (в фоне), а выгружает их тик порциями по REAP_PER_TICK
+     * (drainReap): каждая выгрузка в Minestom — ArrayList.remove и ArrayDeque.remove по всем партициям
+     * (ThreadDispatcherImpl.processUnloadedPartition), тысяча разом — O(n²), длинный тик (s55: 23% длинных тиков).
+     * <p>Высокие карты: столбец, который никто не видит дольше минуты, — из памяти (изменённый сначала на диск). Не
      * трогаем полосу верфи кораблей (якоря и плоты) и столбцы с сущностями (выгрузка Minestom их удалила бы).
      * Карта с выгрузкой кубов (шаг 11): ленивый столбец — когда в нём не осталось кубов (их выгрузил CubeStore),
-     * нет игроков-зрителей и сущностей; минуту не ждём — кубы уже прождали своё.
+     * нет игроков-зрителей и сущностей; минуту не ждём — кубы уже прождали своё.</p>
+     * <p>Обычные карты (Anvil, LightingChunk): чанк без игроков рядом дольше минуты — тоже (было: основная карта
+     * держала ~4,5 тыс. чанков от каждого входа навсегда, их перебирал тик Minestom и писало автосохранение).</p>
      */
     private void reapColumns() {
         long now = System.currentTimeMillis();
         for (GameMap m : List.copyOf(loaded.values())) {
             var inst = m.instance;
             for (var ch : List.copyOf(inst.getChunks())) {
-                if (!(ch instanceof ink.hoka.odyssey.server.tall.TallColumn tc)) continue;
+                if (reapPending.contains(ch)) continue;
+                if (!(ch instanceof ink.hoka.odyssey.server.tall.TallColumn tc)) { reapPlain(m, ch, now); continue; }
                 var c = ch;
                 if (c.getChunkX() * 16 >= ink.hoka.odyssey.server.tall.TallChunk.YARD_X0) continue;
                 if (ink.hoka.odyssey.server.tall.Cubes.isColumnPinned(inst, c.getChunkX(), c.getChunkZ())) continue;   // закреплено (корабль…)
@@ -411,16 +437,70 @@ public final class Maps {
                 if (byCubes) { if (!((ink.hoka.odyssey.server.tall.CubeColumn) c).noCubes()) continue; }   // кубы ещё в памяти
                 else if (now - ink.hoka.odyssey.server.tall.TallWorld.seenAt(tc) < 60_000) continue;
                 if (!inst.getChunkEntities(c).isEmpty()) { columnsKeptForEntities++; ink.hoka.odyssey.server.tall.TallWorld.seen(tc, now); continue; }
-                inst.saveChunkToStorage(c).thenRun(() -> MinecraftServer.getSchedulerManager().scheduleNextTick(() -> {
-                    if (!c.isLoaded() || ink.hoka.odyssey.server.tall.CubeStreamer.watched(tc) || tc.isModified() || !inst.getChunkEntities(c).isEmpty()) return;
-                    if (ink.hoka.odyssey.server.tall.Cubes.isColumnPinned(inst, c.getChunkX(), c.getChunkZ())) return;
-                    if (c instanceof ink.hoka.odyssey.server.tall.CubeColumn cc && cc.busy()) return;
-                    if (byCubes && !((ink.hoka.odyssey.server.tall.CubeColumn) c).noCubes()) return;   // куб успели загрузить
-                    inst.unloadChunk(c);
-                    columnsReaped++;
-                }));
+                enqueueReap(m, c, byCubes);
             }
         }
+    }
+
+    /** Обычная карта: чанк без игроков рядом минуту (кроме точки появления основной) и без сущностей — в выгрузку. */
+    private void reapPlain(GameMap m, net.minestom.server.instance.Chunk c, long now) {
+        if (DEFAULT.equals(m.name)) {
+            Pos sp = m.spawn();
+            if (Math.max(Math.abs(c.getChunkX() - (sp.blockX() >> 4)), Math.abs(c.getChunkZ() - (sp.blockZ() >> 4))) <= SPAWN_KEEP) return;
+        }
+        if (ink.hoka.odyssey.server.tall.CubeStreamer.nearAnyPlayer(m.instance, c.getChunkX(), c.getChunkZ())) { plainSeen.put(c, now); return; }
+        Long seen = plainSeen.get(c);
+        if (seen == null) { plainSeen.put(c, now); return; }               // первый обход — отсчёт с него
+        if (now - seen < PLAIN_IDLE_MS) return;
+        if (!m.instance.getChunkEntities(c).isEmpty()) { plainSeen.put(c, now); return; }
+        enqueueReap(m, c, false);
+    }
+
+    private void enqueueReap(GameMap m, net.minestom.server.instance.Chunk c, boolean byCubes) {
+        if (!reapPending.add(c)) return;
+        m.instance.saveChunkToStorage(c).whenComplete((v, e) -> {
+            if (e != null) {
+                reapPending.remove(c);
+                LOG.warn("карта «{}»: столбец {} {} не сохранён перед выгрузкой: {}", m.name, c.getChunkX(), c.getChunkZ(), e.toString());
+                return;
+            }
+            reapQ.add(new Reap(m, c, byCubes));
+            REAP_N.incrementAndGet();
+        });
+    }
+
+    /** Тик: выгрузить до REAP_PER_TICK сохранённых столбцов (проверки — заново: за время сохранения всё могло смениться). */
+    private void drainReap() {
+        int done = 0;
+        for (int polled = 0; done < REAP_PER_TICK && polled < 4 * REAP_PER_TICK; polled++) {   // отказы дёшевы, но не бесконечно
+            Reap r = reapQ.poll();
+            if (r == null) return;
+            REAP_N.decrementAndGet();
+            reapPending.remove(r.c());
+            try { if (unloadReaped(r)) done++; }
+            catch (RuntimeException ex) { LOG.warn("выгрузка столбца {} {}: {}", r.c().getChunkX(), r.c().getChunkZ(), ex.toString()); }
+        }
+    }
+
+    private boolean unloadReaped(Reap r) {
+        var c = r.c();
+        var inst = r.m().instance;
+        if (!c.isLoaded() || loaded.get(r.m().name) != r.m()) return false;   // карта выгружена/заменена — не трогать
+        if (!inst.getChunkEntities(c).isEmpty()) return false;
+        if (c instanceof ink.hoka.odyssey.server.tall.TallColumn tc) {
+            if (ink.hoka.odyssey.server.tall.CubeStreamer.watched(tc) || tc.isModified()) return false;
+            if (ink.hoka.odyssey.server.tall.Cubes.isColumnPinned(inst, c.getChunkX(), c.getChunkZ())) return false;
+            if (c instanceof ink.hoka.odyssey.server.tall.CubeColumn cc && cc.busy()) return false;
+            if (r.byCubes() && !((ink.hoka.odyssey.server.tall.CubeColumn) c).noCubes()) return false;   // куб успели загрузить
+            inst.unloadChunk(c);
+            columnsReaped++;
+        } else {
+            // флага «изменён» у обычного чанка нет: подошёл игрок (мог править) — не выгружать, сохранится позже
+            if (ink.hoka.odyssey.server.tall.CubeStreamer.nearAnyPlayer(inst, c.getChunkX(), c.getChunkZ())) return false;
+            inst.unloadChunk(c);
+            plainReaped++;
+        }
+        return true;
     }
 
     /** Отметить, что на карте кто-то есть (чтобы не выгрузить сразу после входа). */

@@ -223,7 +223,7 @@ public final class ServerLight {
 
     /** Режим «свет от сервера» для мира — с op 5 / первого куба / первого op 11 (0.52: раньше только с op 11). */
     static void activate(ClientLevel lvl) {
-        if (level != lvl) { CUBES.clear(); level = lvl; }
+        if (level != lvl) { CUBES.clear(); RING_REAL.clear(); level = lvl; }
     }
 
     /** Свет куба известен заранее (op 11/14 идёт в очереди следом за op 2/13): в LATEST — слой сразу верный. */
@@ -304,6 +304,10 @@ public final class ServerLight {
             if (last != null && last != c) { staleSkipped++; continue; }
             int x = SectionPos.x(p), y = SectionPos.y(p), z = SectionPos.z(p);
             Cube was = CUBES.computeIfAbsent(ChunkPos.asLong(x, z), k -> new Int2ObjectOpenHashMap<>()).put(y, c);
+            // 0.56: запись куба вне окна — сервер сам держит его свет (кольцо за окном): не выводить его по краю
+            boolean outside = CubeReceiver.unloadedY(lvl, y);
+            if (outside) RING_REAL.add(p); else RING_REAL.remove(p);
+            if (!outside && was != null && lvl.getSectionsCount() > 64 && !was.same(c)) ring(lvl, e, sky, x, y, z, c);
             SectionPos sp = SectionPos.of(x, y, z);
             // 0.52: что видела сетка (очередь движка, иначе видимый слой) — до постановки нового в очередь
             DataLayer oldSky = sky == null ? null : seen(sky, p), oldBlk = blk == null ? null : seen(blk, p);
@@ -330,6 +334,65 @@ public final class ServerLight {
             if (SectionDirty.isAir(lvl, x, y, z)) m &= ~SectionDirty.SELF;   // у воздуха сетки нет
             SectionDirty.markLight(x, y, z, m);                            // соседи — мягко (свет дыр не делает)
         }
+    }
+
+    // ───────────── кольцо за окном (0.56) ─────────────
+
+    /**
+     * Кубы вне окна, свет которых сервер прислал, уже когда они были вне окна (сервер шлёт кольцо сам) — их не трогаем.
+     * Мусор (запоздалый relight) лишь выключает вывод для куба до его возвращения в окно.
+     */
+    private static final it.unimi.dsi.fastutil.longs.LongOpenHashSet RING_REAL = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
+    public static long ringFixed;
+
+    /**
+     * 0.56, свет за краем окна. Куб сразу за окном (±1) у клиента — воздух со слоем света, каким он был при выходе из
+     * окна; сервер шлёт свет только кубам окна. Сломали крышу (или поставили) — край окна получил новый свет, а слой
+     * за краем остался старым до сдвига окна: сглаженный свет боковых граней верхнего/нижнего ряда края (он берёт
+     * клетки за краем) — тёмная/светлая полоса по стенам на краю окна, у стоящего игрока — до перезахода.
+     * Чиним прилегающий ряд кольца по ограничениям распространения неба (только над/под воздухом края): край e = 15
+     * ⇒ соседняя клетка 15 (небо 15 идёт только отвесно); иначе соседняя v ∈ [e−1, min(e+1, 14)] — старое значение
+     * зажимаем в этот отрезок (где старое ещё допустимо — оставляем). Слоя/записи у кольца нет — ничего: слой заведёт
+     * L3 копией ряда свежего края. В LATEST (кэш кубов) выведенное не идёт — только CUBES и слой движка.
+     */
+    private static void ring(ClientLevel lvl, LevelLightEngine e, LightStorageAccessor sky, int x, int y, int z, Cube c) {
+        if (sky == null || !CubeReceiver.active(lvl)) return;
+        if (y == CubeReceiver.windowTo()) ringSide(lvl, e, sky, x, y, z, c, y + 1, 15, 0);
+        if (y == CubeReceiver.windowFrom()) ringSide(lvl, e, sky, x, y, z, c, y - 1, 0, 15);
+    }
+
+    /** ry — куб кольца, er — ряд края у кольца, rr — ряд кольца у края. */
+    private static void ringSide(ClientLevel lvl, LevelLightEngine e, LightStorageAccessor sky, int x, int y, int z, Cube c,
+                                 int ry, int er, int rr) {
+        long rp = SectionPos.asLong(x, ry, z);
+        if (!CubeReceiver.unloadedY(lvl, ry) || RING_REAL.contains(rp)) return;
+        var col = CUBES.get(ChunkPos.asLong(x, z));
+        Cube oc = col == null ? null : col.get(ry);
+        DataLayer base = seen(sky, rp);
+        if (base == null && oc == null) return;
+        if (base == null) base = oc.skyLayer();
+        var ch = lvl.getChunkSource().getChunk(x, z, net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false);
+        int idx = lvl.getSectionIndexFromSectionY(y);
+        if (!(ch instanceof net.minecraft.world.level.chunk.LevelChunk lc) || idx < 0 || idx >= lc.getSections().length) return;
+        var es = lc.getSections()[idx];
+        // в кубе кольца у клиента блоки (окно op 5 на ленивой карте уже серверного) — свет у него настоящий, не выводить
+        int ri = lvl.getSectionIndexFromSectionY(ry);
+        if (ri < 0 || ri >= lc.getSections().length || !lc.getSections()[ri].hasOnlyAir()) return;
+        DataLayer nl = null;
+        for (int zz = 0; zz < 16; zz++)
+            for (int xx = 0; xx < 16; xx++) {
+                if (!es.getBlockState(xx, er, zz).isAir()) continue;   // через блок правила другие — как было
+                int ev = c.sky(xx, er, zz), ov = base.get(xx, rr, zz);
+                int nv = ev >= 15 ? 15 : Math.max(Math.max(0, ev - 1), Math.min(ov, Math.min(ev + 1, 14)));
+                if (nv == ov) continue;
+                if (nl == null) nl = base.copy();
+                nl.set(xx, rr, zz, nv);
+            }
+        if (nl == null) return;
+        ringFixed++;
+        if (stored(sky, rp)) e.queueSectionData(LightLayer.SKY, SectionPos.of(x, ry, z), nl);
+        CUBES.computeIfAbsent(ChunkPos.asLong(x, z), k -> new Int2ObjectOpenHashMap<>())
+                .put(ry, new Cube((byte) 3, nl.getData().clone(), oc == null ? 0 : oc.blk(), oc == null ? null : oc.bd()));
     }
 
     /** Свет сервера, совпавший с тем, что уже видела сетка (перестройка не нужна). */
@@ -397,6 +460,7 @@ public final class ServerLight {
                 int x = SectionPos.x(p), y = SectionPos.y(p), z = SectionPos.z(p);
                 var m = CUBES.get(ChunkPos.asLong(x, z));
                 if (m != null) { m.remove(y); if (m.isEmpty()) CUBES.remove(ChunkPos.asLong(x, z)); }
+                RING_REAL.remove(p);
                 settle(sky, p);
                 settle(blk, p);
             }
@@ -418,13 +482,17 @@ public final class ServerLight {
         if (lvl == latestLevel) { LATEST.remove(pos.toLong()); FLOOR.remove(pos.toLong()); }   // кэш (0.51) уже унёс при выгрузке столбца
         if (lvl != level) return;
         long k = pos.toLong();
-        lvl.queueLightUpdate(() -> CUBES.remove(k));
+        lvl.queueLightUpdate(() -> {
+            CUBES.remove(k);
+            if (!RING_REAL.isEmpty()) RING_REAL.removeIf((java.util.function.LongPredicate) q -> SectionPos.x(q) == pos.x && SectionPos.z(q) == pos.z);
+        });
     }
 
     /** Мир сменился / вышли — всё забыть. */
     public static void reset() {
         level = null;
         CUBES.clear();
+        RING_REAL.clear();
         LATEST.clear();
         FLOOR.clear();
         latestLevel = null;
@@ -465,6 +533,6 @@ public final class ServerLight {
         for (var m : CUBES.values()) n += m.size();
         return "свет от сервера: " + (level != null ? "вкл" : "выкл") + ", кубов принято " + received + ", в движок " + queued
                 + ", только в памяти " + kept + ", свет без перестройки " + sameLight + ", устаревших пропущено " + staleSkipped
-                + ", держим " + n + ", пол неба: столбцов " + FLOOR.size() + " (записей " + floors + ")";
+                + ", кольцо за окном: выведено " + ringFixed + ", от сервера " + RING_REAL.size() + ", держим " + n + ", пол неба: столбцов " + FLOOR.size() + " (записей " + floors + ")";
     }
 }
