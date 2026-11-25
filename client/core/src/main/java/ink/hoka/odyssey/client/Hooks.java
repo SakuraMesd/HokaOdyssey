@@ -28,6 +28,8 @@ public final class Hooks {
     static final List<Owned<ClientContext.TravelHook>> TICK_ENTER = new ArrayList<>();
     static final List<Owned<ClientContext.EntityPoseHook>> POSE = new ArrayList<>();
     static final List<Owned<ClientContext.PickHook>> PICK = new ArrayList<>();
+    static final List<Owned<ClientContext.EntityBoxHook>> BOX = new java.util.concurrent.CopyOnWriteArrayList<>();
+    static final List<Owned<ClientContext.EntityEyeHook>> EYE = new java.util.concurrent.CopyOnWriteArrayList<>();
     static volatile Owned<ClientContext.YardResolver> yardResolver;
     static volatile Owned<ClientContext.LocalViewHook> localView;
     static final List<Owned<ClientContext.TravelHook>> TICK_EXIT = new ArrayList<>();
@@ -68,6 +70,8 @@ public final class Hooks {
         TICK_ENTER.removeIf(o -> o.owner().equals(owner));
         POSE.removeIf(o -> o.owner().equals(owner));
         PICK.removeIf(o -> o.owner().equals(owner));
+        BOX.removeIf(o -> o.owner().equals(owner));
+        EYE.removeIf(o -> o.owner().equals(owner));
         if (yardResolver != null && yardResolver.owner().equals(owner)) yardResolver = null;
         if (localView != null && localView.owner().equals(owner)) localView = null;
         TICK_EXIT.removeIf(o -> o.owner().equals(owner));
@@ -91,6 +95,8 @@ public final class Hooks {
         TICK_ENTER.clear();
         POSE.clear();
         PICK.clear();
+        BOX.clear();
+        EYE.clear();
         yardResolver = null;
         localView = null;
         TICK_EXIT.clear();
@@ -191,6 +197,32 @@ public final class Hooks {
         for (var o : List.copyOf(POSE)) {
             ClientContext.EntityPose[] r = {null};
             safe(o.owner(), () -> r[0] = o.hook().pose(e, pt));
+            if (r[0] != null) return r[0];
+        }
+        return null;
+    }
+
+    public static boolean hasBox() { return !BOX.isEmpty(); }
+
+    /** Рамка сущности от модулей (первая не-null) или null — как у игры (миксин Entity.makeBoundingBox). */
+    public static net.minecraft.world.phys.AABB box(net.minecraft.world.entity.Entity e, net.minecraft.world.phys.Vec3 pos) {
+        if (BOX.isEmpty() || e == null || pos == null) return null;
+        for (var o : BOX) {
+            net.minecraft.world.phys.AABB[] r = {null};
+            safe(o.owner(), () -> r[0] = o.hook().box(e, pos));
+            if (r[0] != null) return r[0];
+        }
+        return null;
+    }
+
+    public static boolean hasEye() { return !EYE.isEmpty(); }
+
+    /** Сдвиг позиция → глаза от модулей (первый не-null) или null — как у игры (миксин Entity.getEyePosition). */
+    public static net.minecraft.world.phys.Vec3 eye(net.minecraft.world.entity.Entity e) {
+        if (EYE.isEmpty() || e == null) return null;
+        for (var o : EYE) {
+            net.minecraft.world.phys.Vec3[] r = {null};
+            safe(o.owner(), () -> r[0] = o.hook().eye(e));
             if (r[0] != null) return r[0];
         }
         return null;

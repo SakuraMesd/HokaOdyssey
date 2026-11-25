@@ -158,6 +158,24 @@ public interface ClientContext {
      */
     void onCollision(CollisionHook hook);
 
+    /**
+     * Своя рамка (AABB) сущности вместо {@code EntityDimensions.makeBoundingBox(pos)}: ядро спрашивает в
+     * {@code Entity.makeBoundingBox(Vec3)} — то есть при каждом setPos, движении, refreshDimensions. Только сущности
+     * клиентского мира. Вернуть null — как у игры. Позиция сущности остаётся её позицией (модуль сам решает, где она
+     * относительно рамки), столкновения с блоками игра считает по этой рамке как есть (рамка ровная по осям мира —
+     * например, игрок «стоит» на стене: 1.8 вдоль нормали стены, 0.6 поперёк). Пока модуль даёт рамку игроку,
+     * игра не выбирает ему позу по «влезает ли рамка стоя» (Player.updatePlayerPose) — иначе у стены он бы
+     * «присел» или «поплыл». Поменялось решение модуля — обновить рамку можно через {@code entity.setPos(entity.position())}.
+     */
+    default void onEntityBox(EntityBoxHook hook) {}
+
+    /**
+     * Глаза сущности: сдвиг от позиции сущности до глаз (мир, блоки) — для getEyePosition()/getEyePosition(pt)/
+     * getEyeY() (прицел, ломание и установка блоков, луч взгляда, свет модели). Только сущности клиентского мира.
+     * null — как у игры (0, eyeHeight, 0). Камеру ядро не двигает — её положение модуль ставит в onCamera.
+     */
+    default void onEntityEye(EntityEyeHook hook) {}
+
     interface HudLayer { void render(GuiGraphics g, DeltaTracker delta); }
 
     interface MouseHook { boolean onMouse(double yawDeg, double pitchDeg); }
@@ -177,6 +195,10 @@ public interface ClientContext {
         boolean render(com.mojang.blaze3d.vertex.PoseStack pose, net.minecraft.client.renderer.MultiBufferSource buffers,
                        net.minecraft.world.phys.Vec3 camera, float partialTick);
     }
+
+    interface EntityBoxHook { net.minecraft.world.phys.AABB box(net.minecraft.world.entity.Entity entity, net.minecraft.world.phys.Vec3 pos); }
+
+    interface EntityEyeHook { net.minecraft.world.phys.Vec3 eye(net.minecraft.world.entity.Entity entity); }
 
     interface EntityTiltHook { org.joml.Quaternionfc tilt(net.minecraft.world.entity.Entity entity, float partialTick); }
 

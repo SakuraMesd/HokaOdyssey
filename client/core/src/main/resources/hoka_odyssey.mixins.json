@@ -20,6 +20,8 @@
     "KeyboardInputMixin",
     "LocalTravelMixin",
     "EntityTiltMixin",
+    "EntityBoxMixin",
+    "PlayerPoseMixin",
     "BackOffMixin",
     "HitboxTiltMixin",
     "ClickMixin",
