@@ -454,6 +454,7 @@ public final class CubeColumn extends Chunk implements TallColumn {
             if (fromDisk.get(i) && source != null) st.setSkyCols(i, CubeMark.skyCols(sec == null ? null : sec.blockPalette()));   // маска колонок неба — как на диске
             if (d.missing()) { st.markDirty(i); st.modified = true; }     // в заголовке есть, в регионе нет — при сохранении убрать
             synchronized (q) { ST.setVolatile(state, i, READY); loadingNow--; held.put(i, System.currentTimeMillis()); }
+            floorDirty = true;                                              // op 16: сразу за READY (не ждать cubeLoaded)
         } finally { unlockWriteLock(); }
         skeleton.invalidate();
         if (CubeLight.active(this)) {                                       // шаг 12: 3×3×3 вокруг куба; шаг 13: + полоса skyTop
@@ -494,6 +495,13 @@ public final class CubeColumn extends Chunk implements TallColumn {
 
     CubeLight.Store lightStore() { return lightStore; }
 
+    /** op 16: кэш CubeLight.Column.floorInfo (верх skyTop, верхний непустой куб) и флаг «устарел» — сбрасывают события света. */
+    private volatile long floorInfo;
+    private volatile boolean floorDirty = true;
+
+    /** Высоты/кубы столбца сменились — floorInfo посчитать заново при следующем запросе. */
+    void floorDirty() { floorDirty = true; }
+
     /** Доступ CubeLight к кубам столбца: палитры читаются без замка (как ColumnLight); гонку правит событие правки. */
     private final class LightCol implements CubeLight.Column {
         @Override public int cx() { return chunkX; }
@@ -520,6 +528,14 @@ public final class CubeColumn extends Chunk implements TallColumn {
         @Override public int id(int i, int x, int y, int z) { return cubes.get(i).blockPalette().get(x, y, z); }
         @Override public CubeLight.Store store() { return lightStore; }
         @Override public boolean mayEmit(int i) { return CubeLight.mayEmit(cubes.get(i).blockPalette()); }
+
+        @Override public long floorInfo() {
+            if (floorDirty) {                                               // сначала снять флаг: правка во время счёта поставит его снова
+                floorDirty = false;
+                floorInfo = CubeLight.computeFloorInfo(this);
+            }
+            return floorInfo;
+        }
     }
 
     // ───────────── TallColumn ─────────────

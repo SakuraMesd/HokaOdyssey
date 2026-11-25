@@ -104,6 +104,7 @@ public final class OdysseyServer implements OdysseyServerApi {
         cm.register(new ink.hoka.odyssey.server.tall.HoCubesCommand(maps, ops));
         ink.hoka.odyssey.server.tall.Handshake.register();
         ink.hoka.odyssey.server.tall.CubeStreamer.register();
+        DebugTab.register();                                              // ВРЕМЕННО: пинг/TPS/MSPT в TAB (-Dhoka.tab.debug=false — выкл)
         ink.hoka.odyssey.server.tall.CubeEntities.register();             // шаг 10: сущности у незагруженных кубов — заморозка
         ink.hoka.odyssey.server.tall.CubeStore.register();                // шаг 11: выгрузка кубов без интереса
 

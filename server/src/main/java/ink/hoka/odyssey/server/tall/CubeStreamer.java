@@ -40,6 +40,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *   13 CUBES_REF varint n; n × (long pos, long H — CubeHash, varint m, m × блок-энтити как в op 2): куб из кэша клиента
  *   14 LIGHT_REF varint n; n × (long pos, long L): свет куба из кэша клиента (LightOp)
  *   15 HASH_CHECK varint n; n × (long pos, long H) — отладка: клиент сверяет живые секции и отвечает op 6
+ *   16 SKY_FLOOR (0.54) varint n; n × (int cx, int cz, int floorSec): куб столбца с секцией ≥ floorSec без своей
+ *             записи op 11/14 — небо 15, блоки 0 (как SKY_FULL|BLK_ZERO); явная запись сильнее; MAX_VALUE — правила нет.
+ *             Идёт после op 11 того же столбца; пол у клиента только опускается (поднимать не нужно — см. skyFloor)
  * C2S hoka_odyssey:wc (этап 5, ядро 0.45.0+):
  *   2 VIEW    varint — «Дальность по высоте» из настроек клиента (кубов вверх и вниз); при входе и при смене
  *   3 WANT    (0.51) varint n; n × (long pos, byte что: 1 блоки, 2 свет) — промах кэша: прислать целиком
@@ -103,6 +106,8 @@ public final class CubeStreamer {
         long qCenter;
         final it.unimi.dsi.fastutil.longs.LongOpenHashSet qSeen = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
         long[] qBuf = new long[0];
+        /** op 16 (0.54): пол «неба по умолчанию», отправленный клиенту, по столбцам (секция Y). Нет — клиент правила не знает. */
+        final Map<Long, Integer> floors = new ConcurrentHashMap<>();
     }
 
     private static final Map<UUID, State> STATES = new ConcurrentHashMap<>();
@@ -124,6 +129,7 @@ public final class CubeStreamer {
             if (!inView(p, e.getChunkX(), e.getChunkZ())) {
                 staleLoads++;
                 st.sent.remove(key(e.getChunkX(), e.getChunkZ()));
+                st.floors.remove(key(e.getChunkX(), e.getChunkZ()));
                 p.sendPacket(new UnloadChunkPacket(e.getChunkX(), e.getChunkZ()));
                 return;
             }
@@ -133,7 +139,12 @@ public final class CubeStreamer {
                 // Пересылку от отмены действия (refresh) перехватывает sendChunk столбца → resync одного куба.
                 BitSet mask = new BitSet();
                 BitSet old = st.sent.put(key(e.getChunkX(), e.getChunkZ()), mask);
-                if (old != null) cacheDrop(p, tc, old);                    // повторный скелет: старые кубы клиент унёс в кэш
+                st.floors.remove(key(e.getChunkX(), e.getChunkZ()));       // op 16 — заново после света столбца
+                if (old != null) {
+                    cacheDrop(p, tc, old);                                  // повторный скелет: старые кубы клиент унёс в кэш
+                    // слои движка клиента могли остаться — «последняя запись не всё 15» помнить и дальше
+                    for (int i = old.nextSetBit(NDEF); i >= 0; i = old.nextSetBit(i + 1)) mask.set(i);
+                }
                 try { update(p, st, tc, mask); }
                 catch (RuntimeException ex) { failed("отправка столбца " + tc.getChunkX() + " " + tc.getChunkZ(), ex); }   // недосланное дошлёт heal
                 // ленивая карта: столбец пришёл скелетом (воздух) — окно сузить сразу, тем же пакетом, а не в след. тике
@@ -144,6 +155,7 @@ public final class CubeStreamer {
             State st = STATES.get(e.getPlayer().getUuid());
             if (st == null) return;
             BitSet old = st.sent.remove(key(e.getChunkX(), e.getChunkZ()));
+            st.floors.remove(key(e.getChunkX(), e.getChunkZ()));           // клиент забыл столбец (Forget) — и его пол
             // кэш 0.51: клиент забывает столбец и уносит его кубы в кэш — запомнить их версии
             if (old != null && st.instance != null && st.instance.getChunk(e.getChunkX(), e.getChunkZ()) instanceof TallColumn tc)
                 cacheDrop(e.getPlayer(), tc, old);
@@ -235,7 +247,7 @@ public final class CubeStreamer {
 
     private static State state(Player p) {
         State st = STATES.computeIfAbsent(p.getUuid(), u -> new State());
-        if (st.instance != p.getInstance()) { st.sent.clear(); st.sy = Integer.MIN_VALUE; st.wa = st.wb = Integer.MIN_VALUE; st.instance = p.getInstance(); }
+        if (st.instance != p.getInstance()) { st.sent.clear(); st.floors.clear(); st.sy = Integer.MIN_VALUE; st.wa = st.wb = Integer.MIN_VALUE; st.instance = p.getInstance(); }
         return st;
     }
 
@@ -265,14 +277,22 @@ public final class CubeStreamer {
                 st.sy = sy;
                 st.v = vertical(p);
                 window(p, st);
-                for (var en : st.sent.entrySet()) {
-                    long k = en.getKey();
-                    Chunk c = inst.getChunk((int) (k >> 32), (int) k);
-                    // сбой одного столбца не должен оставить остальные без сдвига окна (их кубы у клиента «пропадут»)
-                    if (c instanceof TallColumn tc) {
-                        try { update(p, st, tc, en.getValue()); }
-                        catch (RuntimeException ex) { failed("окно столбца " + tc.getChunkX() + " " + tc.getChunkZ(), ex); }
+                // S2: свет всех столбцов — общими пакетами по 128 кубов (было: пакет на столбец, ~4,5 тыс. за переход)
+                LightBatch lb = new LightBatch(p);
+                BATCH.set(lb);
+                try {
+                    for (var en : st.sent.entrySet()) {
+                        long k = en.getKey();
+                        Chunk c = inst.getChunk((int) (k >> 32), (int) k);
+                        // сбой одного столбца не должен оставить остальные без сдвига окна (их кубы у клиента «пропадут»)
+                        if (c instanceof TallColumn tc) {
+                            try { update(p, st, tc, en.getValue()); }
+                            catch (RuntimeException ex) { failed("окно столбца " + tc.getChunkX() + " " + tc.getChunkZ(), ex); }
+                        }
                     }
+                } finally {
+                    BATCH.remove();
+                    lb.flush();
                 }
             } catch (RuntimeException ex) {
                 failed("тик игрока " + p.getUsername(), ex);
@@ -672,7 +692,9 @@ public final class CubeStreamer {
                         for (int i : add) mask.set(i);
                         sentCubes += add.size();
                     }
-                    sendLight(p, c, lightNeeded(c, lit, add, mask, sun), sun);
+                    int[] fl = skyFloor(p, st, c, sun);
+                    sendLight(p, c, skipSky(p, c, mask, lightNeeded(c, lit, add, mask, sun), fl[0]), sun);
+                    sendFloor(p, st, c, fl[1]);                             // op 16 — после op 11 столбца
                     for (int i : lit) mask.set(LIT + i);                   // после света: сбой — heal дошлёт и куб, и свет
                 } catch (RuntimeException ex) {
                     failed("досылка кубов " + c.getChunkX() + " " + c.getChunkZ() + " игроку " + p.getUsername(), ex);
@@ -743,7 +765,7 @@ public final class CubeStreamer {
             if (from <= to) keep.set(from, to + 1);
             BitSet m = st.sent.get(k);
             if (m == null) continue;
-            for (int i = m.nextSetBit(0); i >= 0; i = m.nextSetBit(i + 1)) keep.set(i >= LIT ? i - LIT : i);
+            for (int i = m.nextSetBit(0); i >= 0 && i < NDEF; i = m.nextSetBit(i + 1)) keep.set(i >= LIT ? i - LIT : i);
         }
         return true;
     }
@@ -793,7 +815,7 @@ public final class CubeStreamer {
                 if (i >= 0 && i < n) idx.add(i);
             }
         }
-        if (idx.isEmpty()) for (int i = mask.nextSetBit(LIT); i >= 0; i = mask.nextSetBit(i + 1)) idx.add(i - LIT);
+        if (idx.isEmpty()) for (int i = mask.nextSetBit(LIT); i >= 0 && i < NDEF; i = mask.nextSetBit(i + 1)) idx.add(i - LIT);
         List<Integer> in = new ArrayList<>();
         List<Long> out = new ArrayList<>();
         for (int i : idx) {
@@ -873,7 +895,14 @@ public final class CubeStreamer {
             for (int i : add) mask.set(i);
             sentCubes += add.size();
         }
-        sendLight(p, c, lit, sun);
+        int[] fl = skyFloor(p, st, c, sun);
+        // S2: столбец с непустыми кубами — свет сразу за op 2 (клиент берёт его заранее, lightAhead: без второй сборки);
+        // в общую пачку — только свет пустых кубов. op 16 — в пачке, после всего света (и этого столбца).
+        LightBatch lb = add.isEmpty() ? null : BATCH.get();
+        if (lb != null) BATCH.remove();
+        try { sendLight(p, c, skipSky(p, c, mask, lit, fl[0]), sun); }   // 0.54: небо по умолчанию — без записей
+        finally { if (lb != null) BATCH.set(lb); }
+        sendFloor(p, st, c, fl[1]);                                         // op 16 — после op 11 столбца
         // LIT — только после отправки: сбой выше оставит кубы без LIT, и heal их дошлёт (раньше биты ставились до
         // света, и после исключения в CubeLight куб считался отправленным навсегда)
         for (int i = rdy.nextSetBit(0); i >= 0; i = rdy.nextSetBit(i + 1)) mask.set(LIT + i);
@@ -1113,8 +1142,16 @@ public final class CubeStreamer {
     private static void writeLight(Player p, TallColumn c, LightData l, List<Integer> idx, boolean sun, boolean allowRef) {
         if (idx.isEmpty()) return;
         List<LightOp.Rec> recs = LightOp.records(c.getChunkX(), c.getChunkZ(), c.getMinSection(), l, idx, sun);
+        if (floorOp(p)) {                                                   // op 16: какая запись у клиента последней
+            State st = STATES.get(p.getUuid());
+            BitSet mask = st == null || st.instance != c.getInstance() ? null : st.sent.get(key(c.getChunkX(), c.getChunkZ()));
+            if (mask != null) for (LightOp.Rec r : recs) mask.set(NDEF + r.i(), !LightOp.isSkyFull(r));
+        }
+        LightBatch batch = BATCH.get();
+        if (batch != null && batch.p != p) batch = null;
         CubeCacheModel.P m = cacheModel(p, c);
         if (m == null) {
+            if (batch != null) { batch.full.addAll(recs); return; }
             for (byte[] b : LightOp.pack(recs)) p.sendPacket(new PluginMessagePacket(CHANNEL, b));
             return;
         }
@@ -1131,8 +1168,121 @@ public final class CubeStreamer {
             if (r.bytes().length > LightOp.REF_MIN) CubeCacheModel.sentLight(m, key, cx, cz, r.i(), r.light());
             else CubeCacheModel.forgetLight(m, key, cx, cz, r.i());
         }
+        if (batch != null) { batch.full.addAll(full); batch.refs.addAll(refs); return; }
         if (!full.isEmpty()) for (byte[] b : LightOp.pack(full)) p.sendPacket(new PluginMessagePacket(CHANNEL, b));
         if (!refs.isEmpty()) for (byte[] b : LightOp.packRefs(refs)) p.sendPacket(new PluginMessagePacket(CHANNEL, b));
+    }
+
+    // ───────────── S2: свет многих столбцов общими пакетами ─────────────
+
+    /** Пачка op 11/14/16 одного игрока (смена секции по Y): в tick, шлётся в конце прохода по столбцам. */
+    private static final class LightBatch {
+        final Player p;
+        final List<LightOp.Rec> full = new ArrayList<>(), refs = new ArrayList<>();
+        final List<int[]> floors = new ArrayList<>();
+
+        LightBatch(Player p) { this.p = p; }
+
+        /** Порядок как у одиночной отправки: op 11, op 14, затем op 16 (пол — после света своих столбцов). */
+        void flush() {
+            if (!full.isEmpty()) for (byte[] b : LightOp.pack(full)) p.sendPacket(new PluginMessagePacket(CHANNEL, b));
+            if (!refs.isEmpty()) for (byte[] b : LightOp.packRefs(refs)) p.sendPacket(new PluginMessagePacket(CHANNEL, b));
+            if (!floors.isEmpty()) writeFloors(p, floors);
+        }
+    }
+
+    /** Пачка текущего потока (только tick при смене секции); null — слать сразу. */
+    private static final ThreadLocal<LightBatch> BATCH = new ThreadLocal<>();
+
+    // ───────────── op 16 SKY_FLOOR (0.54): небо по умолчанию ─────────────
+
+    /** С какой версии ядро знает op 16. */
+    static final int[] FLOOR_CORE = {0, 54, 0};
+    static final byte OP_FLOOR = 16;
+    /** -Dhoka.light.floor=false — op 16 выключен (всем свет как ядру 0.53). */
+    static final boolean FLOOR_ON = !"false".equalsIgnoreCase(System.getProperty("hoka.light.floor"));
+    /** -Dhoka.light.floorcheck=true — отладка: свет пропущенных кубов всё же считать и сверять с «всё 15». */
+    static final boolean FLOOR_CHECK = Boolean.getBoolean("hoka.light.floorcheck");
+    /** Отладка: кубов без записи (небо по умолчанию), полов отправлено, расхождений floorcheck. */
+    static volatile long skyDefault, floorsSent, floorMismatch;
+    private static volatile long lastMismatchLog;
+    private static final int[] NO_FLOOR = {Integer.MAX_VALUE, Integer.MIN_VALUE};
+
+    static boolean floorOp(Player p) { return FLOOR_ON && Handshake.coreAtLeast(p, FLOOR_CORE); }
+
+    /**
+     * op 16 для столбца: [порог пропуска — индекс куба (MAX — не пропускать), пол для отправки (MIN — не слать)].
+     * Порог — свежий пол сервера (CubeLight.skyFloor): кубы не ниже него сейчас «всё 15». Пол клиента только
+     * опускаем: куб, пропущенный под прежним полом, был «всё 15», а смена его света потом приходит явной записью
+     * (relightCubes) — поднимать пол не нужно. Порог = max(пол клиента, свежий) = свежий.
+     */
+    private static int[] skyFloor(Player p, State st, TallColumn c, boolean sun) {
+        if (!sun || !(c instanceof CubeColumn cc) || !CubeLight.active(c) || !floorOp(p)) return NO_FLOOR;
+        int now = CubeLight.skyFloor(cc);
+        if (now == Integer.MAX_VALUE) return NO_FLOOR;
+        Integer old = st.floors.get(key(c.getChunkX(), c.getChunkZ()));
+        int thr = Math.max(0, now - c.getMinSection());
+        return new int[]{thr, old == null || now < old ? now : Integer.MIN_VALUE};
+    }
+
+    /** Кубы lit без записей у ядра 0.54: не ниже порога и последняя запись у клиента «всё 15» (нет бита NDEF). */
+    private static List<Integer> skipSky(Player p, TallColumn c, BitSet mask, List<Integer> lit, int thr) {
+        if (thr == Integer.MAX_VALUE || lit.isEmpty()) return lit;
+        List<Integer> out = new ArrayList<>(lit.size()), skipped = new ArrayList<>();
+        List<Section> secs = c.getSections();
+        for (int i : lit) {
+            // непустой куб — всегда явно: кэш floorInfo мог не успеть за кубом, ставшим READY в рабочем потоке
+            if (i >= thr && !mask.get(NDEF + i) && !mask.get(i) && secs.get(i).blockPalette().count() == 0) skipped.add(i);
+            else out.add(i);
+        }
+        if (skipped.isEmpty()) return lit;
+        if (FLOOR_CHECK) {                                                  // отладка: свет всё же посчитать и сверить
+            var recs = LightOp.records(c.getChunkX(), c.getChunkZ(), c.getMinSection(), CubeLight.data((CubeColumn) c, skipped, true), skipped, true);
+            List<Integer> bad = new ArrayList<>();
+            for (LightOp.Rec r : recs) if (!LightOp.isSkyFull(r)) bad.add(r.i());
+            if (!bad.isEmpty()) {
+                floorMismatch += bad.size();
+                long now = System.currentTimeMillis();
+                if (now - lastMismatchLog >= 5_000) {
+                    lastMismatchLog = now;
+                    LOG.warn("op 16: столбец {} {} — кубы {} выше пола {} не «всё 15» (шлю явно); всего расхождений {}", c.getChunkX(), c.getChunkZ(),
+                            bad.stream().map(i -> i + c.getMinSection()).toList(), thr + c.getMinSection(), floorMismatch);
+                }
+                skipped.removeAll(bad);
+                out.addAll(bad);
+                out.sort(null);
+            }
+        }
+        // кэш 0.51: как у короткой записи «всё 15» — свет куба в модели клиента не держим
+        CubeCacheModel.P m = cacheModel(p, c);
+        if (m != null) {
+            long key = CacheKeys.of(c.getInstance());
+            for (int i : skipped) CubeCacheModel.forgetLight(m, key, c.getChunkX(), c.getChunkZ(), i);
+        }
+        skyDefault += skipped.size();
+        return out;
+    }
+
+    /** op 16 столбца (floor = MIN — не слать); запоминает пол клиента. После op 11 этого столбца. */
+    private static void sendFloor(Player p, State st, TallColumn c, int floor) {
+        if (floor == Integer.MIN_VALUE) return;
+        st.floors.put(key(c.getChunkX(), c.getChunkZ()), floor);
+        int[] e = {c.getChunkX(), c.getChunkZ(), floor};
+        LightBatch b = BATCH.get();
+        if (b != null && b.p == p) { b.floors.add(e); return; }
+        writeFloors(p, List.of(e));
+    }
+
+    private static void writeFloors(Player p, List<int[]> fl) {
+        for (int s = 0; s < fl.size(); s += 1024) {
+            List<int[]> part = fl.subList(s, Math.min(fl.size(), s + 1024));
+            p.sendPacket(new PluginMessagePacket(CHANNEL, NetworkBuffer.makeArray(buf -> {
+                buf.write(NetworkBuffer.BYTE, OP_FLOOR);
+                buf.write(NetworkBuffer.VAR_INT, part.size());
+                for (int[] e : part) { buf.write(NetworkBuffer.INT, e[0]); buf.write(NetworkBuffer.INT, e[1]); buf.write(NetworkBuffer.INT, e[2]); }
+            })));
+        }
+        floorsSent += fl.size();
     }
 
     // ───────────── кэш кубов клиента (0.51) ─────────────
@@ -1317,6 +1467,11 @@ public final class CubeStreamer {
 
     /** Биты маски столбца от LIT и выше — «у куба окна уже есть свет». */
     private static final int LIT = 4096;
+    /**
+     * Биты от NDEF (0.54, op 16): последняя запись света куба, отправленная игроку, — не «всё 15». Такой куб явной
+     * записью шлём и выше пола: у клиента мог остаться слой движка с тенью (op 4 его не стирает). Живут и вне окна.
+     */
+    private static final int NDEF = 2 * LIT;
 
     /** Свет столбца только для этих секций (бит маски света = индекс секции + 1: нулевой — под миром). */
     private static LightData slice(TallColumn c, LightData full, List<Integer> idx, boolean sun) {
@@ -1370,6 +1525,9 @@ public final class CubeStreamer {
         return ((long) (x & 0x3FFFFF) << 42) | ((long) (z & 0x3FFFFF) << 20) | (y & 0xFFFFF);
     }
 
+    /** Очереди света кубами (для DebugTab): [правок, прочих событий]. */
+    public static int[] lightQueued() { return CubeLight.queued(); }
+
     static String stats() {
         return "кубов отправлено " + sentCubes + ", выгружено " + unloadedCubes + ", игроков на кубовых картах " + STATES.size()
                 + ", свет при правках: " + (lightBytes / 1024) + " КБ всего; " + LightOp.stats()
@@ -1377,6 +1535,8 @@ public final class CubeStreamer {
                 + "; очередь Minestom: убрано вне обзора " + queueStale + ", повторов " + queueDup + (queueBroken || CHUNK_QUEUE == null || VIEW_CENTER == null ? " (чистка ВЫКЛ)" : "")
                 + "; вперёд по ходу тиков " + aheadTicks + (headingBroken || PQ_CMP == null ? " (ВЫКЛ)" : "")
                 + "; пустых без света op 11 не слано " + lightSkipped
+                + "; op 16: кубов без записи " + skyDefault + ", полов отправлено " + floorsSent + (FLOOR_ON ? "" : " (ВЫКЛ)")
+                + (FLOOR_CHECK ? ", расхождений floorcheck " + floorMismatch : "")
                 + "; правило записи: отменено " + cancelled + ", кубов ресинк " + resyncCubes
                 + "; кубов загружено " + CubeStore.loads.get() + ", в очереди " + CubeStore.queued()
                 + ", ошибок чтения " + CubeStore.loadErrors.get() + ", запись в незагруженный " + CubeStore.violations.get()

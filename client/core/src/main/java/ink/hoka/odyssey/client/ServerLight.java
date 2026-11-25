@@ -4,6 +4,7 @@ import ink.hoka.odyssey.client.mixin.LevelLightEngineAccessor;
 import ink.hoka.odyssey.client.mixin.LightEngineAccessor;
 import ink.hoka.odyssey.client.mixin.LightStorageAccessor;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -110,6 +111,9 @@ public final class ServerLight {
         }
     }
 
+    /** 0.54: свет куба над полом неба столбца (op 16) без своей записи — небо 15, блоки 0 (как SKY_FULL|BLK_ZERO). */
+    static final Cube FULL = new Cube((byte) 2, null, (byte) 1, null);
+
     /** Столбец (ChunkPos) → секция Y → свет. */
     private static final Long2ObjectOpenHashMap<Int2ObjectOpenHashMap<Cube>> CUBES = new Long2ObjectOpenHashMap<>();
     /**
@@ -118,7 +122,13 @@ public final class ServerLight {
      */
     private static final Long2ObjectOpenHashMap<Int2ObjectOpenHashMap<Cube>> LATEST = new Long2ObjectOpenHashMap<>();
     private static ClientLevel latestLevel;
-    public static long received, queued, kept;
+    /**
+     * 0.54, op 16 SKY_FLOOR: столбец (ChunkPos) → нижняя секция «неба по умолчанию». Куб столбца с Y ≥ пола без своей
+     * записи (CUBES / LATEST) — {@link #FULL}. В порядке пакетов, как LATEST (мир — {@link #latestLevel}). Нет — правила нет.
+     */
+    private static final Long2IntOpenHashMap FLOOR = new Long2IntOpenHashMap();
+    static { FLOOR.defaultReturnValue(Integer.MAX_VALUE); }
+    public static long received, queued, kept, staleSkipped, floors;
 
     private static int nib(byte[] a, int q) { int b = a[q >> 1]; return (q & 1) == 0 ? b & 15 : (b >> 4) & 15; }
 
@@ -134,7 +144,40 @@ public final class ServerLight {
         var m = CUBES.get(ChunkPos.asLong(SectionPos.x(sec), SectionPos.z(sec)));
         Cube c = m == null ? null : m.get(SectionPos.y(sec));
         // 0.52: свет мог прийти, но ещё ждать очереди света (apply) — тогда последний по порядку пакетов (LATEST)
-        return c != null ? c : latest(level, sec);
+        if (c != null) return c;
+        c = latest(level, sec);
+        if (c != null) return c;
+        return floored(level, sec) ? FULL : null;                       // 0.54: над полом неба — 15 (не ряд соседа)
+    }
+
+    /** Куб выше пола неба своего столбца (op 16). */
+    private static boolean floored(ClientLevel lvl, long sec) {
+        if (lvl == null || lvl != latestLevel || FLOOR.isEmpty()) return false;
+        return SectionPos.y(sec) >= FLOOR.get(ChunkPos.asLong(SectionPos.x(sec), SectionPos.z(sec)));
+    }
+
+    /** Мир LATEST/FLOOR сменился — прежнее забыть (прежний мир CubeCache уже унёс, sync). */
+    private static void bindLatest(ClientLevel lvl) {
+        if (latestLevel == lvl) return;
+        LATEST.clear();
+        FLOOR.clear();
+        latestLevel = lvl;
+    }
+
+    /**
+     * op 16 SKY_FLOOR (главный поток, по очереди CubeQueue — после op 11 того же столбца): тройки cx, cz, пол.
+     * Integer.MAX_VALUE — правило снято. Слои движка не трогаем: выше пола (≥ верх непустых + 2) их нет, а кубы,
+     * у которых свет был не «всё 15», сервер шлёт явно.
+     */
+    static void floor(ClientLevel lvl, int[] t) {
+        if (!TallWorld.net || lvl.getSectionsCount() <= 64) return;
+        activate(lvl);
+        bindLatest(lvl);
+        for (int i = 0; i + 2 < t.length; i += 3) {
+            long k = ChunkPos.asLong(t[i], t[i + 1]);
+            if (t[i + 2] == Integer.MAX_VALUE) FLOOR.remove(k); else FLOOR.put(k, t[i + 2]);
+        }
+        floors += t.length / 3;
     }
 
     /** L2: небо в точке куба без слоя; -1 — не знаем (пусть решит игра). */
@@ -185,7 +228,7 @@ public final class ServerLight {
 
     /** Свет куба известен заранее (op 11/14 идёт в очереди следом за op 2/13): в LATEST — слой сразу верный. */
     static void preview(ClientLevel lvl, long p, Cube c) {
-        if (latestLevel != lvl) { LATEST.clear(); latestLevel = lvl; }
+        bindLatest(lvl);
         LATEST.computeIfAbsent(ChunkPos.asLong(SectionPos.x(p), SectionPos.z(p)), k -> new Int2ObjectOpenHashMap<>()).put(SectionPos.y(p), c);
     }
 
@@ -238,7 +281,7 @@ public final class ServerLight {
             cubes.add(b.cubes()[i]);
         }
         activate(lvl);                                                  // режим «свет от сервера» (если ещё не включён)
-        if (latestLevel != lvl) { LATEST.clear(); latestLevel = lvl; }   // прежний мир CubeCache уже унёс (sync)
+        bindLatest(lvl);                                                // прежний мир CubeCache уже унёс (sync)
         for (int i = 0; i < pos.size(); i++) {
             long p = pos.get(i)[0];
             LATEST.computeIfAbsent(ChunkPos.asLong(SectionPos.x(p), SectionPos.z(p)), k -> new Int2ObjectOpenHashMap<>()).put(SectionPos.y(p), cubes.get(i));
@@ -256,6 +299,9 @@ public final class ServerLight {
         for (int i = 0; i < pos.size(); i++) {
             long p = pos.get(i)[0];
             Cube c = cubes.get(i);
+            // 0.54: после этой записи пришла новее (её задача уже в очереди) — эту не применять: без лишнего слоя и пометок
+            Cube last = latest(lvl, p);
+            if (last != null && last != c) { staleSkipped++; continue; }
             int x = SectionPos.x(p), y = SectionPos.y(p), z = SectionPos.z(p);
             Cube was = CUBES.computeIfAbsent(ChunkPos.asLong(x, z), k -> new Int2ObjectOpenHashMap<>()).put(y, c);
             SectionPos sp = SectionPos.of(x, y, z);
@@ -369,7 +415,7 @@ public final class ServerLight {
 
     /** Столбец забыт (ванильный Forget): его свет из памяти — следом за ванильной очисткой. */
     public static void forget(ClientLevel lvl, ChunkPos pos) {
-        if (lvl == latestLevel) LATEST.remove(pos.toLong());           // кэш (0.51) уже унёс при выгрузке столбца
+        if (lvl == latestLevel) { LATEST.remove(pos.toLong()); FLOOR.remove(pos.toLong()); }   // кэш (0.51) уже унёс при выгрузке столбца
         if (lvl != level) return;
         long k = pos.toLong();
         lvl.queueLightUpdate(() -> CUBES.remove(k));
@@ -380,6 +426,7 @@ public final class ServerLight {
         level = null;
         CUBES.clear();
         LATEST.clear();
+        FLOOR.clear();
         latestLevel = null;
     }
 
@@ -417,6 +464,7 @@ public final class ServerLight {
         int n = 0;
         for (var m : CUBES.values()) n += m.size();
         return "свет от сервера: " + (level != null ? "вкл" : "выкл") + ", кубов принято " + received + ", в движок " + queued
-                + ", только в памяти " + kept + ", свет без перестройки " + sameLight + ", держим " + n;
+                + ", только в памяти " + kept + ", свет без перестройки " + sameLight + ", устаревших пропущено " + staleSkipped
+                + ", держим " + n + ", пол неба: столбцов " + FLOOR.size() + " (записей " + floors + ")";
     }
 }

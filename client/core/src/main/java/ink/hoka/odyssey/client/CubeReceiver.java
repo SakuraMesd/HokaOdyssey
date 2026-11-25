@@ -54,6 +54,7 @@ public final class CubeReceiver {
         final net.minecraft.world.level.chunk.PalettedContainerFactory f;
         int a, b;                                // op 5: from, to
         int[] yard;                              // op 6: пары x, z
+        int[] floor;                             // op 16: тройки cx, cz, пол неба (секция)
         long[] pos;                              // op 2 / op 4 / op 11 / op 13 / op 14: кубы
         long[] hash;                             // op 13: версии H; op 14: L; op 15: H
         long[] check;                            // op 15: позиции (не очередь кубов — без поколений)
@@ -89,6 +90,13 @@ public final class CubeReceiver {
                 return r;
             }
             case 11 -> { Parsed r = new Parsed(op, null); r.light = ServerLight.parse(buf); r.pos = r.light.pos(); return r; }
+            case 16 -> {                                                // 0.54: SKY_FLOOR
+                int m = buf.readVarInt();
+                Parsed r = new Parsed(op, null);
+                r.floor = new int[m * 3];
+                for (int i = 0; i < m * 3; i++) r.floor[i] = buf.readInt();
+                return r;
+            }
             case 12 -> { Parsed r = new Parsed(op, null); r.map = buf.readLong(); return r; }
             case 14, 15 -> {
                 int n = buf.readVarInt();
@@ -173,7 +181,7 @@ public final class CubeReceiver {
         }
         if (p == null) return;
         if (p.op == 12) { CubeCache.onKey(p.map); return; }            // сразу: по порядку со скелетами (метки столбцов)
-        if (p.op != 2 && p.op != 4 && p.op != 5 && p.op != 6 && p.op != 11 && p.op != 13 && p.op != 14 && p.op != 15) {   // незнакомая операция (сервер новее): пропустить,
+        if (p.op != 2 && p.op != 4 && p.op != 5 && p.op != 6 && p.op != 11 && p.op != 13 && p.op != 14 && p.op != 15 && p.op != 16) {   // незнакомая операция (сервер новее): пропустить,
             if (UNKNOWN.add(p.op)) LOG.warn("кубы: незнакомая операция {} — пропускаю (ядро старше сервера)", p.op);   // блок-энтити не трогать
             return;
         }
@@ -181,10 +189,11 @@ public final class CubeReceiver {
         CubeQueue.add(level, p);
     }
 
-    /** Применить op 5 / op 6 (главный поток, по очереди CubeQueue). */
+    /** Применить op 5 / op 6 / op 15 / op 16 (главный поток, по очереди CubeQueue). */
     static void applySimple(ClientLevel level, Parsed p) {
         if (p.op == 5) { windowLevel = level; from = p.a; to = p.b; serverLight(level); return; }
         if (p.op == 15) { CubeCache.hashCheck(level, p.check, p.hash); return; }
+        if (p.op == 16) { ServerLight.floor(level, p.floor); return; }
         if (p.op == 6) for (int i = 0; i + 1 < p.yard.length; i += 2) YardColumns.forget(level, p.yard[i], p.yard[i + 1]);   // забыть столбцы верфи кораблей
     }
 

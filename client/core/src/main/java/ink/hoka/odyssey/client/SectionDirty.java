@@ -183,7 +183,10 @@ public final class SectionDirty {
             for (int i = 0; i < 4; i++)
                 for (int j = 0; j < 4; j++)
                     for (int k = 0; k < 4; k++)
-                        if (!a.getNoiseBiome(i, j, k).equals(b.getNoiseBiome(i, j, k))) return ALL;
+                        if (!a.getNoiseBiome(i, j, k).equals(b.getNoiseBiome(i, j, k)))
+                            // 0.54: воздух → воздух (пустой куб неба пришёл/выгружен): у самого сетки нет — только соседи
+                            // (воздух среди них flush пропустит); было ALL — перестройка пустой секции на каждый куб
+                            return m == 0 && a.hasOnlyAir() && b.hasOnlyAir() ? FACES : ALL;
         }
         return m;
     }

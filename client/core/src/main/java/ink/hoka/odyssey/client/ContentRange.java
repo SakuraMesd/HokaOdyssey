@@ -74,6 +74,14 @@ public final class ContentRange {
         if (l != level && level != null) reset();
     }
 
+    /**
+     * 0.54: окно пустое — высокий мир нашего сервера, а непустых кубов в нём нет (небо над землёй вне окна сервера).
+     * Sodium тогда держит окно в 3 секции и обходит по (пустому) дереву, а не 300 тыс. секций графа.
+     */
+    public static boolean empty(Level l) {
+        return accept(l) && (level == null || level == l) && total == 0;
+    }
+
     public static void add(Level l, int x, int y, int z) {
         if (!accept(l) || YardColumns.isYard(x)) return;
         ensure(l);

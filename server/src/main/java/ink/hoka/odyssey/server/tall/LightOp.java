@@ -54,6 +54,12 @@ final class LightOp {
     /** Запись op 11 одного куба: i — индекс секции, bytes — от pos до конца, light — её хэш (CubeHash.light, кэш 0.51). */
     record Rec(int i, long pos, byte[] bytes, long light) {}
 
+    /** Флаги записи «небо всё 15, блоки 0» (SKY_FULL|BLK_ZERO) — то же, что у клиента 0.54 «небо по умолчанию» (op 16). */
+    static final byte FULL_FLAGS = (byte) (SKY_FULL << 2 | BLK_ZERO << 4);
+
+    /** Запись — «небо всё 15, блоки 0» (9 байт: pos + флаги). */
+    static boolean isSkyFull(Rec r) { return r.bytes().length == 9 && r.bytes()[8] == FULL_FLAGS; }
+
     /** S2C op 14 LIGHT_REF (0.51): varint n; n × (long pos, long L) — свет из кэша клиента. */
     static final byte OP_REF = 14;
     /** Запись не длиннее — всегда целиком (ссылка 16 Б не выгоднее). */

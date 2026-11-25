@@ -33,7 +33,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *   <li>камера в чистом небе (выше hi+1 / ниже lo-1) — обход по дереву непустых секций (TreeSectionCollector)
  *       вместо графа видимости (А2), а секция, которой назначена перестройка, кладётся в дерево (А3) — иначе
  *       куб, пришедший в бывшую пустую секцию, на этом пути никогда бы не собрался;</li>
- *   <li>сущности в небе, где обход не ходит (и в режиме дерева), видимы — иначе культинг сущностей Sodium их прячет.</li>
+ *   <li>сущности в небе, где обход не ходит (и в режиме дерева), видимы — иначе культинг сущностей Sodium их прячет;</li>
+ *   <li>0.54: непустых кубов нет вовсе (ContentRange.empty) — окно 3 секции у камеры и не сдвигается, обход по
+ *       дереву; первый непустой куб — окно сразу встаёт по камере с подрезкой.</li>
  * </ul>
  * Обычные миры не трогаем. Миксин необязательный (@Pseudo, require 0).
  */
@@ -72,6 +74,8 @@ public abstract class SodiumTallMixin {
     @Unique private boolean hoka$tree;
     /** Результат hoka$target. */
     @Unique private int hoka$tLo, hoka$tHi;
+    /** 0.54: окно задано под пустой мир (ContentRange.empty) — 3 секции вокруг камеры. */
+    @Unique private boolean hoka$empty;
 
     @Unique
     private boolean hoka$tall() { return level != null && level.getSectionsCount() > 64; }
@@ -86,7 +90,8 @@ public abstract class SodiumTallMixin {
     private void hoka$target(int c) {
         int r = hoka$radius();
         int a = c - r, b = c + r;
-        if (ContentRange.cut) {
+        if (ContentRange.empty(level)) { a = c - 1; b = c + 1; }      // 0.54: кубов нет — рисовать нечего
+        else if (ContentRange.cut) {
             a = Math.max(a, Math.min(c - HOKA_HYST, ContentRange.lo - 1));
             b = Math.min(b, Math.max(c + HOKA_HYST, ContentRange.hi + 1));
         }
@@ -97,6 +102,7 @@ public abstract class SodiumTallMixin {
     @Unique
     private void hoka$setWindow(int cy) {
         hoka$r = hoka$radius();
+        hoka$empty = ContentRange.empty(level);
         hoka$center = cy;
         hoka$target(cy);
         hoka$lo = hoka$tLo;
@@ -171,8 +177,11 @@ public abstract class SodiumTallMixin {
         if (!hoka$tall()) return;
         int cy = SectionPos.blockToSectionCoord(camera.position().y);
         boolean had = hoka$lo <= hoka$hi;
-        boolean shift = !had || Math.abs(cy - hoka$center) >= HOKA_HYST || hoka$radius() != hoka$r;
-        boolean grow = had && hoka$winVer != ContentRange.version;
+        boolean empty = ContentRange.empty(level);
+        // 0.54: пустой мир — окно не двигаем (полёт по высоте не трогает секции); пустой ↔ непустой — сразу по центру камеры
+        boolean shift = !had || empty != hoka$empty
+                || !empty && (Math.abs(cy - hoka$center) >= HOKA_HYST || hoka$radius() != hoka$r);
+        boolean grow = had && !empty && hoka$winVer != ContentRange.version;
         if (!shift && !grow) return;
         hoka$winVer = ContentRange.version;
         int oldLo = hoka$lo, oldHi = hoka$hi;
@@ -245,7 +254,13 @@ public abstract class SodiumTallMixin {
     @Inject(method = "isOutOfGraph", at = @At("HEAD"), cancellable = true, remap = false)
     private void hoka$outOfGraph(SectionPos cam, CallbackInfoReturnable<Boolean> cir) {
         hoka$tree = false;
-        if (!ContentRange.cut || !hoka$tall()) return;
+        if (!hoka$tall()) return;
+        if (ContentRange.empty(level)) {                               // 0.54: дерево пусто, пришедший куб положит A3
+            hoka$tree = true;
+            cir.setReturnValue(true);
+            return;
+        }
+        if (!ContentRange.cut) return;
         int y = cam.y();
         if (y > ContentRange.hi + 1 || y < ContentRange.lo - 1) {
             hoka$tree = true;
@@ -263,7 +278,9 @@ public abstract class SodiumTallMixin {
     /** Культинг сущностей: в небе вне слоёв с геометрией обход не ходит, по дереву — не отмечает; там сущности видимы. */
     @Inject(method = "isSectionVisible", at = @At("HEAD"), cancellable = true, remap = false)
     private void hoka$entityVisible(int x, int y, int z, CallbackInfoReturnable<Boolean> cir) {
-        if (!ContentRange.cut || !hoka$tall()) return;
+        if (!hoka$tall()) return;
+        if (ContentRange.empty(level)) { cir.setReturnValue(true); return; }   // 0.54: пустой мир — обхода нет
+        if (!ContentRange.cut) return;
         if (hoka$tree || y > ContentRange.hi || y < ContentRange.lo) cir.setReturnValue(true);
     }
 }
