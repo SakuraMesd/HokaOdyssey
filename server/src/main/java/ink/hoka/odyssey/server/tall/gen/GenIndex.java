@@ -8,8 +8,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * Индекс pregen в рантайме: файлы genidx/*.hgi по регионам 32×32 столбца, LRU ~64 региона. Файл не того
@@ -29,9 +27,11 @@ public final class GenIndex {
 
     private record Slot(GenIndexFile file, long checkedAt, long mtime) {}
 
-    private final Map<Long, Slot> lru = new LinkedHashMap<>(64, 0.75f, true) {
-        @Override protected boolean removeEldestEntry(Map.Entry<Long, Slot> e) { return size() > MAX; }
-    };
+    /** LRU регионов без упаковки Long (было LinkedHashMap<Long>: хэш rx^rz сталкивал диагонали — JFR s55). Под своим замком. */
+    private final it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap<Slot> lru = new it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap<>(MAX * 2);
+    /** Последний регион (без замка): initLazy/columnPass спрашивают 1876 кубов одного столбца подряд. */
+    private record Last(long key, Slot slot) {}
+    private volatile Last last;
 
     GenIndex(Path dir, ModuleCubeGen gen) { this.dir = dir; this.gen = gen; }
 
@@ -60,16 +60,18 @@ public final class GenIndex {
     GenIndexFile file(int cx, int cz) {
         int rx = cx >> 5, rz = cz >> 5;
         long k = key(rx, rz), now = System.currentTimeMillis();
+        Last l = last;
+        if (l != null && l.key == k && now - l.slot.checkedAt < RECHECK_MS) return l.slot.file;
         Slot s;
-        synchronized (lru) { s = lru.get(k); }
-        if (s != null && now - s.checkedAt < RECHECK_MS) return s.file;
+        synchronized (lru) { s = lru.getAndMoveToLast(k); }
+        if (s != null && now - s.checkedAt < RECHECK_MS) { last = new Last(k, s); return s.file; }
         Path p = GenIndexFile.path(dir, rx, rz);
         long mt;
         try { mt = Files.getLastModifiedTime(p).toMillis(); }
         catch (NoSuchFileException e) { mt = -1; }
         catch (IOException e) { mt = -1; }
         if (s != null && s.mtime == mt) {                                   // не менялся — продлить
-            synchronized (lru) { lru.put(k, new Slot(s.file, now, mt)); }
+            put(k, new Slot(s.file, now, mt));
             return s.file;
         }
         GenIndexFile f = null;
@@ -86,10 +88,21 @@ public final class GenIndex {
                 if (warned.add(p)) LOG.error("индекс {} битый ({}) — не использую", p.getFileName(), e.getMessage());
             }
         }
-        synchronized (lru) { lru.put(k, new Slot(f, now, mt)); }
+        put(k, new Slot(f, now, mt));
         return f;
     }
 
+    private void put(long k, Slot s) {
+        synchronized (lru) {
+            lru.putAndMoveToLast(k, s);
+            while (lru.size() > MAX) lru.removeFirst();
+        }
+        last = new Last(k, s);
+    }
+
     /** Забыть кэш (после записи pregen в этом же процессе). */
-    public void invalidate(int rx, int rz) { synchronized (lru) { lru.remove(key(rx, rz)); } }
+    public void invalidate(int rx, int rz) {
+        synchronized (lru) { lru.remove(key(rx, rz)); }
+        last = null;
+    }
 }

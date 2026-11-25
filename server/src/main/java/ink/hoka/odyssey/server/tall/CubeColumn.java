@@ -475,10 +475,18 @@ public final class CubeColumn extends Chunk implements TallColumn {
         return true;
     }
 
+    /** Столбец лёг в инстанс (Minestom: сразу за cacheChunk): свет — отложенный COLUMN считать сейчас. */
+    @Override
+    protected void onLoad() {
+        super.onLoad();
+        if (CubeLight.active(this)) CubeLight.columnCached(this);
+    }
+
     /** Столбец выгружен: ждущие — ошибкой, очередь — забыть (рабочие увидят isLoaded = false). */
     @Override
     protected void unload() {
         super.unload();
+        if (TallWorld.isCubes(instance)) CubeLight.columnGone(this);
         List<CompletableFuture<Void>> fs;
         synchronized (q) {
             fs = waiters == null ? List.of() : new ArrayList<>(waiters.values());
@@ -516,16 +524,27 @@ public final class CubeColumn extends Chunk implements TallColumn {
 
         @Override public int skyTop(int c) { return st.heights.skyTop(c); }
 
+        /**
+         * Этап 2: зовёт поток света — копия под замком чтения столбца (setBlock/install/выгрузка — под замком записи):
+         * getAll посреди set с ростом палитры мог бы упасть или дать мусор. Дальше расчёт без замков.
+         */
         @Override public boolean ids(int i, int[] out) {
-            Palette p = cubes.get(i).blockPalette();
-            if (p.count() == 0) return false;
-            int v = p.singleValue();
-            if (v >= 0) java.util.Arrays.fill(out, v);
-            else p.getAll((x, y, z, id) -> out[y << 8 | z << 4 | x] = id);
-            return true;
+            lockReadLock();
+            try {
+                Palette p = cubes.get(i).blockPalette();
+                if (p.count() == 0) return false;
+                int v = p.singleValue();
+                if (v >= 0) java.util.Arrays.fill(out, v);
+                else p.getAll((x, y, z, id) -> out[y << 8 | z << 4 | x] = id);
+                return true;
+            } finally { unlockReadLock(); }
         }
 
-        @Override public int id(int i, int x, int y, int z) { return cubes.get(i).blockPalette().get(x, y, z); }
+        @Override public int id(int i, int x, int y, int z) {
+            lockReadLock();
+            try { return cubes.get(i).blockPalette().get(x, y, z); }
+            finally { unlockReadLock(); }
+        }
         @Override public CubeLight.Store store() { return lightStore; }
         @Override public boolean mayEmit(int i) { return CubeLight.mayEmit(cubes.get(i).blockPalette()); }
 

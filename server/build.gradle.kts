@@ -21,4 +21,8 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
-tasks.test { useJUnitPlatform() }
+tasks.test {
+    useJUnitPlatform()
+    // старые тесты света проверяют синхронный путь (process/data в том же потоке); поток света — CubeLightAsyncTest
+    systemProperty("hoka.light.async", "false")
+}

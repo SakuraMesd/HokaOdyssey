@@ -33,7 +33,7 @@ class CubeLightTest {
         final int cx, cz;
         final TallSections secs = new TallSections(CUBES);
         final HeightIndex h = new HeightIndex();
-        final BitSet notReady = new BitSet();
+        final BitSet notReady = new BitSet(CUBES);                       // сразу на все кубы: читает поток света
         final CubeLight.Store st = new CubeLight.Store(this, null);
 
         FakeCol(int cx, int cz) { this.cx = cx; this.cz = cz; }
@@ -44,18 +44,19 @@ class CubeLightTest {
         @Override public boolean maybeBlocks(int i) { return notReady.get(i) || secs.get(i).blockPalette().count() > 0; }
         @Override public int skyTop(int c) { return h.skyTop(c); }
 
-        @Override public boolean ids(int i, int[] out) {
+        /** Под замком столбца (как CubeColumn под замком чтения): set может идти в другом потоке (CubeLightAsyncTest). */
+        @Override public synchronized boolean ids(int i, int[] out) {
             var p = secs.get(i).blockPalette();
             if (p.count() == 0) return false;
             p.getAll((x, y, z, v) -> out[y << 8 | z << 4 | x] = v);
             return true;
         }
 
-        @Override public int id(int i, int x, int y, int z) { return secs.get(i).blockPalette().get(x, y, z); }
+        @Override public synchronized int id(int i, int x, int y, int z) { return secs.get(i).blockPalette().get(x, y, z); }
         @Override public CubeLight.Store store() { return st; }
         @Override public boolean mayEmit(int i) { return CubeLight.mayEmit(secs.get(i).blockPalette()); }   // быстрый путь без неба — как на сервере
 
-        void set(int x, int y, int z, Block b) {
+        synchronized void set(int x, int y, int z, Block b) {
             int i = (y >> 4) - MIN;
             Section s = b.isAir() ? secs.get(i) : secs.materialize(i);
             if (s != TallSections.EMPTY) s.blockPalette().set(x & 15, y & 15, z & 15, b.stateId());
@@ -67,13 +68,16 @@ class CubeLightTest {
 
     static final class FakeWorld implements CubeLight.World {
         final boolean sky;
-        final Map<Long, FakeCol> cols = new HashMap<>();
+        final Map<Long, FakeCol> cols = new java.util.concurrent.ConcurrentHashMap<>();   // поток света читает
         final Map<Long, FakeCol> hidden = new HashMap<>();             // «не загружен»: есть, но миру не виден
         /** Генератор незагруженных: пол (y 0…floorTop) или ничего. */
         final int floorTop;
         final CubeLight eng;
 
-        FakeWorld(boolean sky, int floorTop) { this.sky = sky; this.floorTop = floorTop; eng = new CubeLight(this); }
+        FakeWorld(boolean sky, int floorTop) { this(sky, floorTop, false); }
+
+        /** async — движок со своим потоком света (CubeLightAsyncTest). */
+        FakeWorld(boolean sky, int floorTop, boolean async) { this.sky = sky; this.floorTop = floorTop; eng = new CubeLight(this, async); }
 
         @Override public boolean sky() { return sky; }
         @Override public CubeLight.Column column(int cx, int cz) { return cols.get(CubeLight.colKey(cx, cz)); }

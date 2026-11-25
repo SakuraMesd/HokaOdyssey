@@ -1525,7 +1525,7 @@ public final class CubeStreamer {
         return ((long) (x & 0x3FFFFF) << 42) | ((long) (z & 0x3FFFFF) << 20) | (y & 0xFFFFF);
     }
 
-    /** Очереди света кубами (для DebugTab): [правок, прочих событий]. */
+    /** Очереди света кубами (для DebugTab): см. CubeLight.queued. */
     public static int[] lightQueued() { return CubeLight.queued(); }
 
     static String stats() {

@@ -146,24 +146,64 @@ final class CubeLight {
         boolean genBlocks(int cx, int cy, int cz);
     }
 
-    /** Свет кубов одного столбца. Читать/писать — под замком движка. */
+    /**
+     * Свет посчитанного куба (неизменяемый): массивы-полубайты 2048 Б; null — неба по формуле F / блоков 0.
+     * Публикуется целиком — читатели (тик, рассылка) берут без замков и видят либо старый, либо новый.
+     */
+    record Rec(byte[] sky, byte[] blk) {}
+
+    /** Посчитан, оба массива по умолчанию (F / 0) — общий. */
+    static final Rec PLAIN = new Rec(null, null);
+
+    /**
+     * Свет кубов одного столбца. recs пишет только движок (под его замком), читают все без замков (этап 2: тик берёт
+     * опубликованное, пока поток света считает). changed/emit* — только под замком движка.
+     */
     static final class Store {
         final Column col;
         /** Столбец сервера (для рассылки) или null (тест). */
         final CubeColumn owner;
-        /** Посчитанные кубы: массивы-полубайты 2048 Б; нет массива — по формуле F (небо) / 0 (блоки). */
-        final Int2ObjectOpenHashMap<byte[]> sky = new Int2ObjectOpenHashMap<>(0), blk = new Int2ObjectOpenHashMap<>(0);
-        /** Куб посчитан (не PT). */
-        final BitSet done = new BitSet();
+        /** Посчитанные кубы (null — не посчитан: PT/F) — страницами по 64, страница появляется при первой записи. */
+        private final java.util.concurrent.atomic.AtomicReferenceArray<java.util.concurrent.atomic.AtomicReferenceArray<Rec>> pages =
+                new java.util.concurrent.atomic.AtomicReferenceArray<>((CUBES + 63) >> 6);
         /** Свет куба изменился с прошлой рассылки. */
         final BitSet changed = new BitSet();
         /** Кэш {@link Column#mayEmit}: известно / «светящиеся могут быть». Сбрасывают события куба и столбца. */
         final BitSet emitKnown = new BitSet(), emitYes = new BitSet();
+        private volatile int arrays;
 
         Store(Column col, CubeColumn owner) { this.col = col; this.owner = owner; }
 
+        /** Опубликованный свет куба i или null (не посчитан). Любой поток. */
+        Rec rec(int i) {
+            if (i < 0 || i >= CUBES) return null;
+            var p = pages.get(i >> 6);
+            return p == null ? null : p.get(i & 63);
+        }
+
+        boolean done(int i) { return rec(i) != null; }
+
+        byte[] sky(int i) { Rec r = rec(i); return r == null ? null : r.sky; }
+
+        byte[] blk(int i) { Rec r = rec(i); return r == null ? null : r.blk; }
+
+        /** Опубликовать (null — «не посчитан»). Один писатель — движок под замком. */
+        void put(int i, Rec r) {
+            var p = pages.get(i >> 6);
+            if (p == null) {
+                if (r == null) return;
+                p = new java.util.concurrent.atomic.AtomicReferenceArray<>(64);
+                pages.set(i >> 6, p);
+            }
+            Rec o = p.getAndSet(i & 63, r);
+            int d = cnt(r) - cnt(o);
+            if (d != 0) arrays += d;
+        }
+
+        private static int cnt(Rec r) { return r == null ? 0 : (r.sky != null ? 1 : 0) + (r.blk != null ? 1 : 0); }
+
         /** Сколько кубов с массивами (для /hocubes stats). */
-        int arrays() { return sky.size() + blk.size(); }
+        int arrays() { return arrays; }
     }
 
     // ───────────── движки по мирам ─────────────
@@ -171,7 +211,11 @@ final class CubeLight {
     private static final Map<Instance, CubeLight> ENGINES = new ConcurrentHashMap<>();
     private static final AtomicBoolean FLUSH = new AtomicBoolean();
 
-    static CubeLight of(Instance inst) { return ENGINES.computeIfAbsent(inst, i -> new CubeLight(new InstWorld(i))); }
+    // мир уже снят (поздние события выгрузки) — без потока: иначе на каждое событие новый поток, который сразу умрёт
+    static CubeLight of(Instance inst) { return ENGINES.computeIfAbsent(inst, i -> new CubeLight(new InstWorld(i), ASYNC && i.isRegistered())); }
+
+    /** Тест: движок мира с потоком света независимо от hoka.light.async (до загрузки столбцов). */
+    static CubeLight asyncFor(Instance inst) { return ENGINES.computeIfAbsent(inst, i -> new CubeLight(new InstWorld(i), true)); }
 
     /** Столбец считает свет кубами (кубовый протокол + CubeColumn); иначе — ColumnLight, как раньше. */
     static boolean active(TallColumn c) { return c instanceof CubeColumn && TallWorld.isCubes(c.getInstance()); }
@@ -193,6 +237,15 @@ final class CubeLight {
     static void cubeUnloaded(CubeColumn c, int i) { c.floorDirty(); of(c.getInstance()).cubeUnloadedAt(c.getChunkX(), i + MIN, c.getChunkZ()); }
 
     static void columnLoaded(CubeColumn c) { c.floorDirty(); of(c.getInstance()).columnLoadedAt(c.getChunkX(), c.getChunkZ()); }
+
+    /** Столбец лёг в инстанс (CubeColumn.onLoad, после cacheChunk). */
+    static void columnCached(CubeColumn c) { of(c.getInstance()).columnCachedAt(c.getChunkX(), c.getChunkZ()); }
+
+    /** Столбец выгружен: не ждать его в pendingCols (мир уже без движка — ничего). */
+    static void columnGone(CubeColumn c) {
+        CubeLight l = ENGINES.get(c.getInstance());
+        if (l != null) l.columnGoneAt(c.getChunkX(), c.getChunkZ());
+    }
 
     // ───────────── op 16 SKY_FLOOR (0.54): небо по умолчанию ─────────────
 
@@ -243,35 +296,65 @@ final class CubeLight {
     /** У куба i столбца есть свет блоков (не «всё 0»): сначала пересчёт по накопленным событиям. */
     static boolean blockLit(CubeColumn c, int i) { return of(c.getInstance()).blockLit(c.lightStore(), i); }
 
-    synchronized boolean blockLit(Store st, int i) {
-        safeProcess();
-        return st.done.get(i) && st.blk.containsKey(i);
+    boolean blockLit(Store st, int i) {
+        if (!async) synchronized (this) { safeProcess(); }
+        return st.blk(i) != null;
     }
 
-    /** Раз за тик: пересчитать по событиям и разослать изменившиеся кубы. */
+    /** Раз за тик: пересчитать по событиям и разослать изменившиеся кубы (поток света — только рассылка готового). */
     static void flushAll() {
         FLUSH.set(false);
         for (var e : ENGINES.entrySet()) {
-            if (!e.getKey().isRegistered()) { ENGINES.remove(e.getKey()); continue; }
-            e.getValue().flush();
+            if (!e.getKey().isRegistered()) { e.getValue().stop(); ENGINES.remove(e.getKey()); continue; }
+            CubeLight l = e.getValue();
+            if (l.async) l.drainOut(OUT_BUDGET_NS);
+            else l.flush();
         }
     }
 
-    /** Конец тика, в котором игрок поставил/сломал блок: правки — сразу (без бюджета, до EDIT_FREE), рассылка. */
+    /**
+     * Конец тика, в котором игрок поставил/сломал блок: правки — сразу, рассылка в том же тике. Поток света берёт
+     * правки первыми; тик ждёт его не дольше EDIT_WAIT_NS (не успел — тень придёт следующим тиком).
+     */
     static void flushEdits() {
         FLUSH_END.set(false);
         for (var e : ENGINES.entrySet()) {
             if (!e.getKey().isRegistered()) continue;
             CubeLight l = e.getValue();
-            if (!l.edits.isEmpty()) l.flush();
+            if (l.async) {
+                long want = l.editsPosted.get(), t0 = System.nanoTime();
+                while (l.editsDone.get() < want && System.nanoTime() - t0 < EDIT_WAIT_NS) java.util.concurrent.locks.LockSupport.parkNanos(50_000);
+                l.drainOut(OUT_BUDGET_NS);
+            } else if (!l.edits.isEmpty()) l.flush();
         }
     }
 
-    /** Событий света в очередях всех миров (для вкладки TAB): [правки, прочие]. */
-    static int[] queued() {
-        int a = 0, b = 0;
-        for (CubeLight l : ENGINES.values()) { a += l.edits.size(); b += l.events.size(); }
-        return new int[]{a, b};
+    /** Ожидание правок в конце тика и бюджет рассылки готового света на тик, нс. */
+    static final long EDIT_WAIT_NS = 2_000_000, OUT_BUDGET_NS = 3_000_000;
+
+    /** Для TAB: время прошлого замера загрузки потока света и его счётчик. */
+    private static long busyAt, busyWas;
+
+    /**
+     * Очереди света всех миров (для вкладки TAB): [правки, прочие, из них LOAD, UNLOAD, COLUMN, SKY, столбцов ждут
+     * кэша, столбцов к рассылке, загрузка потока света ‰ с прошлого вызова].
+     */
+    static synchronized int[] queued() {
+        int[] r = new int[9];
+        long busy = 0;
+        for (CubeLight l : ENGINES.values()) {
+            r[0] += l.edits.size();
+            for (int t = Ev.LOAD; t <= Ev.GONE; t++) r[1] += Math.max(0, l.qType.get(t));   // size() очереди — обход всех узлов
+            for (int t = 0; t < 4; t++) r[2 + t] += Math.max(0, l.qType.get(Ev.LOAD + t));
+            r[6] += l.pendingNow;
+            r[7] += l.outbox.size();
+            busy += l.busyNanos;
+        }
+        long now = System.nanoTime();
+        if (busyAt != 0 && now > busyAt) r[8] = (int) Math.min(1000, (busy - busyWas) * 1000 / (now - busyAt));
+        busyAt = now;
+        busyWas = busy;
+        return r;
     }
 
     static String stats() {
@@ -287,29 +370,55 @@ final class CubeLight {
             for (var ch : inst.getChunks()) if (ch instanceof CubeColumn cc) arrays += cc.lightStore().arrays();
         long cuts = 0;
         for (var e : ENGINES.values()) cuts += e.budgetCuts;
-        long editsFree = 0, slow = 0;
-        for (var e : ENGINES.values()) { editsFree += e.editsUnbudgeted; slow += e.slowBatches; }
-        return "свет кубами: пересчётов " + runs + ", кубов посчитано " + cubes + (trivial > 0 ? " (из них «всё 0» сразу " + trivial + ")" : "")
+        long editsFree = 0, slow = 0, busy = 0, resolved = 0, expired = 0, retried = 0, sentOut = 0, gridHit = 0, gridMiss = 0;
+        int pend = 0, out = 0, ev = 0, ed = 0, threads = 0;
+        int[] qt = new int[4];
+        for (var e : ENGINES.values()) {
+            editsFree += e.editsUnbudgeted; slow += e.slowBatches; busy += e.busyNanos;
+            resolved += e.colsResolved; expired += e.colsExpired; retried += e.retried; sentOut += e.outSent;
+            gridHit += e.gridHits; gridMiss += e.gridMisses;
+            pend += e.pendingNow; out += e.outbox.size(); ed += e.edits.size();
+            for (int t = Ev.LOAD; t <= Ev.GONE; t++) ev += Math.max(0, e.qType.get(t));
+            for (int t = 0; t < 4; t++) qt[t] += Math.max(0, e.qType.get(Ev.LOAD + t));
+            if (e.worker != null) threads++;
+        }
+        return "свет кубами: " + (threads > 0 ? "поток света (" + threads + " шт.), занят всего " + busy / 1_000_000 + " мс" : "в тике (hoka.light.async=false)")
+                + "; очередь: правок " + ed + ", прочих " + ev + " (LOAD " + qt[0] + ", UNLOAD " + qt[1] + ", COLUMN " + qt[2] + ", SKY " + qt[3] + ")"
+                + ", столбцов к рассылке " + out + ", разослано столбцов " + sentOut
+                + "; пересчётов " + runs + ", кубов посчитано " + cubes + (trivial > 0 ? " (из них «всё 0» сразу " + trivial + ")" : "")
                 + (runs > 0 ? String.format(", в среднем %.2f мс, последний %.2f мс, максимум %.2f мс", ns / 1e6 / runs, last / 1e6, max / 1e6) : "")
                 + ", массивов света в памяти " + arrays + (miss > 0 ? ", промахов рамки " + miss : "")
                 + (stale > 0 ? ", кубов с устаревшей отметкой высот " + stale : "")
-                + (deferred > 0 ? ", COLUMN отложено " + deferred : "") + (lost > 0 ? ", кубов без столбца " + lost : "")
-                + (fails > 0 ? ", СБОЕВ пересчёта " + fails : "") + (cuts > 0 ? ", отложено по бюджету тика " + cuts : "")
-                + ", правок вне бюджета " + editsFree + ", «всё 15» быстрым путём " + fastFull + (slow > 0 ? ", партий > " + SLOW_BATCH_MS + " мс " + slow : "");
+                + ", COLUMN раньше кэша столбца " + deferred + " (дождались " + resolved + ", не дождались " + expired + ", ждут " + pend + ")"
+                + (lost > 0 ? ", кубов без столбца " + lost : "")
+                + (fails > 0 ? ", СБОЕВ пересчёта " + fails + " (событий повторено " + retried + ")" : "") + (cuts > 0 ? ", отложено по бюджету тика " + cuts : "")
+                + ", правок вне бюджета " + editsFree + ", «всё 15» быстрым путём " + fastFull
+                + ", сетка 48×48 из кэша " + gridHit + "/" + (gridHit + gridMiss)
+                + (slow > 0 ? ", партий > " + SLOW_BATCH_MS + " мс " + slow : "");
     }
 
     // ───────────── движок ─────────────
 
-    private record Ev(int type, int cx, int cy, int cz, int x, int y, int z, int t0, int t1, int[] old, int[] now) {
-        static final int EDIT = 0, LOAD = 1, UNLOAD = 2, COLUMN = 3, SKY = 4;
+    private record Ev(int type, int cx, int cy, int cz, int x, int y, int z, int t0, int t1, int[] old, int[] now, int tries) {
+        /** CACHED — столбец лёг в инстанс (Chunk.onLoad, после cacheChunk); GONE — выгружен. */
+        static final int EDIT = 0, LOAD = 1, UNLOAD = 2, COLUMN = 3, SKY = 4, CACHED = 5, GONE = 6;
 
-        Ev(int type, int cx, int cy, int cz, int x, int z, int t0, int t1) { this(type, cx, cy, cz, x, cy << 4, z, t0, t1, null, null); }
+        Ev(int type, int cx, int cy, int cz, int x, int y, int z, int t0, int t1, int[] old, int[] now) { this(type, cx, cy, cz, x, y, z, t0, t1, old, now, 0); }
+
+        Ev(int type, int cx, int cy, int cz, int x, int z, int t0, int t1) { this(type, cx, cy, cz, x, cy << 4, z, t0, t1, null, null, 0); }
+
+        /** То же событие на повтор после сбоя пересчёта. */
+        Ev retry() { return new Ev(type, cx, cy, cz, x, y, z, t0, t1, old, now, tries + 1); }
     }
 
     private final World w;
     private final ConcurrentLinkedQueue<Ev> events = new ConcurrentLinkedQueue<>();
     /** Правки блоков (EDIT) — своя очередь: считаются первыми, в конце того же тика (S3), не ждут потоковых LOAD/COLUMN. */
     private final ConcurrentLinkedQueue<Ev> edits = new ConcurrentLinkedQueue<>();
+    /** Событий в events по типам (TAB, stats); правки — edits.size(). */
+    private final java.util.concurrent.atomic.AtomicIntegerArray qType = new java.util.concurrent.atomic.AtomicIntegerArray(8);
+    /** События, взятые текущей партией: при сбое — повторить (не больше 2 раз), а не потерять. */
+    private final ArrayList<Ev> taken = new ArrayList<>();
     private static final AtomicBoolean FLUSH_END = new AtomicBoolean();
     /** Хранилища с изменённым светом (ждут рассылки). Под замком. */
     private final Set<Store> touched = new HashSet<>();
@@ -318,16 +427,171 @@ final class CubeLight {
     /** Отладка. */
     volatile long runs, cubesComputed, nanos, maxNanos, lastNanos, frameMiss, markStale;
 
-    CubeLight(World w) { this.w = w; this.budgetNs = w instanceof InstWorld ? TICK_BUDGET_NS : Long.MAX_VALUE; }
+    // ───────────── этап 2: поток света ─────────────
+
+    /** Свет считает свой поток (сервер; выкл — -Dhoka.light.async=false), иначе вызывающий (тесты, старый путь в тике). */
+    static final boolean ASYNC = !"false".equalsIgnoreCase(System.getProperty("hoka.light.async"));
+    /**
+     * Этап 2: движок (события, pendingCols, missed, infCache, genTops, Store.changed) — у потока света под замком
+     * движка; результат — Store.put (читатели без замков), затем столбец в outbox; тик только рассылает (drainOut).
+     * Правило: каждое изменение мира шлёт событие ПОСЛЕ того, как стало видно, пересчёт идемпотентен — промежуточное
+     * состояние, прочитанное потоком, исправит следующее событие.
+     */
+    final boolean async;
+    volatile Thread worker;
+    private volatile boolean stopped;
+    /** Готовый свет к рассылке: хранилище → кубы (копия changed). Пишет поток света, разбирает тик. */
+    private final ConcurrentLinkedQueue<Out> outbox = new ConcurrentLinkedQueue<>();
+    private record Out(Store st, BitSet cubes) {}
+    private final Object outLock = new Object();
+    /** Правок поставлено / посчитано и выложено в outbox (ожидание в flushEdits). */
+    final java.util.concurrent.atomic.AtomicLong editsPosted = new java.util.concurrent.atomic.AtomicLong();
+    final java.util.concurrent.atomic.AtomicLong editsDone = new java.util.concurrent.atomic.AtomicLong();
+    /** Отладка: время работы потока света, нс; столбцов разослано из outbox; COLUMN дождались/не дождались кэша; повторов после сбоя. */
+    volatile long busyNanos, outSent, colsResolved, colsExpired, retried;
+    /** Отладка: столбцов ждут кэша (pendingCols.size после партии). */
+    volatile int pendingNow;
+    /** Поток спит без событий; промахи рамки / ожидание столбцов — не чаще раза в EXTRA_NS. */
+    private static final long PARK_NS = 50_000_000L, EXTRA_NS = 50_000_000L;
+    private static final java.util.concurrent.atomic.AtomicInteger THREADS = new java.util.concurrent.atomic.AtomicInteger();
+
+    CubeLight(World w) { this(w, w instanceof InstWorld && ASYNC); }
+
+    /** async — свой поток света (тест параллельного расчёта зовёт с true на поддельном мире). */
+    CubeLight(World w, boolean async) {
+        this.w = w;
+        this.async = async;
+        this.budgetNs = w instanceof InstWorld && !async ? TICK_BUDGET_NS : Long.MAX_VALUE;
+        if (async) {                                                        // последним: поля уже заданы
+            Thread t = new Thread(this::loop, "cube-light-" + THREADS.incrementAndGet());
+            t.setDaemon(true);
+            worker = t;
+            t.start();
+        }
+    }
+
+    /** Остановить поток света (мир выгружен / тест). */
+    void stop() {
+        stopped = true;
+        Thread t = worker;
+        if (t != null) java.util.concurrent.locks.LockSupport.unpark(t);
+    }
+
+    private void wake() {
+        Thread t = worker;
+        if (t != null) java.util.concurrent.locks.LockSupport.unpark(t);
+    }
+
+    /** Поток света простаивает: очереди событий пусты, партии нет (промахи рамки, ждущие столбцы и outbox — не в счёт). Для тестов. */
+    boolean idle() { return !pending() && !busy; }
+    private volatile boolean busy;
+
+    /** Поток света: партии по BATCH_CUBES (правки — отдельной партией первыми), после каждой — готовое в outbox. */
+    private void loop() {
+        long lastExtra = 0;
+        while (!stopped) {
+            if (w instanceof InstWorld iw && !iw.inst().isRegistered()) { stopped = true; ENGINES.remove(iw.inst(), this); break; }
+            boolean work = pending();
+            long now = System.nanoTime();
+            if (!work) {
+                boolean extra = !missed.isEmpty() || !pendingCols.isEmpty();     // грубое чтение без замка: пишет только этот поток
+                if (!extra || now - lastExtra < EXTRA_NS) {
+                    java.util.concurrent.locks.LockSupport.parkNanos(extra ? Math.max(1, EXTRA_NS - (now - lastExtra)) : PARK_NS);
+                    continue;
+                }
+                lastExtra = now;
+            }
+            int nEdit = 0;
+            busy = true;
+            try {
+                synchronized (this) {
+                    try { nEdit = batch(BATCH_CUBES, edits.isEmpty() ? 0 : Integer.MAX_VALUE); }
+                    catch (RuntimeException | StackOverflowError ex) { failed(ex); }
+                    publish();
+                }
+            } catch (Throwable t) {
+                LOG.error("свет кубами: поток света", t);
+            } finally {
+                busy = false;
+            }
+            if (nEdit > 0) editsDone.addAndGet(nEdit);
+            busyNanos += System.nanoTime() - now;
+            if (!outbox.isEmpty()) kick();
+        }
+    }
+
+    /** Сбой партии: в лог (не чаще раза в 10 с), взятые события — повторить (до 2 раз). Под замком движка. */
+    private void failed(Throwable ex) {
+        failures++;
+        long now = System.currentTimeMillis();
+        if (now - lastFailLog >= 10_000) { lastFailLog = now; LOG.error("свет кубами: сбой пересчёта (всего {}), событий на повтор {}", failures, taken.size(), ex); }
+        int lostEdits = 0;
+        for (Ev e : taken) {
+            // GONE не повторять: в конце очереди он снял бы ожидание уже новой загрузки того же столбца (свет не посчитался бы)
+            if (e.tries >= 2 || e.type == Ev.GONE) { if (e.type == Ev.EDIT) lostEdits++; continue; }
+            retried++;
+            if (e.type == Ev.EDIT) edits.add(e.retry());
+            else { qType.incrementAndGet(e.type); events.add(e.retry()); }
+        }
+        if (lostEdits > 0) editsDone.addAndGet(lostEdits);                   // иначе flushEdits ждал бы 2 мс каждый тик с правками
+        taken.clear();
+    }
+
+    /** Изменившиеся хранилища — в outbox (копия changed). Под замком движка, поток света. */
+    private void publish() {
+        if (touched.isEmpty()) return;
+        for (Store st : touched) {
+            if (st.changed.isEmpty()) continue;
+            outbox.add(new Out(st, (BitSet) st.changed.clone()));
+            st.changed.clear();
+        }
+        touched.clear();
+    }
+
+    /** Тик: разослать готовый свет (столбец целиком за раз, не дольше budget нс; остаток — следующим тиком). */
+    void drainOut(long budget) {
+        synchronized (outLock) {
+            if (outbox.isEmpty()) return;
+            long t0 = System.nanoTime();
+            java.util.LinkedHashMap<Store, BitSet> m = new java.util.LinkedHashMap<>();
+            for (Out o; (o = outbox.poll()) != null; ) {
+                BitSet b = m.get(o.st);
+                if (b == null) m.put(o.st, o.cubes); else b.or(o.cubes);
+            }
+            int n = 0;
+            for (var it = m.entrySet().iterator(); it.hasNext(); ) {
+                if (n > 0 && System.nanoTime() - t0 > budget) break;
+                var en = it.next();
+                it.remove();
+                n++;
+                Store st = en.getKey();
+                CubeColumn c = st.owner;
+                if (c == null || !c.isLoaded()) continue;
+                for (Player p : CubeStreamer.receivers(c)) CubeStreamer.relightCubes(p, c, en.getValue());   // и кольцо 33
+            }
+            outSent += n;
+            for (var en : m.entrySet()) outbox.add(new Out(en.getKey(), en.getValue()));
+            if (!outbox.isEmpty()) kick();
+        }
+    }
+
+    /** Тест: забрать готовое из outbox (как рассылка тика) — кубы по хранилищам. */
+    java.util.Map<Store, BitSet> takeOut() {
+        java.util.Map<Store, BitSet> m = new java.util.HashMap<>();
+        for (Out o; (o = outbox.poll()) != null; ) m.merge(o.st, o.cubes, (a, b) -> { a.or(b); return a; });
+        return m;
+    }
 
     private void post(Ev e) {
+        qType.incrementAndGet(e.type);
         events.add(e);
-        kick();
+        if (async) wake(); else kick();
     }
 
     /** Правка: в конец текущего тика (flushEdits) — пересчёт и рассылка в том же тике, что и установка блока. */
     private void postEdit(Ev e) {
         edits.add(e);
+        if (async) { editsPosted.incrementAndGet(); wake(); }
         if (FLUSH_END.compareAndSet(false, true)) {
             try { MinecraftServer.getSchedulerManager().scheduleEndOfTick(CubeLight::flushEdits); }
             catch (Throwable t) { FLUSH_END.set(false); kick(); }       // нет сервера (тест) — как прочие события
@@ -365,6 +629,9 @@ final class CubeLight {
     void cubeUnloadedAt(int cx, int cy, int cz) { post(new Ev(Ev.UNLOAD, cx, cy, cz, 0, 0, 0, 0)); }
     void columnLoadedAt(int cx, int cz) { post(new Ev(Ev.COLUMN, cx, 0, cz, 0, 0, 0, 0)); }
     void skyFixedAt(int cx, int cz, int[] old, int[] now) { post(new Ev(Ev.SKY, cx, 0, cz, 0, 0, 0, 0, 0, old, now)); }
+    /** Столбец лёг в инстанс (после cacheChunk): отложенный COLUMN — в проход сразу, без перебора pendingCols. */
+    void columnCachedAt(int cx, int cz) { post(new Ev(Ev.CACHED, cx, 0, cz, 0, 0, 0, 0)); }
+    void columnGoneAt(int cx, int cz) { post(new Ev(Ev.GONE, cx, 0, cz, 0, 0, 0, 0)); }
 
     /** Есть необработанные события. */
     boolean pending() { return !events.isEmpty() || !edits.isEmpty(); }
@@ -458,16 +725,27 @@ final class CubeLight {
         long start = System.nanoTime();
         boolean limited = budget != Long.MAX_VALUE;
         do {
-            batch(limited ? BATCH_CUBES : Integer.MAX_VALUE, 0);
+            int n = batch(limited ? BATCH_CUBES : Integer.MAX_VALUE, 0);
+            if (n > 0) editsDone.addAndGet(n);                                 // правки, взятые не потоком света (level/box)
         } while (pending() && System.nanoTime() - start < budget);
         if (pending()) budgetCuts++;
+        if (async) { publish(); if (!outbox.isEmpty()) kick(); }            // level/box забрали события у потока — разослать их итог
     }
 
     /** Следующее событие: сначала правки; onlyEdits — только они. */
     private Ev next(boolean onlyEdits) {
         Ev e = edits.poll();
-        return e != null || onlyEdits ? e : events.poll();
+        if (e == null && !onlyEdits) {
+            e = events.poll();
+            if (e != null) qType.decrementAndGet(e.type);
+        }
+        if (e != null) taken.add(e);
+        return e;
     }
+
+    /** Перебор pendingCols (запасной путь к CACHED и сроки): в тике/тестах — каждую партию, у потока света — раз в PEND_SCAN_MS. */
+    private long lastPendScan;
+    private static final long PEND_SCAN_MS = 1_000;
 
     /**
      * Одна партия событий: берём, пока кубов в пересчёте меньше limit. editCap &gt; 0 — только правки, не больше editCap
@@ -475,20 +753,23 @@ final class CubeLight {
      */
     private int batch(int limit, int editCap) {
         boolean onlyEdits = editCap > 0;
+        taken.clear();
         Ev e = next(onlyEdits);
-        if (e == null && (onlyEdits || pendingCols.isEmpty() && missed.isEmpty())) return 0;
+        long nowMs = System.currentTimeMillis();
+        boolean scan = !onlyEdits && !pendingCols.isEmpty() && (!async || nowMs - lastPendScan >= PEND_SCAN_MS);
+        if (e == null && (onlyEdits || !scan && missed.isEmpty())) return 0;
         long t0 = System.nanoTime();
         int nEdit = 0, nLoad = 0, nUnload = 0, nCol = 0, nSky = 0;
         Ctx x = new Ctx();
         LongOpenHashSet k = new LongOpenHashSet(), weak = new LongOpenHashSet();
         LongLinkedOpenHashSet cols = new LongLinkedOpenHashSet();
-        if (!onlyEdits && !pendingCols.isEmpty()) {                          // отложенные COLUMN: столбец появился — в проход
-            long now = System.currentTimeMillis();
+        if (scan) {                                                          // отложенные COLUMN: столбец появился — в проход
+            lastPendScan = nowMs;
             for (var it = pendingCols.long2LongEntrySet().iterator(); it.hasNext(); ) {
                 var pe = it.next();
                 long ck = pe.getLongKey();
-                if (w.column((int) (ck >> 32), (int) ck) != null) { cols.add(ck); it.remove(); }
-                else if (now > pe.getLongValue()) it.remove();
+                if (w.column((int) (ck >> 32), (int) ck) != null) { cols.add(ck); it.remove(); colsResolved++; }
+                else if (nowMs > pe.getLongValue()) { it.remove(); colsExpired++; }
             }
         }
         if (!onlyEdits && !missed.isEmpty()) { weak.addAll(missed); missed.clear(); }
@@ -507,7 +788,8 @@ final class CubeLight {
                     infCache.remove(key(e.cx, e.cy, e.cz));
                     forgetEmit(e.cx, e.cy, e.cz);
                     Column c = w.column(e.cx, e.cz);
-                    if (c != null) drop(c.store(), e.cy - MIN, false);
+                    // куб уже снова в памяти (перезагрузили / повтор после сбоя) — свет не стирать: его пересчитает LOAD
+                    if (c != null && !c.ready(e.cy - MIN)) drop(c.store(), e.cy - MIN, false);
                     add3(weak, e.cx, e.cy, e.cz);                             // соседи могли перестать быть PT
                 }
                 case Ev.COLUMN -> {
@@ -523,6 +805,11 @@ final class CubeLight {
                     if (cc != null) cc.store().emitKnown.clear();
                     cols.add(colKey(e.cx, e.cz));
                 }
+                case Ev.CACHED -> {                                          // дождались: отложенный COLUMN — в этот проход
+                    long ck = colKey(e.cx, e.cz);
+                    if (pendingCols.containsKey(ck)) { pendingCols.remove(ck); cols.add(ck); colsResolved++; }
+                }
+                case Ev.GONE -> pendingCols.remove(colKey(e.cx, e.cz));     // выгружен — не ждать
                 case Ev.SKY -> {                                             // как правка skyTop, только без блока
                     nSky++;
                     for (int c = 0; c < 256; c++) {
@@ -540,6 +827,8 @@ final class CubeLight {
         for (long key : k) pick(x, key, s, false);
         for (long key : weak) if (!k.contains(key)) pick(x, key, s, true);
         compute(x, s);
+        taken.clear();                                                      // дошли до конца — повторять нечего
+        pendingNow = pendingCols.size();
         long dt = System.nanoTime() - t0;
         runs++;
         nanos += dt;
@@ -564,16 +853,14 @@ final class CubeLight {
         Column c = x.col(cx, cz);
         if (c == null || !c.ready(i)) return;
         Store st = c.store();
-        if (x.nonPT(cx, cy, cz)) { if (!onlyNew || !st.done.get(i)) s.add(key); }
-        else if (st.done.get(i)) drop(st, i, true);
+        if (x.nonPT(cx, cy, cz)) { if (!onlyNew || !st.done(i)) s.add(key); }
+        else if (st.done(i)) drop(st, i, true);
     }
 
     private void drop(Store st, int i, boolean mark) {
         if (i < 0 || i >= CUBES) return;
-        boolean had = st.done.get(i);
-        st.sky.remove(i);
-        st.blk.remove(i);
-        st.done.clear(i);
+        boolean had = st.done(i);
+        st.put(i, null);
         if (had && mark) mark(st, i);
     }
 
@@ -660,11 +947,10 @@ final class CubeLight {
     private void zeroLight(Ctx x, long key) {
         Store st = x.col(kx(key), kz(key)).store();
         int i = ky(key) - MIN;
-        boolean ch = !st.done.get(i) || st.sky.containsKey(i) || st.blk.containsKey(i)
+        Rec r = st.rec(i);
+        boolean ch = r == null || r.sky != null || r.blk != null
                 || (w.sky() && x.fChanged(kx(key), kz(key), ky(key) << 4));   // небо по F было не 0 до правки skyTop
-        st.sky.remove(i);
-        st.blk.remove(i);
-        st.done.set(i);
+        st.put(i, PLAIN);
         if (ch) mark(st, i);
     }
 
@@ -685,6 +971,9 @@ final class CubeLight {
             Column c = x.col(cx, cz);
             if (c == null) {                                                 // ещё не в инстансе (или кэш «нет») — повторить позже
                 if (!pendingCols.containsKey(ck)) { pendingCols.put(ck, System.currentTimeMillis() + PENDING_COL_MS); colsDeferred++; }
+                // кэш прохода сказал «нет» (сосед раньше в этом же проходе), а столбец уже в мире и его CACHED позади —
+                // не ждать скана раз в секунду: следующей партией
+                if (w.column(cx, cz) != null) columnCachedAt(cx, cz);
                 continue;
             }
             loaded.add(c);
@@ -709,7 +998,7 @@ final class CubeLight {
             Store st = c.store();
             BitSet np = x.nonPTBits(cx, cz);
             for (int i = np.nextSetBit(0); i >= 0; i = np.nextSetBit(i + 1))
-                if (c.ready(i) && st.done.get(i) && lateralDiff(x, c, i)) add3(k, cx, i + MIN, cz);
+                if (c.ready(i) && st.done(i) && lateralDiff(x, c, i)) add3(k, cx, i + MIN, cz);
             if (!w.sky()) continue;
             for (int i = 0; i < CUBES; ) {                                   // полосы PT: плоская задача против F
                 if (np.get(i)) { i++; continue; }
@@ -722,8 +1011,8 @@ final class CubeLight {
 
     /** Боковые грани посчитанного куба i отличаются от F по генератору (так этот столбец видели соседи). */
     private boolean lateralDiff(Ctx x, Column c, int i) {
-        Store st = c.store();
-        byte[] sa = st.sky.get(i), ba = st.blk.get(i);
+        Rec r = c.store().rec(i);
+        byte[] sa = r == null ? null : r.sky, ba = r == null ? null : r.blk;
         if (ba == null && !w.sky()) return false;                            // без неба сравнивать нечего
         int[] g = genTops(c.cx(), c.cz());
         int y0 = (i + MIN) << 4;
@@ -777,7 +1066,7 @@ final class CubeLight {
             for (int i = np.nextSetBit(a); i >= 0 && i <= b; i = np.nextSetBit(i + 1)) {
                 // шаг 13: посчитанный куб целиком выше skyTop своих колонок и до, и после — небо «всё 15» без расчёта,
                 // свет блоков от skyTop не зависит
-                if (c != null && c.store().done.get(i) && ((i + MIN) << 4) > top) continue;
+                if (c != null && c.store().done(i) && ((i + MIN) << 4) > top) continue;
                 k.add(key(cx, i + MIN, cz));
             }
             if (c == null) continue;
@@ -799,7 +1088,7 @@ final class CubeLight {
             if (seen.get(i)) continue;
             seen.set(i);
             if (!c.ready(i)) continue;
-            if (st.done.get(i)) { drop(st, i, true); continue; }         // был посчитанным — стал PT
+            if (st.done(i)) { drop(st, i, true); continue; }             // был посчитанным — стал PT
             if (now == null) continue;
             byte[] old = x.pt2D(c.cx(), i + MIN, c.cz(), true);
             if (!Arrays.equals(old, now)) mark(st, i);
@@ -975,12 +1264,11 @@ final class CubeLight {
             }
             for (int q = 0; q < 4096; q++) if (bl[base + q] != 0) { nbk = pack(bl, base); break; }
             Store st = cols[j].store();
-            byte[] os = st.sky.get(i), ob = st.blk.get(i);
-            boolean ch = !st.done.get(i) || !Arrays.equals(os, ns) || !Arrays.equals(ob, nbk)
+            Rec o = st.rec(i);
+            byte[] os = o == null ? null : o.sky, ob = o == null ? null : o.blk;
+            boolean ch = o == null || !Arrays.equals(os, ns) || !Arrays.equals(ob, nbk)
                     || (sun && os == null && ns == null && x.fChanged(kx(key), kz(key), y0));
-            if (ns != null) st.sky.put(i, ns); else st.sky.remove(i);
-            if (nbk != null) st.blk.put(i, nbk); else st.blk.remove(i);
-            st.done.set(i);
+            st.put(i, ns == null && nbk == null ? PLAIN : new Rec(ns, nbk));    // публикация целиком (читают без замка)
             if (ch) mark(st, i);
         }
     }
@@ -1026,8 +1314,8 @@ final class CubeLight {
         short[] ci = ready ? cubeInf(nc, ncx, ncy, ncz) : null;
         boolean stored = false;
         if (ready) {
-            Store st = nc.store();
-            if (st.done.get(ni)) { stored = true; ss = st.sky.get(ni); sb = st.blk.get(ni); }
+            Rec r = nc.store().rec(ni);
+            if (r != null) { stored = true; ss = r.sky; sb = r.blk; }
             else {
                 if (x.nonPT(ncx, ncy, ncz)) { frameMiss++; missed.add(key(ncx, ncy, ncz)); }   // не посчитан, хотя должен — досчитать в след. process
                 if (w.sky()) two = x.pt2D(ncx, ncy, ncz, false);
@@ -1056,9 +1344,18 @@ final class CubeLight {
     static volatile long fastFull;
     static { Arrays.fill(FULL, (byte) 0xFF); }
 
-    synchronized LightData data(Store st, List<Integer> idx, boolean explicit) {
-        safeProcess();
+    /**
+     * Свет кубов idx для игрока. Поток света: только чтение опубликованного (без замка движка и пересчёта), сетки 48×48
+     * — из общего кэша; иначе (тесты) — сначала пересчёт по событиям под замком движка.
+     */
+    LightData data(Store st, List<Integer> idx, boolean explicit) {
+        if (!async) synchronized (this) { safeProcess(); }
+        synchronized (gridCache) { return read(st, idx, explicit); }
+    }
+
+    private LightData read(Store st, List<Integer> idx, boolean explicit) {
         Ctx x = new Ctx();
+        x.shared = true;
         Column c = st.col;
         boolean sun = w.sky();
         BitSet sky = new BitSet(), blk = new BitSet(), es = new BitSet(), eb = new BitSet();
@@ -1071,7 +1368,7 @@ final class CubeLight {
                 byte[] a = skyArray(x, c, i);
                 if (explicit || a != FULL || c.maybeBlocks(i)) { sky.set(i + 1); sa.add(a); }   // пустой «всё 15» — клиент и так 15
             }
-            byte[] b = st.done.get(i) ? st.blk.get(i) : null;
+            byte[] b = st.blk(i);
             if (b != null) { blk.set(i + 1); ba.add(b); }
             else if (explicit) eb.set(i + 1);
         }
@@ -1081,11 +1378,10 @@ final class CubeLight {
 
     /** Небо куба i массивом (FULL/ZERO — общие, не менять). */
     private byte[] skyArray(Ctx x, Column c, int i) {
-        Store st = c.store();
+        Rec r = c.store().rec(i);                                         // один раз: поток света мог опубликовать новый
         int cy = i + MIN, y0 = cy << 4;
-        if (st.done.get(i)) {
-            byte[] a = st.sky.get(i);
-            if (a != null) return a;
+        if (r != null) {
+            if (r.sky != null) return r.sky;
         } else if (c.ready(i)) {
             // PT-куб высоко над крышами 3×3 (как pt2D: g.max < низ−16) — «всё 15» без сетки 48×48 (кэш floorInfo)
             int t = maxTop3x3(c.cx(), c.cz());
@@ -1141,8 +1437,7 @@ final class CubeLight {
         if (i < 0 || i >= CUBES) return null;
         Column col = c.col(cx, cz);
         if (!sky) {
-            if (col == null || !col.store().done.get(i)) return null;
-            return col.store().blk.get(i);
+            return col == null ? null : col.store().blk(i);
         }
         if (!w.sky()) return null;
         if (col != null) return skyArray(c, col, i);
@@ -1166,6 +1461,8 @@ final class CubeLight {
         final Long2ObjectOpenHashMap<int[]> ranges = new Long2ObjectOpenHashMap<>();
         final Long2ObjectOpenHashMap<BitSet> ptSeen = new Long2ObjectOpenHashMap<>();
         final byte[] full2D = new byte[256], zero2D = new byte[256];
+        /** Сетки «сейчас» — из общего кэша gridCache (выдача игрокам; вызывающий держит его замок). */
+        boolean shared;
 
         Ctx() { Arrays.fill(full2D, (byte) 15); }
 
@@ -1295,7 +1592,16 @@ final class CubeLight {
                     if (m != null) for (int x = 0; x < 16; x++) { int c = z << 4 | x; if (m.containsKey(c)) a[row + x] = m.get(c); }
                 }
             }
-            g = new Grid(a);
+            if (shared && !before) {                                         // JFR s55: сетка с сортировкой заново на каждый data() — 0,95 мс/тик
+                Grid c = gridCache.getAndMoveToLast(k);
+                if (c != null && Arrays.equals(c.a, a)) { g = c; gridHits++; }
+                else {
+                    g = new Grid(a);
+                    gridMisses++;
+                    gridCache.putAndMoveToLast(k, g);
+                    if (gridCache.size() > GRID_CACHE) gridCache.removeFirst();
+                }
+            } else g = new Grid(a);
             map.put(k, g);
             return g;
         }
@@ -1339,6 +1645,15 @@ final class CubeLight {
         }
     }
 
+    /**
+     * Сетки 48×48 между вызовами data() (с плоскими задачами по рангам): ключ — столбец, годна, пока те же высоты 9
+     * столбцов (сравнение 2304 чисел дешевле сортировки и двух проходов расстояний). Под своим замком.
+     */
+    private final it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap<Grid> gridCache = new it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap<>();
+    private static final int GRID_CACHE = 1024;
+    /** Отладка: сетка из кэша / построена. */
+    volatile long gridHits, gridMisses;
+
     /** Высоты 48×48: значения, мин/макс и различные значения по возрастанию. */
     private static final class Grid {
         final int[] a, uniq;
@@ -1358,14 +1673,18 @@ final class CubeLight {
         }
     }
 
+    /** Высоты генератора столбца (кэш; зовут и поток света, и выдача в тике — под своим замком, генератор — вне его). */
     private int[] genTops(int cx, int cz) {
         long k = colKey(cx, cz);
-        int[] t = genTops.get(k);
+        int[] t;
+        synchronized (genTops) { t = genTops.get(k); }
         if (t != null) return t;
         t = new int[256];
         for (int c = 0; c < 256; c++) t[c] = w.genTop(cx * 16 + (c & 15), cz * 16 + (c >> 4));
-        if (genTops.size() > 8192) genTops.clear();
-        genTops.put(k, t);
+        synchronized (genTops) {
+            if (genTops.size() > 8192) genTops.clear();
+            genTops.put(k, t);
+        }
         return t;
     }
 

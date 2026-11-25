@@ -93,10 +93,23 @@ public final class DebugTab {
                     .append(Component.text(" макс 1 с / ", NamedTextColor.GRAY))
                     .append(Component.text(String.format("%.0f", max5s), msptColor(max5s)))
                     .append(Component.text(" макс 5 с", NamedTextColor.GRAY))
-                    .append(Component.text(" · свет: правок " + q[0] + ", очередь " + q[1], NamedTextColor.DARK_GRAY))
+                    .appendNewline()
+                    .append(Component.text(lightLine(q), NamedTextColor.DARK_GRAY))
                     .build();
             p.sendPlayerListHeaderAndFooter(Component.empty(), footer);
         }
+    }
+
+    /**
+     * Свет: правок, очередь (по типам: кубы загрузились/выгрузились, столбцы, небо), столбцов ждут кэша, готово к
+     * рассылке, загрузка потока света за секунду (растёт к 100% и очередь копится — не успевает).
+     */
+    private static String lightLine(int[] q) {
+        StringBuilder b = new StringBuilder("свет: правок ").append(q[0]).append(", очередь ").append(q[1]);
+        if (q[1] > 0) b.append(" (куб+ ").append(q[2]).append(", куб− ").append(q[3]).append(", столб ").append(q[4]).append(", небо ").append(q[5]).append(')');
+        if (q[6] > 0) b.append(", ждут столбцов ").append(q[6]);
+        if (q[7] > 0) b.append(", к рассылке ").append(q[7]);
+        return b.append(", поток ").append(q[8] / 10).append('%').toString();
     }
 
     private static TextColor msptColor(double ms) { return ms < 25 ? NamedTextColor.GREEN : ms < 50 ? NamedTextColor.YELLOW : NamedTextColor.RED; }
