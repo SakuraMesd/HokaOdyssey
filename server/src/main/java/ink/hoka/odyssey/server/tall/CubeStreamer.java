@@ -103,6 +103,8 @@ public final class CubeStreamer {
     static final int[] SURFACE_CORE = {0, 62, 0};
     /** Полоса ниже своей клетки не глубже (кубов): отвесная стена у пропасти — дальше не шлём. */
     static final int SURFACE_DEPTH = 32;
+    /** 0.63.4: стена утёса до соседа — не ниже своего верха на столько кубов (по сути «вся высота склона»). */
+    static final int WALL_DEPTH = Math.max(SURFACE_DEPTH, Integer.getInteger("hoka.cubes.wall-depth", 256));
     /** Что попросил клиент (второе число op 2 VIEW). */
     private static final Map<UUID, Integer> SURF_REQ = new ConcurrentHashMap<>();
     /** Ядро с настройкой «Дальность по высоте» (op VIEW). */
@@ -1177,16 +1179,22 @@ public final class CubeStreamer {
 
     /**
      * Полоса поверхности столбца в блоках: низ &lt;&lt; 32 | верх, NO_BAND — блоков нет. Верх — max SURFACE;
-     * низ — min SURFACE и по краям — клетки ниже соседа видны сбоку до его верха + 1 (утёс), не глубже SURFACE_DEPTH кубов.
+     * низ — min SURFACE и по краям — клетки ниже соседа видны сбоку до его верха + 1 (утёс) на всю высоту стены (0.63.4; предел WALL_DEPTH, у пропасти — SURFACE_DEPTH кубов);
+     * сосед не в памяти — его край по генератору без генерации кубов (genEdge), не знает — без расширения (heal дошлёт).
      * Высоты на ленивой карте над незагруженными кубами — оценка сверху (уточнится — heal дошлёт).
      */
     static long band(TallColumn c) {
         Instance inst = c.getInstance();
-        return band(c, inst == null ? (x, z) -> null : (x, z) -> inst.getChunk(x, z) instanceof TallColumn t ? t : null);
+        CubeGen g = null;
+        if (inst != null) try { g = ink.hoka.odyssey.server.tall.gen.CubeGens.of(inst); } catch (RuntimeException ignored) {}
+        return band(c, inst == null ? (x, z) -> null : (x, z) -> inst.getChunk(x, z) instanceof TallColumn t ? t : null, g);
     }
 
-    /** То же с поиском соседних столбцов nb (тесты). */
-    static long band(TallColumn c, java.util.function.BiFunction<Integer, Integer, TallColumn> nb) {
+    /** То же с поиском соседних столбцов nb, без генератора (тесты). */
+    static long band(TallColumn c, java.util.function.BiFunction<Integer, Integer, TallColumn> nb) { return band(c, nb, null); }
+
+    /** Соседи nb; кого нет в памяти — высоты края по генератору gen (null — без них). */
+    static long band(TallColumn c, java.util.function.BiFunction<Integer, Integer, TallColumn> nb, CubeGen gen) {
         HeightIndex h = c.st().heights;
         int mn = Integer.MAX_VALUE, mx = HeightIndex.NONE;
         for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
@@ -1196,21 +1204,54 @@ public final class CubeStreamer {
             if (v > mx) mx = v;
         }
         if (mx == HeightIndex.NONE) return NO_BAND;
-        int cx = c.getChunkX(), cz = c.getChunkZ(), floor = mn - SURFACE_DEPTH * 16;
+        // 0.63.4: стена утёса — до верха соседа + 1 на ЛЮБУЮ высоту (было не глубже SURFACE_DEPTH кубов от своего
+        // низа: на стене 900→1800 нижние ~400 блоков не слались — «дыры» в крутых склонах). Пустые кубы не шлются, а
+        // нетронутые — метками op 21, так что трафик растёт только на настоящих стенах. Предел WALL_DEPTH — от мусора.
+        // Пусто у соседа (NONE: обрыв в пустоту) — как раньше, не глубже SURFACE_DEPTH кубов.
+        int cx = c.getChunkX(), cz = c.getChunkZ(), floor = mn - SURFACE_DEPTH * 16, wallFloor = mx - WALL_DEPTH * 16;
         for (int d = 0; d < 4; d++) {
             int dx = d == 0 ? 1 : d == 1 ? -1 : 0, dz = d == 2 ? 1 : d == 3 ? -1 : 0;
             TallColumn nc = nb.apply(cx + dx, cz + dz);
-            if (nc == null) continue;
-            HeightIndex nh = nc.st().heights;
+            HeightIndex nh = nc == null ? null : nc.st().heights;
+            if (nh == null && gen == null) continue;                         // соседа нет в памяти — высоты генератора
             for (int k = 0; k < 16; k++) {
                 int ox = dx == 1 ? 15 : dx == -1 ? 0 : k, oz = dz == 1 ? 15 : dz == -1 ? 0 : k;   // своя крайняя клетка
                 int own = h.get(HeightIndex.Kind.SURFACE, ox, oz);
                 if (own == HeightIndex.NONE) continue;
-                int nv = nh.get(HeightIndex.Kind.SURFACE, (ox + dx) & 15, (oz + dz) & 15);   // клетка соседа рядом
-                if (nv < own) mn = Math.min(mn, Math.max(floor, nv + 1));
+                int nv;
+                if (nh != null) nv = nh.get(HeightIndex.Kind.SURFACE, (ox + dx) & 15, (oz + dz) & 15);   // клетка соседа рядом
+                else {
+                    // дёшево (аналитика/индекс pregen, без генерации кубов, кэш краёв); правки на диске уточнит heal
+                    nv = genEdge(gen, cx + dx, cz + dz, d)[k];
+                    if (nv == CubeGen.UNKNOWN) continue;
+                }
+                if (nv >= own) continue;
+                int lo = nv == HeightIndex.NONE ? floor : Math.max(wallFloor, nv + 1);
+                if (lo < mn) mn = lo;
             }
         }
         return ((long) mn << 32) | (mx & 0xFFFFFFFFL);
+    }
+
+    private record EdgeKey(CubeGen g, int cx, int cz, int d) {}
+    /** Высоты SURFACE генератора на ближнем к нам крае незагруженного соседа (band зовётся из heal/interest каждую секунду). */
+    private static final Map<EdgeKey, int[]> GEN_EDGES = new ConcurrentHashMap<>();
+
+    /** Край столбца (ncx, ncz), обращённый к соседу со стороны d (как в band), по генератору: 16 высот (UNKNOWN — не знает). */
+    static int[] genEdge(CubeGen g, int ncx, int ncz, int d) {
+        EdgeKey key = new EdgeKey(g, ncx, ncz, d);
+        int[] r = GEN_EDGES.get(key);
+        if (r != null) return r;
+        int dx = d == 0 ? 1 : d == 1 ? -1 : 0, dz = d == 2 ? 1 : d == 3 ? -1 : 0;
+        r = new int[16];
+        for (int k = 0; k < 16; k++) {
+            int ox = dx == 1 ? 15 : dx == -1 ? 0 : k, oz = dz == 1 ? 15 : dz == -1 ? 0 : k;
+            r[k] = g.highestCheap(ncx * 16 + ((ox + dx) & 15), ncz * 16 + ((oz + dz) & 15),
+                    TallWorld.MIN_Y, TallWorld.MIN_Y + TallWorld.HEIGHT - 1, HeightIndex.Kind.SURFACE);
+        }
+        if (GEN_EDGES.size() > 32768) GEN_EDGES.clear();
+        GEN_EDGES.put(key, r);
+        return r;
     }
 
     /** Отладка: кубов полосы вне окна (по последним update), столбцов с полосой. */

@@ -34,6 +34,12 @@ public interface CubeGen {
      */
     int highest(int x, int z, int yFrom, int yTo, HeightIndex.Kind kind);
 
+    /** «Не знаю дёшево» у {@link #highestCheap}. */
+    int UNKNOWN = Integer.MIN_VALUE;
+
+    /** Как highest, но без генерации кубов (аналитика/индекс; можно в тике). Не знает так — {@link #UNKNOWN}. */
+    default int highestCheap(int x, int z, int yFrom, int yTo, HeightIndex.Kind kind) { return highest(x, z, yFrom, yTo, kind); }
+
     /** Биом столбца (x, z — блоки). */
     RegistryKey<Biome> biomeAt(int x, int z);
 

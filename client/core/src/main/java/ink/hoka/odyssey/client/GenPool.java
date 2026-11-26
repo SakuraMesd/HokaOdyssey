@@ -69,8 +69,18 @@ public final class GenPool {
     private static final Object LOCK = new Object();
     @SuppressWarnings("unchecked")
     private static final ArrayDeque<Task>[] RING = new ArrayDeque[RINGS];
-    static { for (int i = 0; i < RINGS; i++) RING[i] = new ArrayDeque<>(); }
-    private static int queued;                                  // под LOCK
+    /**
+     * 0.63.4: кольца прошлой раскладки — перекладываются в RING порциями по бюджету кадра (restale), а не все разом
+     * (повернулся при сотнях тысяч задач полосы — рывок главного потока, и рабочие ждали LOCK). Рабочие берут отсюда,
+     * когда RING пуст. Под LOCK; staleAt — первое, возможно, непустое (RINGS — пусто всё).
+     */
+    @SuppressWarnings("unchecked")
+    private static final ArrayDeque<Task>[] STALE = new ArrayDeque[RINGS];
+    static { for (int i = 0; i < RINGS; i++) { RING[i] = new ArrayDeque<>(); STALE[i] = new ArrayDeque<>(); } }
+    private static int staleAt = RINGS;
+    /** Бюджет перекладки за кадр (нс). */
+    static final long RESTALE_NS = 500_000L;
+    private static int queued;                                  // под LOCK (RING и STALE)
     private static volatile Job job;
     private static final List<Thread> THREADS = new ArrayList<>();
     private static volatile int active;
@@ -178,7 +188,7 @@ public final class GenPool {
         for (Task t : PENDING.values()) t.cancelled = true;
         PENDING.clear();
         BY_COL.clear();
-        synchronized (LOCK) { for (ArrayDeque<Task> r : RING) r.clear(); queued = 0; }
+        synchronized (LOCK) { for (ArrayDeque<Task> r : RING) r.clear(); for (ArrayDeque<Task> r : STALE) r.clear(); staleAt = RINGS; queued = 0; }
         RESULTS.clear();
         NEAR.clear();
     }
@@ -220,11 +230,30 @@ public final class GenPool {
         blx = lx; bly = ly; blz = lz;
         if (!rebucket) return;
         lastRebucket = now;
+        synchronized (LOCK) {                                          // 0.63.4: O(колец), задачи переложит restale
+            for (int i = 0; i < RINGS; i++) {
+                ArrayDeque<Task> r = RING[i];
+                if (r.isEmpty()) continue;
+                if (STALE[i].isEmpty()) { RING[i] = STALE[i]; STALE[i] = r; }
+                else { STALE[i].addAll(r); r.clear(); }
+            }
+            staleAt = 0;
+        }
+    }
+
+    /** 0.63.4: порция перекладки STALE → RING по новой раскладке (ближние кольца прошлой — первыми). */
+    private static void restale(long budgetNs) {
+        if (staleAt >= RINGS) return;                                  // пишет только главный поток
+        long end = System.nanoTime() + budgetNs;
         synchronized (LOCK) {
-            List<Task> all = new ArrayList<>(queued);
-            for (ArrayDeque<Task> r : RING) { for (Task t : r) if (!t.cancelled) all.add(t); r.clear(); }
-            queued = 0;
-            for (Task t : all) enqueue(t);
+            int n = 0;
+            while (staleAt < RINGS) {
+                Task t = STALE[staleAt].pollFirst();
+                if (t == null) { staleAt++; continue; }
+                queued--;
+                if (!t.cancelled) enqueue(t);
+                if ((++n & 511) == 0 && System.nanoTime() >= end) break;
+            }
         }
     }
 
@@ -271,8 +300,10 @@ public final class GenPool {
                     while (job == null || idx >= active || queued == 0) LOCK.wait(250);
                     int ri = 0;
                     for (ArrayDeque<Task> r : RING) { if ((t = r.pollFirst()) != null) break; ri++; }
-                    if (t != null) queued--;
                     near = ri <= NEAR_RING;
+                    if (t == null)                                     // 0.63.4: ещё не переложенные — по прошлой раскладке
+                        for (int i = staleAt; i < RINGS && (t = STALE[i].pollFirst()) == null; i++) {}
+                    if (t != null) queued--;
                 }
                 if (t == null || t.cancelled || t.job != job) continue;
                 Result res = run(t, buf);
@@ -414,6 +445,7 @@ public final class GenPool {
         if (lvl != lastLevel) { lastLevel = lvl; cancelAll(); }
         if (job == null) return;
         updatePlayer(!PENDING.isEmpty());
+        restale(RESTALE_NS);
         int n = wanted();
         ensureThreads(n);
         long avg = FrameWatch.avgFrameNs();

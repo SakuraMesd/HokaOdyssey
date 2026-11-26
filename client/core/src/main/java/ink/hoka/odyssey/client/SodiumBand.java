@@ -37,7 +37,9 @@ public final class SodiumBand implements CoordinateSectionVisitor {
 
     @Override
     public void visit(int x, int y, int z) {
-        if (y >= lo && y <= hi) return;                                // окно — дело графа
+        // 0.63.4: без «окно — дело графа»: в дереве только секции вне окна СВОЕГО столбца, а столбец при сдвиге окна
+        // догоняет его порциями (SodiumTallMixin.hoka$migrate) — его секция полосы уже может быть в рядах нового окна,
+        // куда граф ещё не дошёл. Дважды не рисуем: отмеченные графом в этом кадре отсекает getLastVisibleFrame.
         int dx = x - cx, dz = z - cz;
         if (dx * dx + dz * dz > r2) return;                            // за дальностью (туман)
         RenderSection s = sections.get(SectionPos.asLong(x, y, z));

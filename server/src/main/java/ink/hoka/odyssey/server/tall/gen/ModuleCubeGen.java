@@ -264,6 +264,14 @@ public final class ModuleCubeGen implements CubeGen {
 
     @Override
     public int highest(int x, int z, int yFrom, int yTo, HeightIndex.Kind kind) {
+        int h = highestCheap(x, z, yFrom, yTo, kind);
+        if (h != UNKNOWN) return h;
+        return scan(x, z, Math.max(yFrom, minCy << 4), Math.min(yTo, (maxCy << 4) + 15), kind);
+    }
+
+    /** Без scan (генерации кубов): модуль аналитически или индекс pregen; иначе UNKNOWN. */
+    @Override
+    public int highestCheap(int x, int z, int yFrom, int yTo, HeightIndex.Kind kind) {
         // границы — по кубам (как inside): куб на краю size генерируется целиком, и высоты должны с ним сходиться
         if (x >= TallChunk.YARD_X0 || (x >> 4) * 16 >= TallChunk.YARD_X0 || !settings.bounds().cubeInside(x >> 4, minCy, z >> 4))
             return HeightIndex.NONE;
@@ -280,7 +288,7 @@ public final class ModuleCubeGen implements CubeGen {
                 if (t <= hi) return t;
             }
         }
-        return scan(x, z, lo, hi, kind);
+        return UNKNOWN;
     }
 
     /** Верх колонки по кубам сверху вниз (кэш кубов). */

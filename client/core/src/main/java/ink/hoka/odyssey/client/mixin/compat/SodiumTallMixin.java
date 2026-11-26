@@ -74,6 +74,35 @@ public abstract class SodiumTallMixin {
 
     /** Столбцы, которые Sodium считает загруженными. */
     @Unique private final LongOpenHashSet hoka$columns = new LongOpenHashSet();
+    /**
+     * 0.63.4: окно, под которое заведены секции каждого столбца ((lo&lt;&lt;32)|hi). Сдвиг окна больше не переводит все
+     * столбцы за кадр (3–4 тыс. столбцов × 8 рядов onSectionAdded/Removed — рывок 10–20 мс): столбцы догоняют
+     * hoka$lo..hi порциями по бюджету, ближние первыми (hoka$migrate).
+     */
+    @Unique private final it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap hoka$colWin = hoka$newColWin();
+    /** Очередь догоняющих столбцов (по расстоянию от камеры) и позиция в ней. */
+    @Unique private long[] hoka$mig = new long[0];
+    @Unique private int hoka$migAt, hoka$migN;
+    /** Бюджет догонки окна и разбора DIRTY за кадр (нс) и минимум столбцов за кадр. */
+    @Unique private static final long HOKA_MIG_NS = 1_000_000L, HOKA_DIRTY_NS = 1_000_000L;
+    @Unique private static final int HOKA_MIG_MIN = 24;
+
+    @Unique
+    private static it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap hoka$newColWin() {
+        var m = new it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap();
+        m.defaultReturnValue(hoka$pack(1, 0));
+        return m;
+    }
+
+    @Unique
+    private static long hoka$pack(int lo, int hi) { return ((long) lo << 32) | (hi & 0xFFFFFFFFL); }
+
+    /** Ряд y входит в окно, под которое заведены секции столбца (x, z). */
+    @Unique
+    private boolean hoka$inColWin(int x, int y, int z) {
+        long w = hoka$colWin.get(ChunkPos.asLong(x, z));
+        return y >= (int) (w >> 32) && y <= (int) w;
+    }
     /** Текущее окно по высоте (секции), его центр и радиус; lo > hi — ещё не задано. */
     @Unique private int hoka$lo = 1, hoka$hi = 0, hoka$center, hoka$r;
     /** Версия ContentRange, под которую пересчитан граф / окно. */
@@ -146,6 +175,7 @@ public abstract class SodiumTallMixin {
         if (!hoka$tall()) return;
         hoka$ensureWindow();
         hoka$columns.add(ChunkPos.asLong(x, z));
+        hoka$colWin.put(ChunkPos.asLong(x, z), hoka$pack(hoka$lo, hoka$hi));
         for (int y = hoka$lo; y <= hoka$hi; y++) onSectionAdded(x, y, z);
         var ys = ContentRange.ys(x, z);                                // 0.63.2: непустые кубы вне окна — свои секции
         if (ys != null)
@@ -158,7 +188,8 @@ public abstract class SodiumTallMixin {
         if (!hoka$tall()) return;
         long col = ChunkPos.asLong(x, z);
         hoka$columns.remove(col);
-        if (hoka$lo <= hoka$hi) for (int y = hoka$lo; y <= hoka$hi; y++) onSectionRemoved(x, y, z);
+        long w = hoka$colWin.remove(col);                              // 0.63.4: своё окно столбца (мог отставать)
+        for (int y = (int) (w >> 32), e = (int) w; y <= e; y++) onSectionRemoved(x, y, z);
         var ex = hoka$extra.remove(col);
         if (ex != null)
             for (int y : ex.toIntArray()) { hoka$band().remove(x, y, z); onSectionRemoved(x, y, z); }
@@ -210,7 +241,7 @@ public abstract class SodiumTallMixin {
     /** Свести секцию вне окна с ContentRange: куб непустой — секция есть, пустой/забыт — нет. */
     @Unique
     private void hoka$syncExtra(int x, int y, int z) {
-        if (y >= hoka$lo && y <= hoka$hi) return;                     // окно — своё
+        if (hoka$inColWin(x, y, z)) return;                            // окно столбца — своё
         if (!hoka$columns.contains(ChunkPos.asLong(x, z))) return;     // столбца у Sodium нет — заведётся в onChunkAdded
         if (ContentRange.has(x, y, z)) hoka$addExtra(x, y, z, true);
         else hoka$dropExtra(x, y, z, true);
@@ -236,11 +267,16 @@ public abstract class SodiumTallMixin {
             return;
         }
         if (d.isEmpty()) return;
-        for (int i = 0, n = d.size(); i < n; i++) {
-            long k = d.getLong(i);
+        // 0.63.4: по бюджету — пачка кубов полосы (тысячи onSectionAdded) больше не рывок одного кадра; остаток — дальше
+        long end = System.nanoTime() + HOKA_DIRTY_NS;
+        int i = 0, n = d.size();
+        while (i < n) {
+            long k = d.getLong(i++);
             hoka$syncExtra(SectionPos.x(k), SectionPos.y(k), SectionPos.z(k));
+            if ((i & 63) == 0 && System.nanoTime() >= end) break;
         }
-        d.clear();
+        if (i >= n) d.clear();
+        else d.removeElements(0, i);
     }
 
     /** Срез lo/hi/cut, под который последний раз пересчитан граф (0.49), и время пересчёта. */
@@ -297,18 +333,62 @@ public abstract class SodiumTallMixin {
             hoka$publish();
         }
         if (!had) return;
-        int lo = hoka$lo, hi = hoka$hi;
-        if (lo == oldLo && hi == oldHi) return;
+        if (hoka$lo == oldLo && hoka$hi == oldHi) return;
+        hoka$plan(SectionPos.blockToSectionCoord(camera.position().x), SectionPos.blockToSectionCoord(camera.position().z));
+    }
+
+    /** 0.63.4, каждый кадр до обновления графа: столбцы, отставшие от окна, — догнать порцией. */
+    @Inject(method = "update", at = @At("HEAD"), remap = false)
+    private void hoka$migrateTick(Camera camera, @Coerce Object viewport, @Coerce Object fog, boolean spectator, CallbackInfo ci) {
+        if (hoka$migAt < hoka$migN && hoka$tall()) hoka$migrate();
+    }
+
+    /** Очередь догонки: все столбцы, ближние (Чебышёв от камеры) первыми; сортировка подсчётом. */
+    @Unique
+    private void hoka$plan(int pcx, int pcz) {
+        int n = hoka$columns.size();
+        long[] keys = new long[n];
+        int[] d = new int[n];
+        int maxD = 0, j = 0;
         var it = hoka$columns.iterator();
-        while (it.hasNext()) {
+        while (it.hasNext() && j < n) {
             long c = it.nextLong();
-            int x = ChunkPos.getX(c), z = ChunkPos.getZ(c);
-            // только изменившиеся ряды: ушедшие — убрать (непустой куб остаётся секцией полосы), новые — добавить
-            for (int y = oldLo, e = Math.min(oldHi, lo - 1); y <= e; y++) hoka$leave(x, y, z);
-            for (int y = Math.max(oldLo, hi + 1); y <= oldHi; y++) hoka$leave(x, y, z);
-            for (int y = lo, e = Math.min(hi, oldLo - 1); y <= e; y++) hoka$enter(x, y, z);
-            for (int y = Math.max(lo, oldHi + 1); y <= hi; y++) hoka$enter(x, y, z);
+            keys[j] = c;
+            d[j] = Math.min(4095, Math.max(Math.abs(ChunkPos.getX(c) - pcx), Math.abs(ChunkPos.getZ(c) - pcz)));
+            if (d[j] > maxD) maxD = d[j];
+            j++;
         }
+        int[] at = new int[maxD + 2];
+        for (int k = 0; k < j; k++) at[d[k] + 1]++;
+        for (int k = 1; k < at.length; k++) at[k] += at[k - 1];
+        long[] out = new long[j];
+        for (int k = 0; k < j; k++) out[at[d[k]]++] = keys[k];
+        hoka$mig = out;
+        hoka$migAt = 0;
+        hoka$migN = j;
+        hoka$migrate();                                                // ближние — в этом же кадре
+    }
+
+    /** Порция догонки: столбцы до бюджета (не меньше HOKA_MIG_MIN), каждый — из своего окна в текущее. */
+    @Unique
+    private void hoka$migrate() {
+        long end = System.nanoTime() + HOKA_MIG_NS;
+        int lo = hoka$lo, hi = hoka$hi, done = 0;
+        long target = hoka$pack(lo, hi);
+        while (hoka$migAt < hoka$migN) {
+            if (done >= HOKA_MIG_MIN && System.nanoTime() >= end) break;
+            long c = hoka$mig[hoka$migAt++];
+            if (!hoka$columns.contains(c)) continue;
+            long w = hoka$colWin.get(c);
+            if (w == target) continue;
+            int oLo = (int) (w >> 32), oHi = (int) w, x = ChunkPos.getX(c), z = ChunkPos.getZ(c);
+            // только изменившиеся ряды: ушедшие — убрать (непустой куб остаётся секцией полосы), новые — добавить
+            hoka$colWin.put(c, target);
+            for (int y = oLo; y <= oHi; y++) if (y < lo || y > hi) hoka$leave(x, y, z);
+            for (int y = lo; y <= hi; y++) if (y < oLo || y > oHi) hoka$enter(x, y, z);
+            done++;
+        }
+        if (hoka$migAt >= hoka$migN) { hoka$mig = new long[0]; hoka$migAt = hoka$migN = 0; }
     }
 
     /** Ряд ушёл из окна: непустой куб — остаётся секцией вне окна (с сеткой), иначе секцию убрать. */
