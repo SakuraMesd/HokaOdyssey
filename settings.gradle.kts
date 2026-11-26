@@ -6,6 +6,7 @@ include("server")          // ядро: Minestom + загрузчик модул
 include("modules:example") // шаблон модуля — копировать для нового
 include("modules:containers") // сундуки и бочки в мире
 include("modules:planets")    // планеты: модель издали, вход с затемнением
+include("modules:sky")        // небо карты: раздел sky: в map.yml → клиентский модуль sky
 include("modules:ships")      // корабли: физика на сервере, модель и (далее) управление — клиентский модуль ships
 include("modules:clientmods") // клиентские модули мода Hoka Odyssey: раздача (подпись) + связь сервер↔клиент
 include("modules:blocks")     // свои блоки: носитель + текстура/модель с сервера (рисует мод Hoka Odyssey)

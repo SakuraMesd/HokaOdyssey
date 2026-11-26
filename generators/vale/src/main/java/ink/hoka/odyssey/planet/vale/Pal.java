@@ -16,6 +16,13 @@ final class Pal {
     /** Опора (ванильные правила выживания): вид, стороны/семья, твёрдость — см. {@link #need}, {@link #side}, {@link #hold}. */
     private byte[] need = new byte[4096], side = new byte[4096], hold = new byte[4096];
     private final List<String> used = new ArrayList<>();
+    private int[] usedIds = new int[256];
+    /** Бревно (тег minecraft:logs) — опора дистанции листвы. */
+    private boolean[] log = new boolean[4096];
+    /** v → семья листвы + 1 (0 — не листва); семья: [d] — естественная листва (persistent=false) с distance=d, 1…7. */
+    private int[] famOf = new int[4096];
+    private final List<int[]> fams = new ArrayList<>();
+    private final java.util.Map<String, Integer> famIdx = new java.util.HashMap<>();
 
     Pal(GenIds ids) { this.ids = ids; }
 
@@ -44,7 +51,11 @@ final class Pal {
         throw last;
     }
 
-    /** Листва, которая не опадает. */
+    /**
+     * Листва (строителю — «какая порода»). В мир она уходит естественной: persistent=false, distance — от брёвен объекта
+     * ({@link Shape.B#build}). persistent=true в мир не ставим: эти состояния — носители своих блоков модуля blocks
+     * (листва + persistent=true = «Ступка» и прочие прозрачные модели у игроков с модом).
+     */
     int leaves(String wood) { return s("minecraft:" + wood + "_leaves[distance=1,persistent=true,waterlogged=false]"); }
 
     /** Бревно/древесина по оси. */
@@ -57,6 +68,8 @@ final class Pal {
             need = java.util.Arrays.copyOf(need, n);
             side = java.util.Arrays.copyOf(side, n);
             hold = java.util.Arrays.copyOf(hold, n);
+            log = java.util.Arrays.copyOf(log, n);
+            famOf = java.util.Arrays.copyOf(famOf, n);
         }
         int f = Flags.of(state);
         flags[v] = (byte) (f | 0x40);                                         // 0x40 — «известно»
@@ -84,8 +97,53 @@ final class Pal {
         }
         need[v] = (byte) nd;
         side[v] = (byte) sd;
+        if (used.size() == usedIds.length) usedIds = java.util.Arrays.copyOf(usedIds, usedIds.length * 2);
+        usedIds[used.size()] = v;
         used.add(state);
+        log[v] = isLog(id);
+        if (id.endsWith("_leaves") && state.contains("distance=")) {
+            int fm = family(id, state.contains("waterlogged=true")) + 1;  // сначала семья (массивы могут вырасти)
+            famOf[v] = fm;
+        }
     }
+
+    /** Тег minecraft:logs: брёвна, древесина, стебли/гифы незера (грибной стебель — нет). */
+    static boolean isLog(String id) {
+        return id.endsWith("_log") || id.endsWith("_wood") || id.endsWith("_hyphae") || id.equals("crimson_stem") || id.equals("warped_stem")
+                || id.equals("stripped_crimson_stem") || id.equals("stripped_warped_stem");
+    }
+
+    /** Семья естественной листвы породы (distance 1…7, persistent=false) — номера заводятся сразу. */
+    private int family(String id, boolean wl) {
+        String key = id + (wl ? "|w" : "");
+        Integer f = famIdx.get(key);
+        if (f != null) return f;
+        int idx = fams.size();
+        int[] fam = new int[8];
+        fams.add(fam);
+        famIdx.put(key, idx);
+        // скрытая опора кроны — древесина породы (азалии — дуб)
+        String wood = id.substring(0, id.length() - 7);
+        if (wood.equals("azalea") || wood.equals("flowering_azalea")) wood = "oak";
+        fam[0] = any("minecraft:" + wood + "_wood[axis=y]", "minecraft:oak_wood[axis=y]");
+        for (int d = 1; d <= 7; d++) {
+            String st = "minecraft:" + id + "[distance=" + d + ",persistent=false,waterlogged=" + wl + "]";
+            fam[d] = s(st);                                                   // note → famOf этой же семьи
+        }
+        return idx;
+    }
+
+    /** Листва (любая: и persistent, и естественная). */
+    boolean leaf(int v) { return v > 0 && v < famOf.length && famOf[v] != 0; }
+
+    /** Бревно (опора листвы). */
+    boolean log(int v) { return v > 0 && v < log.length && log[v]; }
+
+    /** Древесина породы листвы (скрытая опора кроны). */
+    int leafWood(int v) { return fams.get(famOf[v] - 1)[0]; }
+
+    /** Естественная листва той же породы с distance=d (1…7). */
+    int leafAt(int v, int d) { return fams.get(famOf[v] - 1)[d]; }
 
     /** Чего требует блок: 0 — ничего; висит (опора сверху прочная или та же семья); мох (сверху любая полная, листва тоже); вверх
      *  (снизу прочная или та же семья; снизу вне объекта — рельеф); лиана (сбоку полная или сверху лиана с той же стороной);
@@ -123,4 +181,7 @@ final class Pal {
     }
 
     List<String> used() { return used; }
+
+    /** Номера к {@link #used()} (тот же порядок) — тест сверяет строку и номер. */
+    int[] usedIds() { return java.util.Arrays.copyOf(usedIds, used.size()); }
 }

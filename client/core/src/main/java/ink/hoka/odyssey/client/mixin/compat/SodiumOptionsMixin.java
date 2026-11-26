@@ -36,6 +36,15 @@ public abstract class SodiumOptionsMixin {
                         .setImpact(OptionImpact.HIGH)
                         .setBinding(VerticalView::set, VerticalView::get)
                         .setStorageHandler(VerticalView::save))
+                .addOption(builder.createIntegerOption(Identifier.fromNamespaceAndPath("hoka_odyssey", "surface_view"))   // 0.62
+                        .setName(Component.translatable("options.hoka_odyssey.surface"))
+                        .setTooltip(Component.translatable("options.hoka_odyssey.surface.tooltip"))
+                        .setRange(0, VerticalView.SURF_MAX, VerticalView.SURF_STEP)
+                        .setDefaultValue(VerticalView.SURF_DEFAULT)
+                        .setValueFormatter(VerticalView::surfaceValue)
+                        .setImpact(OptionImpact.MEDIUM)
+                        .setBinding(VerticalView::setSurface, VerticalView::surface)
+                        .setStorageHandler(VerticalView::saveSurface))
                 .addOption(builder.createIntegerOption(Identifier.fromNamespaceAndPath("hoka_odyssey", "cube_cache"))   // 0.51
                         .setName(Component.translatable("options.hoka_odyssey.cube_cache"))
                         .setTooltip(Component.translatable("options.hoka_odyssey.cube_cache.tooltip"))

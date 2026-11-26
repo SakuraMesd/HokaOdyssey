@@ -109,7 +109,7 @@ public final class TallLight {
         if (y1 - y0 <= 64) { level.setSectionRangeDirty(x0, y0, z0, x1, y1, z1); return; }   // обычная высота — как у игры
         var cam = Minecraft.getInstance().gameRenderer.getMainCamera();
         int cy = SectionPos.blockToSectionCoord(cam.position().y);
-        int r = VerticalView.get() + 2;
+        int r = Math.max(VerticalView.get(), VerticalView.surface()) + 2;   // 0.62: и полоса поверхности (режет ContentRange)
         int a = Math.max(y0, cy - r), b = Math.min(y1, cy + r);
         if (ContentRange.cut) {                                         // пустые слои воздуха перестраивать незачем
             a = Math.max(a, ContentRange.lo - 1);

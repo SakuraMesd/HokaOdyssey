@@ -208,6 +208,7 @@ final class Shape {
             for (int key : k) {                                               // лимит охвата
                 if (Math.abs(dx(key)) > lim || Math.abs(dz(key)) > lim) vals[slot(key)] = 0;
             }
+            naturalLeaves(k);                                                 // листва: persistent=false + distance
             for (int i = k.length - 1; i >= 0; i--) prune(k[i], false);       // сверху вниз: висячие и лианы
             for (int i = 0; i < k.length; i++) prune(k[i], true);             // снизу вверх: вьюны
             int m = 0;
@@ -221,6 +222,61 @@ final class Shape {
                 kk[j] = key; st[j] = v; fl[j] = (byte) pal.flags(v); j++;
             }
             return new Shape(kk, st, fl);
+        }
+
+        /**
+         * Листва → естественная (persistent=false) с ванильной distance: шаги по листве (6 соседей) до бревна объекта.
+         * Дальние (≥ 7) сначала «подпираются» скрытой древесиной породы внутри кроны (блок, со всех 6 сторон закрытый —
+         * снаружи не виден); что осталось — distance=7 (на нашем сервере листва не опадает). persistent=true в мир не
+         * уходит: эти состояния — носители своих блоков модуля blocks.
+         */
+        private void naturalLeaves(int[] k) {
+            boolean any = false;
+            for (int key : k) if (pal.leaf(vals[slot(key)])) { any = true; break; }
+            if (!any) return;
+            int[] dist = new int[keys.length];
+            Arrays.fill(dist, 7);
+            int[] q = new int[k.length + 1];
+            int qt = 0;
+            for (int key : k) { int s = slot(key); if (pal.log(vals[s])) { dist[s] = 0; q[qt++] = s; } }
+            spread(dist, q, qt);
+            for (int key : k) {                                               // скрытые опоры, снизу вверх
+                int s = slot(key), v = vals[s];
+                if (dist[s] < 7 || !pal.leaf(v) || !closed(key)) continue;
+                vals[s] = pal.leafWood(v);
+                dist[s] = 0;
+                q[0] = s;
+                spread(dist, q, 1);
+            }
+            for (int key : k) {
+                int s = slot(key), v = vals[s];
+                if (pal.leaf(v)) vals[s] = pal.leafAt(v, Math.min(7, dist[s]));
+            }
+        }
+
+        /** BFS от q[0…qt): уменьшает дистанцию листвы (только по листве, до 6). */
+        private void spread(int[] dist, int[] q, int qt) {
+            int qh = 0;
+            while (qh < qt) {
+                int s = q[qh++], d = dist[s] + 1;
+                if (d >= 7) continue;
+                int key = keys[s], x = dx(key), y = dy(key), z = dz(key);
+                for (int f = 0; f < 6; f++) {
+                    int nx = x + (f == 0 ? 1 : f == 1 ? -1 : 0), ny = y + (f == 2 ? 1 : f == 3 ? -1 : 0), nz = z + (f == 4 ? 1 : f == 5 ? -1 : 0);
+                    if (!ok(nx, ny, nz)) continue;
+                    int ns = slot(key(nx, ny, nz));
+                    if (keys[ns] == 0 || !pal.leaf(vals[ns]) || dist[ns] <= d) continue;
+                    dist[ns] = d;
+                    if (qt == q.length) q = Arrays.copyOf(q, q.length * 2);
+                    q[qt++] = ns;
+                }
+            }
+        }
+
+        /** Все 6 соседей заняты блоками объекта (блок снаружи не виден). */
+        private boolean closed(int key) {
+            int x = dx(key), y = dy(key), z = dz(key);
+            return has(x + 1, y, z) && has(x - 1, y, z) && has(x, y + 1, z) && has(x, y - 1, z) && has(x, y, z + 1) && has(x, y, z - 1);
         }
 
         private int at(int x, int y, int z) { return get(x, y, z); }

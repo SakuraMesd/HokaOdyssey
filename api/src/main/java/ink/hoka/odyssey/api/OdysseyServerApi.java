@@ -32,6 +32,16 @@ public interface OdysseyServerApi {
     java.util.Optional<String> mapName(net.minestom.server.instance.Instance instance);
 
     /**
+     * map.yml карты (свежее чтение с диска; правки модулем не сохраняются, пока не вызван save). Пусто — нет такой
+     * карты/файла. Нужен модулям для своих разделов карты (например {@code sky:} — небо).
+     */
+    default java.util.Optional<ModuleConfig> mapConfig(String name) {
+        if (name == null || !name.matches("[a-z0-9_\\-]{1,32}")) return java.util.Optional.empty();
+        java.nio.file.Path f = java.nio.file.Path.of("maps", name, "map.yml");
+        return java.nio.file.Files.isRegularFile(f) ? java.util.Optional.of(new ModuleConfig(f)) : java.util.Optional.empty();
+    }
+
+    /**
      * Версия ядра мода Hoka Odyssey у игрока из рукопожатия на этапе входа (configuration, hoka_odyssey:hi) — известна
      * ещё до появления в мире. Пусто — мода нет, ядро старше 0.29 или ядро сервера старое.
      */

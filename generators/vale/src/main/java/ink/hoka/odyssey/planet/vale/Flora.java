@@ -35,6 +35,10 @@ final class Flora {
                 whiteWool, endRod, amethyst, mossCarpet, propagule, sporeBlossom, caveVine, caveVineTip, weeping, weepingTip,
                 twisting, twistingTip, paleMoss, paleMossTip, shelf;
         final int[] vine = new int[4], cocoa = new int[4], resin = new int[4], petals = new int[4], tulip = new int[3];
+        /** Рудные валуны: [вид руды] обычная / глубинная руда, «самородок» (сырой блок / угольный блок); породы. */
+        final int[] ore = new int[3], deepOre = new int[3], nugget = new int[3];
+        final int[] rock, deepRock;
+        final int mossyCobble;
 
         St(Pal p) {
             spruceWood = p.log("spruce_wood", 'y'); spruceWoodS = p.log("stripped_spruce_wood", 'y'); spruceLeaves = p.leaves("spruce");
@@ -79,6 +83,17 @@ final class Flora {
                 resin[i] = p.any("minecraft:resin_clump[" + faceProps(opp[i]) + "]", "minecraft:air");
                 petals[i] = p.any("minecraft:pink_petals[facing=" + f[i] + ",flower_amount=" + (i + 1) + "]", "minecraft:pink_tulip");
             }
+            ore[ORE_COAL] = p.d("minecraft:coal_ore"); ore[ORE_IRON] = p.d("minecraft:iron_ore"); ore[ORE_COPPER] = p.d("minecraft:copper_ore");
+            deepOre[ORE_COAL] = p.d("minecraft:deepslate_coal_ore"); deepOre[ORE_IRON] = p.d("minecraft:deepslate_iron_ore");
+            deepOre[ORE_COPPER] = p.d("minecraft:deepslate_copper_ore");
+            nugget[ORE_COAL] = p.d("minecraft:coal_block"); nugget[ORE_IRON] = p.d("minecraft:raw_iron_block");
+            nugget[ORE_COPPER] = p.d("minecraft:raw_copper_block");
+            int stone = p.d("minecraft:stone"), andesite = p.d("minecraft:andesite"), tuff = p.d("minecraft:tuff");
+            int cobble = p.d("minecraft:cobblestone"), deepslate = p.s("minecraft:deepslate[axis=y]");
+            int cobDeep = p.d("minecraft:cobbled_deepslate");
+            rock = new int[]{stone, andesite, stone, tuff, cobble, andesite, stone};
+            deepRock = new int[]{deepslate, cobDeep, tuff, deepslate, cobDeep, p.d("minecraft:smooth_basalt")};
+            mossyCobble = p.d("minecraft:mossy_cobblestone");
             tulip[0] = p.d("minecraft:red_concrete"); tulip[1] = p.d("minecraft:orange_concrete"); tulip[2] = p.d("minecraft:pink_concrete");
         }
 
@@ -94,6 +109,9 @@ final class Flora {
     }
 
     static final int[] DX = {1, -1, 0, 0}, DZ = {0, 0, 1, -1};
+
+    /** Виды руды валунов. */
+    static final int ORE_COAL = 0, ORE_IRON = 1, ORE_COPPER = 2;
 
     // ───────────── общие куски ─────────────
 
@@ -868,6 +886,76 @@ final class Flora {
         for (int k = 0; k < 4; k++) b.put(DX[k], 1, DZ[k], r.chance(0.5) ? s.pinkWool : s.whiteWool);
         b.put(0, 2, 0, s.pinkWool);
         b.put(0, 3, 0, s.whiteWool);
+        return b.build();
+    }
+
+    // ───────────── R1 рудный валун ─────────────
+
+    /**
+     * Валун 3…9 блоков в поперечнике, вкопан на треть-половину (вставка — только в воздух, ниже рельефа не пишет), из 2–4
+     * слитых бугристых эллипсоидов. Руда — гнёздами у поверхности (видно снаружи) + редкие вкрапления; в горах (deep) —
+     * глубинный сланец, глубинная руда и изредка сырой блок / угольный блок в центре гнезда. Под нависающим краем на
+     * склоне — подпор до рельефа (валун не висит).
+     */
+    static Shape oreBoulder(Pal pal, St s, Rnd r, Env e, int ore, boolean deep, boolean mossy) {
+        B b = new B(pal);
+        double[] d = new double[2];
+        double R = r.range(1.5, 4.5);
+        int parts = r.range(2, 4);
+        double[] px = new double[parts], py = new double[parts], pz = new double[parts], rx = new double[parts], ry = new double[parts],
+                rz = new double[parts];
+        double sink = r.range(0.35, 0.55);                                    // доля высоты под землёй
+        for (int i = 0; i < parts; i++) {
+            double k = i == 0 ? 1 : r.range(0.5, 0.8);
+            Shape.dir(r.next(), d);
+            double off = i == 0 ? 0 : R * r.range(0.35, 0.7);
+            rx[i] = R * k * r.range(0.8, 1.2);
+            rz[i] = R * k * r.range(0.8, 1.2);
+            ry[i] = R * k * r.range(0.6, 0.9);
+            px[i] = d[0] * off;
+            pz[i] = d[1] * off;
+            py[i] = -1 + ry[i] * (1 - 2 * sink) + (i == 0 ? 0 : r.range(-0.5, 0.5));
+        }
+        // гнёзда руды — у поверхности главной части
+        int nests = r.range(2, 4);
+        double[] nx = new double[nests], ny = new double[nests], nz = new double[nests], nr = new double[nests];
+        for (int i = 0; i < nests; i++) {
+            Shape.dir(r.next(), d);
+            double f = r.range(0.55, 0.95);
+            nx[i] = px[0] + d[0] * rx[0] * f;
+            nz[i] = pz[0] + d[1] * rz[0] * f;
+            ny[i] = Math.max(py[0], -0.5) + r.range(0.0, 0.8) * ry[0];
+            nr[i] = r.range(1.0, 1.9);
+        }
+        int oreSt = deep ? s.deepOre[ore] : s.ore[ore];
+        int[] base = deep ? s.deepRock : s.rock;
+        boolean nug = deep && r.chance(0.35);
+        int ri = (int) Math.ceil(R * 2.2);
+        for (int y = -ri; y <= ri; y++) for (int z = -ri; z <= ri; z++) for (int x = -ri; x <= ri; x++) {
+            double best = 9;
+            for (int i = 0; i < parts; i++) {
+                double qx = (x - px[i]) / rx[i], qy = (y - py[i]) / ry[i], qz = (z - pz[i]) / rz[i];
+                best = Math.min(best, qx * qx + qy * qy + qz * qz);
+            }
+            if (best > 1) continue;
+            if (best > 0.75 && r.next() < 0.3) continue;                      // бугристый край
+            int st = base[r.nextInt(base.length)];
+            for (int i = 0; i < nests; i++) {
+                double qx = x - nx[i], qy = y - ny[i], qz = z - nz[i], q = qx * qx + qy * qy + qz * qz;
+                if (q <= nr[i] * nr[i] && r.next() < 0.8) st = nug && i == 0 && q < 0.5 ? s.nugget[ore] : oreSt;
+            }
+            if (st != oreSt && r.next() < 0.04) st = oreSt;                   // редкие вкрапления
+            b.put(x, y, z, st);
+        }
+        // мох сверху (влажные леса) и подпор до рельефа
+        for (int z = -ri; z <= ri; z++) for (int x = -ri; x <= ri; x++) {
+            int top = Integer.MIN_VALUE, low = Integer.MAX_VALUE;
+            for (int y = -ri; y <= ri; y++) if (b.has(x, y, z)) { top = Math.max(top, y); low = Math.min(low, y); }
+            if (top == Integer.MIN_VALUE) continue;
+            if (mossy && !deep && b.get(x, top, z) != oreSt && r.chance(0.45)) b.put(x, top, z, s.mossyCobble);
+            int g = e.g(x, z);
+            if (g + 1 < low && low - g <= 16) for (int y = g + 1; y < low; y++) b.put(x, y, z, base[r.nextInt(base.length)]);
+        }
         return b.build();
     }
 }

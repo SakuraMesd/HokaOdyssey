@@ -19,9 +19,10 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Генератор vale@2 (настоящий jar) + свои объекты {@link ValeDemoObjects}: объекты пишутся в demo-objects/ (выложить в
+ * Генератор vale@3 (настоящий jar) + свои объекты {@link ValeDemoObjects}: объекты пишутся в demo-objects/ (выложить в
  * objects/ сервера), честность hasBlocks/uniform/highest по кубам (и прицельно — горы, разломы, тепуи), флаги блоков =
- * ядро, сервер = клиент, горы выше 1500, скорость, эталоны vale@2 и vale@2-objects.
+ * ядро, сервер = клиент, горы выше 1500, скорость, эталоны vale@3 и vale@3-objects; строки состояний = номера
+ * (чужой блок не подставляется), листва естественная (не носители своих блоков), рудные валуны.
  */
 class ValeGenTest {
 
@@ -349,6 +350,11 @@ class ValeGenTest {
                 }
         }
         System.out.println("[vale] survival: zones " + found.keySet() + ", blocks " + checked + ", bad " + seen);
+        System.out.println("[vale] листва: distance как в ванилле " + LEAVES[0] + ", ванилла меньше " + LEAVES[1] + ", больше " + LEAVES[2]
+                + ", distance<7 " + LEAVES[3]);
+        long all = LEAVES[0] + LEAVES[1] + LEAVES[2];
+        assertTrue(all > 1000, "листвы мало: " + all);
+        assertTrue(LEAVES[0] > all * 0.9, "distance листвы расходится с ванильной: " + Arrays.toString(LEAVES));
         assertTrue(found.keySet().containsAll(Set.of("redwood", "jungle", "swamp", "glow", "rift", "mesa")), "зоны: " + found.keySet());
         assertTrue(bad.isEmpty(), bad.toString());
     }
@@ -374,11 +380,35 @@ class ValeGenTest {
 
     static final int[][] SIDES = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
 
+    /** Листва: [0] distance как в ванилле, [1] ванилла дала бы меньше (соседнее дерево), [2] больше (цепь перебита), [3] < 7. */
+    static final long[] LEAVES = new long[4];
+
+    /** Ванильная distance листвы по 6 соседям: бревно (тег logs) — 1, листва — её distance + 1, не больше 7. */
+    static int leafDistance(Blk w, int x, int y, int z) {
+        int best = 7;
+        int[][] n = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+        for (int[] o : n) {
+            Block nb = blk(w.at(x + o[0], y + o[1], z + o[2]));
+            String nid = nb.key().value();
+            if (nid.endsWith("_log") || nid.endsWith("_wood") || nid.endsWith("_hyphae") || nid.endsWith("crimson_stem") || nid.endsWith("warped_stem"))
+                return 1;
+            if (nid.endsWith("_leaves")) best = Math.min(best, Integer.parseInt(nb.getProperty("distance")) + 1);
+        }
+        return best;
+    }
+
     /** Почему блок не выжил бы в ванилле при апдейте соседа (null — живёт). */
     static String survive(Blk w, Block b, String id, int x, int y, int z) {
         int up = w.at(x, y + 1, z), dn = w.at(x, y - 1, z);
         String upId = blk(up).key().value(), dnId = blk(dn).key().value();
-        if (id.endsWith("_leaves")) return "true".equals(b.getProperty("persistent")) ? null : "листва не persistent";
+        if (id.endsWith("_leaves")) {
+            // persistent=true — носители своих блоков модуля blocks («Ступка» = acacia_leaves[distance=1,persistent=true])
+            if (!"false".equals(b.getProperty("persistent"))) return "листва persistent=true (носитель своих блоков)";
+            int d = Integer.parseInt(b.getProperty("distance")), want = leafDistance(w, x, y, z);
+            LEAVES[d == want ? 0 : want < d ? 1 : 2]++;
+            if (d < 7) LEAVES[3]++;
+            return null;
+        }
         switch (id) {
             case "vine" -> {
                 String[] f = {"east", "west", "south", "north"};
@@ -525,19 +555,124 @@ class ValeGenTest {
         }
     }
 
+    /**
+     * Каждое состояние, которое генератор берёт (свои строки, объекты, запасные варианты any()), — ровно тот блок, что
+     * в строке: строка → номер → каноническая строка Minestom совпадает (без свойств — состояние по умолчанию этого
+     * блока). Неверная строка не превращается молча в чужой блок. И ни одна листва в мире не persistent=true.
+     */
+    @Test
+    void statesExact() throws Exception {
+        PlanetGenerator g = portable(provider(), SEED);
+        @SuppressWarnings("unchecked") List<String> used = (List<String>) call(g, "statesUsed");
+        int[] got = (int[]) call(g, "statesUsedIds");
+        assertEquals(used.size(), got.length);
+        GenIdTable ids = MinestomGenIds.get();
+        List<String> bad = new ArrayList<>();
+        for (int i = 0; i < used.size(); i++) {
+            String s = used.get(i);
+            Block blk = Block.fromStateId(got[i]);
+            assertNotNull(blk, s);
+            String have = MinestomGenIds.canonical(blk);
+            if (s.indexOf('[') < 0) {
+                String id = s.indexOf(':') < 0 ? "minecraft:" + s : s;
+                Block def = Block.fromKey(id);
+                if (def == null || def.stateId() != got[i]) bad.add(s + " → " + have);
+            } else {
+                String want = GenIds.normalize(s);
+                if (!want.equals(have)) bad.add(s + " → " + have);
+                else if (ids.state(s) != got[i]) bad.add(s + ": номер " + got[i] + " ≠ " + ids.state(s));
+            }
+        }
+        assertTrue(bad.isEmpty(), "строка ≠ блок: " + bad);
+        // неизвестная строка — исключение, а не чужой блок
+        assertThrows(IllegalArgumentException.class, () -> ids.state("minecraft:acacia_leaves[distance=1,persistent=maybe,waterlogged=false]"));
+        assertThrows(IllegalArgumentException.class, () -> ids.state("minecraft:acacia_leaves[distance=1,persistent=true]"));
+        assertThrows(IllegalArgumentException.class, () -> ids.state("minecraft:no_such_leaves[distance=1]"));
+        // в кубах: листва только естественная (persistent=true — носители своих блоков у игроков с модом)
+        Random r = new Random(23);
+        GenArrayCube buf = new GenArrayCube(false);
+        int leaves = 0;
+        for (int k = 0; k < 400; k++) {
+            int x = r.nextInt(12000) - 6000, z = r.nextInt(12000) - 6000;
+            int h = g.highest(x, z, -500, 2000, HeightKind.SURFACE);
+            for (int dy = -1; dy <= 2; dy++) {
+                int cy = (h >> 4) + dy;
+                if (!g.hasBlocks(x >> 4, cy, z >> 4)) continue;
+                buf.reset(x >> 4, cy, z >> 4, SEED);
+                g.generate(buf);
+                for (int v : buf.blocks) {
+                    if (v == 0) continue;
+                    Block b = Block.fromStateId(v);
+                    if (!b.key().value().endsWith("_leaves")) continue;
+                    leaves++;
+                    assertEquals("false", b.getProperty("persistent"), "листва-носитель в мире: " + MinestomGenIds.canonical(b));
+                }
+            }
+        }
+        System.out.println("[vale] statesExact: состояний " + used.size() + ", листвы в выборке " + leaves);
+        assertTrue(leaves > 500, "листвы в выборке " + leaves);
+    }
+
+    /**
+     * Рудные валуны: уголь, железо, медь (и глубинные варианты в горах) торчат над рельефом и видны (сосед — воздух);
+     * уголь в целом чаще железа и меди.
+     */
+    @Test
+    void oreBoulders() throws Exception {
+        PlanetGenerator g = portable(provider(), SEED);
+        Map<String, Integer> ores = new TreeMap<>(), byZone = new TreeMap<>();
+        GenArrayCube buf = new GenArrayCube(false);
+        int columns = 0;
+        for (int x = -9000; x <= 9000; x += 96) for (int z = -9000; z <= 9000; z += 1200) {
+            int cx = x >> 4, cz = z >> 4;
+            String zn = (String) call(g, "zoneName", x, z);
+            int h = (int) call(g, "surface", x, z);
+            columns++;
+            for (int cy = (h >> 4) - 1; cy <= (h >> 4) + 1; cy++) {
+                if (!g.hasBlocks(cx, cy, cz)) continue;
+                buf.reset(cx, cy, cz, SEED);
+                g.generate(buf);
+                for (int ly = 0; ly < 16; ly++) for (int lz = 0; lz < 16; lz++) for (int lx = 0; lx < 16; lx++) {
+                    int v = buf.blocks[GenArrayCube.index(lx, ly, lz)];
+                    if (v == 0) continue;
+                    String id = Block.fromStateId(v).key().value();
+                    if (!id.endsWith("_ore") && !id.startsWith("raw_") && !id.equals("coal_block")) continue;
+                    int wy = (cy << 4) + ly, wx = (cx << 4) + lx, wz = (cz << 4) + lz;
+                    if (wy <= (int) call(g, "surface", wx, wz)) continue;         // только над рельефом
+                    boolean open = (lx > 0 && buf.blocks[GenArrayCube.index(lx - 1, ly, lz)] == 0)
+                            || (lx < 15 && buf.blocks[GenArrayCube.index(lx + 1, ly, lz)] == 0)
+                            || (lz > 0 && buf.blocks[GenArrayCube.index(lx, ly, lz - 1)] == 0)
+                            || (lz < 15 && buf.blocks[GenArrayCube.index(lx, ly, lz + 1)] == 0)
+                            || (ly < 15 && buf.blocks[GenArrayCube.index(lx, ly + 1, lz)] == 0);
+                    if (!open) continue;
+                    ores.merge(id, 1, Integer::sum);
+                    byZone.merge(zn + ":" + id.replace("deepslate_", "").replace("_ore", ""), 1, Integer::sum);
+                }
+            }
+        }
+        System.out.println("[vale] руда на виду (колонок " + columns + "): " + ores);
+        System.out.println("[vale] руда по зонам: " + byZone);
+        for (String k : List.of("coal_ore", "iron_ore", "copper_ore", "deepslate_iron_ore"))
+            assertTrue(ores.getOrDefault(k, 0) > 0, "нет " + k + ": " + ores);
+        int coal = ores.getOrDefault("coal_ore", 0) + ores.getOrDefault("deepslate_coal_ore", 0);
+        int iron = ores.getOrDefault("iron_ore", 0) + ores.getOrDefault("deepslate_iron_ore", 0);
+        int copper = ores.getOrDefault("copper_ore", 0) + ores.getOrDefault("deepslate_copper_ore", 0);
+        assertTrue(coal > iron && coal > copper, "уголь чаще: " + ores);
+    }
+
     // ───────────── эталоны ─────────────
 
     @Test
     void golden() throws Exception {
         PortableProvider pp = provider();
-        GenPortableTest.golden(pp.gen);                                       // vale@2.txt — без объектов
+        GenPortableTest.golden(pp.gen);                                       // vale@3.txt — без объектов
         GenObjects lib = lib();
         GenIdTable ids = MinestomGenIds.get();
         GenBounds b = pp.gen.defaultBounds();
         long seed = 12345;
         PlanetGenerator g = pp.gen.create(GenContext.of("golden", seed, b, Map.of(), ids, false, null, lib));
         StringBuilder sb = new StringBuilder();
-        sb.append("# эталон генератора vale@2 с объектами ValeDemoObjects (demo-objects/, сид 12345, options {})\n");
+        sb.append("# эталон генератора vale@3 с объектами ValeDemoObjects (demo-objects/, сид 12345, options {})\n");
         sb.append("objectsHash ").append(lib.hash()).append('\n');
         sb.append("fingerprint ").append(GenFingerprint.of(g, b, seed, lib.hash())).append('\n');
         GenArrayCube buf = new GenArrayCube(false);
@@ -549,9 +684,9 @@ class ValeGenTest {
             sb.append("cube ").append(cx).append(' ').append(cy).append(' ').append(cz).append(' ')
                     .append(GenFingerprint.visible(g, b, seed, cx, cy, cz, buf).visHash()).append('\n');
         }
-        Path f = Path.of(System.getProperty("hoka.test.golden-dir")).resolve("vale@2-objects.txt");
+        Path f = Path.of(System.getProperty("hoka.test.golden-dir")).resolve("vale@3-objects.txt");
         String now = sb.toString();
         if (!Files.exists(f) || Boolean.getBoolean("hoka.golden.update")) { Files.writeString(f, now, StandardCharsets.UTF_8); return; }
-        assertEquals(Files.readString(f, StandardCharsets.UTF_8).replace("\r\n", "\n"), now, "эталон vale@2-objects разошёлся");
+        assertEquals(Files.readString(f, StandardCharsets.UTF_8).replace("\r\n", "\n"), now, "эталон vale@3-objects разошёлся");
     }
 }

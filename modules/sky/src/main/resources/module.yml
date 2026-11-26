@@ -1,0 +1,9 @@
+# Небо карты: раздел sky: в maps/<карта>/map.yml → клиентский модуль sky (рисует мод Hoka Odyssey)
+id: sky
+name: Небо
+version: 0.1.0
+main: ink.hoka.odyssey.sky.SkyModule
+authors: [Takuyamo]
+description: Своё небо карты — градиент по времени суток, узор, звёзды и туманность, кубические солнце и луна
+depends: [clientmods]
+softdepends: []

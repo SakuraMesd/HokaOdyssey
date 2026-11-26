@@ -1,0 +1,7 @@
+{
+  "id": "sky",
+  "version": "0.1.0",
+  "main": "ink.hoka.odyssey.client.sky.SkyClientModule",
+  "authors": ["Takuyamo"],
+  "description": "Небо карты: градиент по времени суток, узор, звёзды и туманность, кубические солнце и луна"
+}

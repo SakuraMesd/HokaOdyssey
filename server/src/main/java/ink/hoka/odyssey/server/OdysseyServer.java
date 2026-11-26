@@ -51,6 +51,10 @@ public final class OdysseyServer implements OdysseyServerApi {
         return m == null ? java.util.Optional.empty() : java.util.Optional.of(m.instance);
     }
     @Override public java.util.SortedSet<String> mapNames() { return maps.names(); }
+    @Override public java.util.Optional<ink.hoka.odyssey.api.ModuleConfig> mapConfig(String name) {
+        return name != null && ink.hoka.odyssey.server.maps.Maps.NAME.matcher(name).matches() && maps.exists(name)
+                ? java.util.Optional.of(maps.meta(name)) : java.util.Optional.empty();
+    }
     @Override public java.util.SortedSet<String> generatorIds() { return ink.hoka.odyssey.server.tall.gen.GeneratorRegistry.ids(); }
     @Override public java.util.Map<String, byte[]> generatorFiles() { return ink.hoka.odyssey.server.tall.gen.PortableGens.files(); }
     @Override public java.util.Optional<String> mapName(net.minestom.server.instance.Instance instance) {

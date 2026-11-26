@@ -36,6 +36,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *   <li>сущности в небе, где обход не ходит (и в режиме дерева), видимы — иначе культинг сущностей Sodium их прячет;</li>
  *   <li>0.54: непустых кубов нет вовсе (ContentRange.empty) — окно 3 секции у камеры и не сдвигается, обход по
  *       дереву; первый непустой куб — окно сразу встаёт по камере с подрезкой.</li>
+ *   <li>0.62 «горы целиком»: сервер шлёт и полосу поверхности дальних столбцов (до ±«Горы целиком» кубов) — окно
+ *       тянется за слоями с геометрией до этого предела (общее на все столбцы: обход Sodium идёт к вершине по воздуху
+ *       над долинами). Пустое небо выше самой высокой загруженной вершины в окно не входит (подрезка ContentRange).</li>
  * </ul>
  * Обычные миры не трогаем. Миксин необязательный (@Pseudo, require 0).
  */
@@ -85,15 +88,28 @@ public abstract class SodiumTallMixin {
         return ink.hoka.odyssey.client.VerticalView.get() + HOKA_HYST;
     }
 
+    /** 0.62: предел окна по слоям с геометрией (полоса поверхности от сервера); не меньше обычного радиуса. */
+    @Unique
+    private static int hoka$reach() {
+        return Math.max(hoka$radius(), ink.hoka.odyssey.client.VerticalView.surface() + HOKA_HYST);
+    }
+
+    /** Ключ настроек окна: сменились — окно заново. */
+    @Unique
+    private static int hoka$key() {
+        return hoka$radius() * 4096 + ink.hoka.odyssey.client.VerticalView.surface();
+    }
+
     /** Окно вокруг центра c: ±радиус, подрезанное по слоям с геометрией (камера c±(HYST-1) всегда внутри). */
     @Unique
     private void hoka$target(int c) {
         int r = hoka$radius();
         int a = c - r, b = c + r;
         if (ContentRange.empty(level)) { a = c - 1; b = c + 1; }      // 0.54: кубов нет — рисовать нечего
-        else if (ContentRange.cut) {
-            a = Math.max(a, Math.min(c - HOKA_HYST, ContentRange.lo - 1));
-            b = Math.min(b, Math.max(c + HOKA_HYST, ContentRange.hi + 1));
+        else if (ContentRange.cut) {                                   // 0.62: до слоёв с геометрией, не дальше reach
+            int rs = hoka$reach();
+            a = Math.max(c - rs, Math.min(c - HOKA_HYST, ContentRange.lo - 1));
+            b = Math.min(c + rs, Math.max(c + HOKA_HYST, ContentRange.hi + 1));
         }
         hoka$tLo = Math.max(level.getMinSectionY(), a);
         hoka$tHi = Math.min(level.getMaxSectionY(), b);
@@ -101,7 +117,7 @@ public abstract class SodiumTallMixin {
 
     @Unique
     private void hoka$setWindow(int cy) {
-        hoka$r = hoka$radius();
+        hoka$r = hoka$key();
         hoka$empty = ContentRange.empty(level);
         hoka$center = cy;
         hoka$target(cy);
@@ -180,7 +196,7 @@ public abstract class SodiumTallMixin {
         boolean empty = ContentRange.empty(level);
         // 0.54: пустой мир — окно не двигаем (полёт по высоте не трогает секции); пустой ↔ непустой — сразу по центру камеры
         boolean shift = !had || empty != hoka$empty
-                || !empty && (Math.abs(cy - hoka$center) >= HOKA_HYST || hoka$radius() != hoka$r);
+                || !empty && (Math.abs(cy - hoka$center) >= HOKA_HYST || hoka$key() != hoka$r);
         boolean grow = had && !empty && hoka$winVer != ContentRange.version;
         if (!shift && !grow) return;
         hoka$winVer = ContentRange.version;

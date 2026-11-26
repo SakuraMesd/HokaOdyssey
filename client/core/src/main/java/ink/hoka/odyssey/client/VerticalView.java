@@ -31,7 +31,35 @@ public final class VerticalView {
     private static int value = load();
     private static int sent = -1;
 
+    /**
+     * 0.62 «Горы целиком»: до скольких кубов вверх/вниз от игрока видна полоса поверхности дальних столбцов (сервер шлёт
+     * только кубы поверхности: вершины гор, склоны, утёсы — недра и пустое небо не идут). 0 — выкл (только окно ±V).
+     * Серверу — вторым числом op 2 VIEW. Ключ surfaceView в config/hoka_odyssey.json.
+     */
+    public static final int SURF_MAX = 128, SURF_STEP = 8, SURF_DEFAULT = 128;
+    private static int surface = loadSurface();
+    private static int sentSurface = -1;
+
     public static int get() { return value; }
+
+    public static int surface() { return surface; }
+
+    public static void setSurface(int v) { surface = v <= 0 ? 0 : Math.max(SURF_STEP, Math.min(SURF_MAX, v)); }
+
+    public static void saveSurface() {
+        put("surfaceView", surface);
+        send(false);
+    }
+
+    private static int loadSurface() {
+        try {
+            JsonObject o = read();
+            int v = o.has("surfaceView") ? o.get("surfaceView").getAsInt() : SURF_DEFAULT;
+            return v <= 0 ? 0 : Math.max(SURF_STEP, Math.min(SURF_MAX, v));
+        } catch (Exception e) {
+            return SURF_DEFAULT;
+        }
+    }
 
     /** Новое значение (без записи на диск — у Sodium запись в {@link #save}). */
     public static void set(int v) { value = Math.max(MIN, Math.min(MAX, v)); }
@@ -77,24 +105,41 @@ public final class VerticalView {
     /** Серверу: op 2 VIEW. force — после входа (сервер не знает значение); иначе только если изменилось. */
     public static void send(boolean force) {
         if (!ClientPlayNetworking.canSend(Net.WC.TYPE)) return;
-        if (!force && value == sent) return;
+        if (!force && value == sent && surface == sentSurface) return;
         FriendlyByteBuf b = new FriendlyByteBuf(Unpooled.buffer(8));
         b.writeByte(OP_VIEW);
         b.writeVarInt(value);
+        b.writeVarInt(surface);                                        // 0.62: старый сервер второе число не читает
         byte[] data = new byte[b.readableBytes()];
         b.readBytes(data);
         ClientPlayNetworking.send(new Net.WC(data));
         sent = value;
+        sentSurface = surface;
     }
 
     /** Новое соединение — сервер значения ещё не знает. */
-    static void reset() { sent = -1; }
+    static void reset() { sent = -1; sentSurface = -1; }
 
     static Component label() { return Component.translatable("options.hoka_odyssey.vertical"); }
 
     static Component tooltip() { return Component.translatable("options.hoka_odyssey.vertical.tooltip"); }
 
     static Component valueText(int v) { return Component.translatable("options.hoka_odyssey.vertical.value", v); }
+
+    static Component surfaceText(int v) {
+        return v == 0 ? Component.translatable("options.hoka_odyssey.surface.off") : Component.translatable("options.hoka_odyssey.surface.value", v);
+    }
+
+    /** Ползунок «Горы целиком» для ванильного экрана графики (шаг SURF_STEP, 0 — выкл). */
+    public static OptionInstance<Integer> surfaceOption() {
+        return new OptionInstance<>("options.hoka_odyssey.surface",
+                OptionInstance.cachedConstantTooltip(Component.translatable("options.hoka_odyssey.surface.tooltip")),
+                (caption, v) -> Options.genericValueLabel(caption, surfaceText(v * SURF_STEP)),
+                new OptionInstance.IntRange(0, SURF_MAX / SURF_STEP, false), surface / SURF_STEP,
+                v -> { setSurface(v * SURF_STEP); saveSurface(); });
+    }
+
+    public static Component surfaceValue(int v) { return surfaceText(v); }
 
     /** Ползунок для ванильного экрана графики (без Sodium). Каждый раз новый — с текущим значением (могли сменить у Sodium). */
     public static OptionInstance<Integer> option() {

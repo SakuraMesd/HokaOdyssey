@@ -59,7 +59,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *   0.57 со светом на клиенте (clientLight): op 11/14/16 и UpdateLightPacket не шлются вовсе; блоки (op 2/13) идут
  *             в окне ±(v+1) — кольцо ±1 за окном op 5 приходит блоками (клиент сам светит край окна); op 4 — за ±(v+1)
  * C2S hoka_odyssey:wc (этап 5, ядро 0.45.0+):
- *   2 VIEW    varint — «Дальность по высоте» из настроек клиента (кубов вверх и вниз); при входе и при смене
+ *   2 VIEW    varint — «Дальность по высоте» из настроек клиента (кубов вверх и вниз); при входе и при смене;
+ *             0.62: + varint «горы целиком» — до скольких кубов от игрока слать полосу поверхности (0 — выкл)
  *   3 WANT    (0.51) varint n; n × (long pos, byte что: 1 блоки, 2 свет) — промах кэша: прислать целиком
  *   4 HAVE    (0.51) long mapKey, varint бюджетМБ (0 — кэш выкл), varint n; n × (int cx, int cz, int y0 секция,
  *             varint len, ⌈len/8⌉ Б маска блоков, ⌈len/8⌉ Б маска света) — что лежит в кэше клиента
@@ -68,6 +69,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *   7 LAG     (0.57) varint задержка_мс, varint макс_мс_за_5с, varint очередь — раз в секунду: сколько ответ на Ping
  *             ждал главного потока клиента (DebugTab)
  *   8 GEN_STATUS, 9 GEN_SAMPLE (0.59) — см. GenWire / ClientGen
+ * 0.62 полоса поверхности (горы целиком): ядру 0.62+ со светом на клиенте, кроме окна ±(v+1), идут и кубы полосы
+ *   поверхности каждого столбца (surface): от нижней видимой клетки (свой низ SURFACE и края соседей, утёсы) до
+ *   верха SURFACE, не дальше ±S кубов от игрока (VIEW, -Dhoka.cubes.surface-max). Пустые не шлются (как всегда),
+ *   нетронутые — метками op 21. Окно op 5 прежнее: в полосу вне окна игрок не ходит, свет там — формула F клиента.
  * 0.59 генерация нетронутых кубов на клиенте (ClientGen, формат — ink.hoka.odyssey.gen.GenWire): S2C op 20 GEN_DEF при
  *   входе в инстанс (после op 12/19, до скелетов); пока клиент не ответил op 8 «ок» — всё по-старому. Дальше куб окна
  *   ±(v+1), которого нет на диске и который не менялся (CubeColumn.touched), у переносимого генератора НЕ грузится и
@@ -92,6 +97,14 @@ public final class CubeStreamer {
 
     /** Предел дальности по высоте на сервере (кубов вверх и вниз): -Dhoka.cubes.vertical-max, по умолчанию 32. */
     public static final int VERTICAL_MAX = Math.max(4, Integer.getInteger("hoka.cubes.vertical-max", 32));
+    /** 0.62: предел полосы поверхности (кубов вверх и вниз от игрока): -Dhoka.cubes.surface-max, 0 — выкл. */
+    public static final int SURFACE_MAX = Math.max(0, Integer.getInteger("hoka.cubes.surface-max", 128));
+    /** Ядро с полосой поверхности (горы целиком). */
+    static final int[] SURFACE_CORE = {0, 62, 0};
+    /** Полоса ниже своей клетки не глубже (кубов): отвесная стена у пропасти — дальше не шлём. */
+    static final int SURFACE_DEPTH = 32;
+    /** Что попросил клиент (второе число op 2 VIEW). */
+    private static final Map<UUID, Integer> SURF_REQ = new ConcurrentHashMap<>();
     /** Ядро с настройкой «Дальность по высоте» (op VIEW). */
     static final int[] VIEW_CORE = {0, 45, 0};
     static final String CHANNEL_C2S = "hoka_odyssey:wc";
@@ -115,6 +128,8 @@ public final class CubeStreamer {
     private static final class State {
         int sy = Integer.MIN_VALUE;
         int v = V;
+        /** 0.62: предел полосы поверхности (кубов от игрока), 0 — полосы нет. */
+        int s;
         /** Окно op 5, отправленное клиенту (на ленивой карте — уже потокового, см. safeWindow). */
         int wa = Integer.MIN_VALUE, wb = Integer.MIN_VALUE;
         /** Счётчик тиков для heal. */
@@ -156,7 +171,7 @@ public final class CubeStreamer {
             Instance inst = p.getInstance();
             if (!TallWorld.isCubes(inst)) return;
             State st = state(p);
-            if (st.sy == Integer.MIN_VALUE) { st.sy = p.getPosition().blockY() >> 4; st.v = vertical(p); window(p, st); }
+            if (st.sy == Integer.MIN_VALUE) { st.sy = p.getPosition().blockY() >> 4; st.v = vertical(p); st.s = surface(p); window(p, st); }
             // Minestom не вынимает столбец из своей очереди отправки, когда тот ушёл из обзора: скелет уходит уже после
             // выгрузки (PlayerChunkUnloadEvent был раньше). Клиент его выбрасывает («not in the view range») или держит
             // призраком, а у нас он остался бы в sent навсегда (выгрузки больше не будет). Не учитывать и велеть забыть.
@@ -256,7 +271,7 @@ public final class CubeStreamer {
             try { sendLightMode(p, e.getInstance()); } catch (RuntimeException ex) { failed("op 19 игроку " + p.getUsername(), ex); }
             try { ClientGen.enter(p, e.getInstance()); } catch (RuntimeException ex) { failed("op 20 игроку " + p.getUsername(), ex); }
         });
-        ev.addListener(PlayerDisconnectEvent.class, e -> { STATES.remove(e.getPlayer().getUuid()); REQUESTED.remove(e.getPlayer().getUuid()); HEADINGS.remove(e.getPlayer().getUuid()); CubeCacheModel.remove(e.getPlayer().getUuid()); ClientGen.quit(e.getPlayer()); });
+        ev.addListener(PlayerDisconnectEvent.class, e -> { STATES.remove(e.getPlayer().getUuid()); REQUESTED.remove(e.getPlayer().getUuid()); SURF_REQ.remove(e.getPlayer().getUuid()); HEADINGS.remove(e.getPlayer().getUuid()); CubeCacheModel.remove(e.getPlayer().getUuid()); ClientGen.quit(e.getPlayer()); });
         // этап 5: объявить канал wc новому ядру — оно пришлёт VIEW (смена окна — в tick, как при смене секции)
         ev.addListener(PlayerSpawnEvent.class, e -> {
             if (e.isFirstSpawn() && Handshake.coreAtLeast(e.getPlayer(), VIEW_CORE))
@@ -286,6 +301,7 @@ public final class CubeStreamer {
                 if (op != 2) return;                                           // незнакомый op — пропуск
                 int v = b.read(NetworkBuffer.VAR_INT);
                 REQUESTED.put(p.getUuid(), Math.max(4, Math.min(64, v)));
+                if (b.readableBytes() > 0) SURF_REQ.put(p.getUuid(), Math.max(0, Math.min(1024, b.read(NetworkBuffer.VAR_INT))));   // 0.62
             } catch (Exception ex) {
                 LOG.warn("{}: битый hoka_odyssey:wc ({})", p.getUsername(), ex.toString());
             }
@@ -325,9 +341,10 @@ public final class CubeStreamer {
                 purgeQueue(p, st);                                          // устаревшие/повторные записи очереди Minestom — вон
                 synchronized (st.touched) { st.touched.clear(); }          // не отменённые действия — ресинк не нужен
                 int sy = p.getPosition().blockY() >> 4;
-                if (sy != st.sy || vertical(p) != st.v) {
+                if (sy != st.sy || vertical(p) != st.v || surface(p) != st.s) {
                     st.sy = sy;
                     st.v = vertical(p);
+                    st.s = surface(p);
                     window(p, st);
                     plan(p, st);                                            // все столбцы sent — в очередь сдвига, ближние первыми
                 }
@@ -729,11 +746,11 @@ public final class CubeStreamer {
             if (!(inst.getChunk(kx, kz) instanceof TallColumn c)) continue;
             BitSet mask = en.getValue();
             int min = c.getMinSection(), n = c.getSections().size();
-            int e1 = ext(p);
-            int from = Math.max(0, st.sy - st.v - e1 - min), to = Math.min(n - 1, st.sy + st.v + e1 - min);
+            Span sp = span(p, st, c, ext(p));                               // 0.62: и полоса поверхности
             boolean miss = false, unsent = false;
             var g = genFor(p, st, c);
-            for (int i = from; i <= to; i++) {
+            for (int i = sp.lo(), iEnd = sp.hi(); i <= iEnd; i++) {
+                if (!sp.has(i)) continue;
                 if (g != null && genCube(g, c, i, mask)) {                 // 0.59: куб — меткой; грузим только зону
                     boolean zone = zone(p, c.getChunkX(), i + min, c.getChunkZ());
                     if (!c.ready(i)) { if (zone) { c.request(i, prio(p, c.getChunkX(), i + min, c.getChunkZ())); miss = true; } }
@@ -830,13 +847,14 @@ public final class CubeStreamer {
                 try {
                     boolean cl = clientLight(p);
                     int e1 = cl ? 1 : 0;
-                    int from = Math.max(0, st.sy - st.v - e1 - min), to = Math.min(secs.size() - 1, st.sy + st.v + e1 - min);
+                    Span sp = span(p, st, c, e1);                           // 0.62: и полоса поверхности
+                    int from = sp.from(), to = sp.to();
                     List<Integer> add = new ArrayList<>(), lit = new ArrayList<>(), halo = new ArrayList<>();
                     boolean ho = haloOp(p);
                     List<Integer> regen = null;
                     for (int i : e.getValue()) {
                         if (mask.get(GENB + i)) {                           // 0.59: у клиента меткой — блоки не слать
-                            if (i < from || i > to || !c.ready(i)) continue;
+                            if (!sp.has(i) || !c.ready(i)) continue;
                             mask.set(LIT + i);                              // в памяти — правило записи пускает
                             if (mask.get(GENR + i)) { mask.clear(GENR + i); if (regen == null) regen = new ArrayList<>(); regen.add(i); }
                             var g = genFor(p, st, c);
@@ -844,7 +862,7 @@ public final class CubeStreamer {
                             continue;
                         }
                         if ((i == from - 1 || i == to + 1) && ho && !mask.get(HALO + i) && !halo.contains(i) && c.ready(i)) { halo.add(i); continue; }   // кольцо ±1 (0.56)
-                        if (i < from || i > to || mask.get(LIT + i) || lit.contains(i) || !c.ready(i)) continue;   // успели выгрузить — не слать
+                        if (!sp.has(i) || mask.get(LIT + i) || lit.contains(i) || !c.ready(i)) continue;   // успели выгрузить — не слать
                         lit.add(i);
                         if (secs.get(i).blockPalette().count() > 0) add.add(i);
                     }
@@ -936,6 +954,10 @@ public final class CubeStreamer {
             int mg = UNLOAD_MARGIN + ext(p);                                   // 0.57: кольцо ±1 блоками — запас от него
             int from = Math.max(0, st.sy - st.v - mg - min), to = Math.min(n - 1, st.sy + st.v + mg - min);
             if (from <= to) keep.set(from, to + 1);
+            if (st.s > 0) {                                                     // 0.62: полоса поверхности (запрошенные ещё не READY)
+                Span sp = span(p, st, c, mg);
+                if (sp.band()) keep.set(sp.bLo(), sp.bHi() + 1);
+            }
             BitSet m = st.sent.get(k);
             if (m == null) continue;
             for (int i = m.nextSetBit(0); i >= 0 && i < NDEF; i = m.nextSetBit(i + 1)) keep.set(i >= LIT ? i - LIT : i);
@@ -1029,6 +1051,98 @@ public final class CubeStreamer {
         return true;
     }
 
+    // ───────────── 0.62: полоса поверхности (горы целиком) ─────────────
+
+    /** Предел полосы поверхности игроку (кубов от его куба); 0 — полосы нет (старое ядро, свет от сервера, выкл). */
+    static int surface(Player p) {
+        if (SURFACE_MAX == 0 || !clientLight(p) || !Handshake.coreAtLeast(p, SURFACE_CORE)) return 0;
+        Integer r = SURF_REQ.get(p.getUuid());
+        return Math.min(SURFACE_MAX, r == null ? SURFACE_MAX : r);
+    }
+
+    /**
+     * Кубы столбца игроку (индексы секций): окно from..to и полоса поверхности bLo..bHi (bLo &gt; bHi — нет).
+     * Полоса — от нижней видимой клетки до верха SURFACE столбца, обрезана пределом ±s от игрока.
+     */
+    record Span(int from, int to, int bLo, int bHi) {
+        boolean has(int i) { return i >= from && i <= to || i >= bLo && i <= bHi; }
+        boolean band() { return bLo <= bHi; }
+        int lo() { return band() ? Math.min(from, bLo) : from; }
+        int hi() { return band() ? Math.max(to, bHi) : to; }
+        /** Сколько кубов полосы вне окна. */
+        int extra() {
+            if (!band()) return 0;
+            int n = bHi - bLo + 1;
+            int a = Math.max(from, bLo), b = Math.min(to, bHi);
+            return a <= b ? n - (b - a + 1) : n;
+        }
+        /** Снять в m биты base+i всех i ∈ [0, n) вне окна и полосы. */
+        void clearOutside(BitSet m, int base, int n) {
+            int a = Math.max(0, lo()), b = Math.min(n - 1, hi());
+            if (a > b) { m.clear(base, base + n); return; }
+            m.clear(base, base + a);
+            if (b + 1 < n) m.clear(base + b + 1, base + n);
+            if (!band()) return;
+            if (bLo > to + 1) m.clear(base + Math.max(0, to + 1), base + Math.min(n, bLo));            // щель окно..полоса
+            else if (bHi < from - 1) m.clear(base + Math.max(0, bHi + 1), base + Math.min(n, from)); // щель полоса..окно
+        }
+    }
+
+    /** Окно столбца с запасом extra (кубов) и полоса поверхности игрока. */
+    static Span span(Player p, State st, TallColumn c, int extra) {
+        int min = c.getMinSection(), n = c.getSections().size();
+        int from = Math.max(0, st.sy - st.v - extra - min), to = Math.min(n - 1, st.sy + st.v + extra - min);
+        if (st.s <= 0) return new Span(from, to, 1, 0);
+        long b = band(c);
+        if (b == NO_BAND) return new Span(from, to, 1, 0);
+        int lo = Math.max(Math.max(0, st.sy - st.s - min), Math.floorDiv((int) (b >> 32), 16) - min);
+        int hi = Math.min(Math.min(n - 1, st.sy + st.s - min), Math.floorDiv((int) b, 16) - min);
+        return new Span(from, to, lo, hi);
+    }
+
+    static final long NO_BAND = Long.MIN_VALUE;
+
+    /**
+     * Полоса поверхности столбца в блоках: низ &lt;&lt; 32 | верх, NO_BAND — блоков нет. Верх — max SURFACE;
+     * низ — min SURFACE и по краям — клетки ниже соседа видны сбоку до его верха + 1 (утёс), не глубже SURFACE_DEPTH кубов.
+     * Высоты на ленивой карте над незагруженными кубами — оценка сверху (уточнится — heal дошлёт).
+     */
+    static long band(TallColumn c) {
+        Instance inst = c.getInstance();
+        return band(c, inst == null ? (x, z) -> null : (x, z) -> inst.getChunk(x, z) instanceof TallColumn t ? t : null);
+    }
+
+    /** То же с поиском соседних столбцов nb (тесты). */
+    static long band(TallColumn c, java.util.function.BiFunction<Integer, Integer, TallColumn> nb) {
+        HeightIndex h = c.st().heights;
+        int mn = Integer.MAX_VALUE, mx = HeightIndex.NONE;
+        for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
+            int v = h.get(HeightIndex.Kind.SURFACE, x, z);
+            if (v == HeightIndex.NONE) continue;
+            if (v < mn) mn = v;
+            if (v > mx) mx = v;
+        }
+        if (mx == HeightIndex.NONE) return NO_BAND;
+        int cx = c.getChunkX(), cz = c.getChunkZ(), floor = mn - SURFACE_DEPTH * 16;
+        for (int d = 0; d < 4; d++) {
+            int dx = d == 0 ? 1 : d == 1 ? -1 : 0, dz = d == 2 ? 1 : d == 3 ? -1 : 0;
+            TallColumn nc = nb.apply(cx + dx, cz + dz);
+            if (nc == null) continue;
+            HeightIndex nh = nc.st().heights;
+            for (int k = 0; k < 16; k++) {
+                int ox = dx == 1 ? 15 : dx == -1 ? 0 : k, oz = dz == 1 ? 15 : dz == -1 ? 0 : k;   // своя крайняя клетка
+                int own = h.get(HeightIndex.Kind.SURFACE, ox, oz);
+                if (own == HeightIndex.NONE) continue;
+                int nv = nh.get(HeightIndex.Kind.SURFACE, (ox + dx) & 15, (oz + dz) & 15);   // клетка соседа рядом
+                if (nv < own) mn = Math.min(mn, Math.max(floor, nv + 1));
+            }
+        }
+        return ((long) mn << 32) | (mx & 0xFFFFFFFFL);
+    }
+
+    /** Отладка: кубов полосы вне окна (по последним update), столбцов с полосой. */
+    static volatile long surfaceCubes, surfaceCols;
+
     /**
      * Окно столбца: дослать непустые кубы окна, выгрузить отправленные вне окна. Под замком состояния игрока: метка op 21
      * (бит GENB ставится ДО проверки «тронут») и op 2 первой правки (drainTouched) не обгоняют друг друга.
@@ -1042,7 +1156,9 @@ public final class CubeStreamer {
         int min = c.getMinSection();
         boolean cl = clientLight(p);                                        // 0.57: блоки окна ±(v+1), свет не слать
         int e1 = cl ? 1 : 0;
-        int from = Math.max(0, st.sy - st.v - e1 - min), to = Math.min(secs.size() - 1, st.sy + st.v + e1 - min);
+        Span sp = span(p, st, c, e1);                                       // 0.62: окно + полоса поверхности
+        int from = sp.from(), to = sp.to();
+        if (sp.band()) { surfaceCols++; surfaceCubes += sp.extra(); }
         // готовность снимаем ОДИН раз: куб, ставший READY в рабочем потоке посреди update, иначе получал бит LIT (и свет),
         // не попав в add, — drainReady его пропускал (LIT уже стоит), у игрока дыра до смены секции по Y
         BitSet rdy = new BitSet();
@@ -1052,7 +1168,8 @@ public final class CubeStreamer {
         List<ink.hoka.odyssey.gen.GenWire.Cube> labels = null;
         List<Integer> zoneReady = null;
         int cx = c.getChunkX(), cz = c.getChunkZ();
-        for (int i = from; i <= to; i++) {
+        for (int i = sp.lo(), iEnd = sp.hi(); i <= iEnd; i++) {
+            if (!sp.has(i)) continue;
             if (g != null && genCube(g, c, i, mask)) {
                 int cy = i + min;
                 boolean zone = zone(p, cx, cy, cz);
@@ -1098,23 +1215,21 @@ public final class CubeStreamer {
         mask.clear(HALO, HALO + secs.size());
         for (int h = haloNow.nextSetBit(0); h >= 0; h = haloNow.nextSetBit(h + 1))
             if (!halo.contains(h)) mask.set(HALO + h);                     // свет у клиента уже свежий; новые — после отправки
-        mask.clear(LIT, LIT + from);
-        mask.clear(LIT + to + 1, LIT + secs.size());
-        for (int i = from; i <= to; i++) if (!rdy.get(i)) mask.clear(LIT + i);   // не загружен (или выгружен) — у игрока его нет (правило записи)
+        sp.clearOutside(mask, LIT, secs.size());
+        for (int i = sp.lo(), iEnd = sp.hi(); i <= iEnd; i++) if (sp.has(i) && !rdy.get(i)) mask.clear(LIT + i);   // не загружен (или выгружен) — у игрока его нет (правило записи)
         List<Long> drop = new ArrayList<>();
         BitSet dropIdx = new BitSet();
         for (int i = mask.nextSetBit(0); i >= 0 && i < LIT; i = mask.nextSetBit(i + 1))
-            if (i < from || i > to) { drop.add(pos(c.getChunkX(), i + min, c.getChunkZ())); dropIdx.set(i); }
+            if (!sp.has(i)) { drop.add(pos(c.getChunkX(), i + min, c.getChunkZ())); dropIdx.set(i); }
         for (int b = mask.nextSetBit(GENB); b >= 0 && b < GENB + LIT; b = mask.nextSetBit(b + 1)) {   // 0.59: метки вне окна — тоже op 4
             int i = b - GENB;
-            if (i >= from && i <= to) continue;
+            if (sp.has(i)) continue;
             if (!dropIdx.get(i)) drop.add(pos(c.getChunkX(), i + min, c.getChunkZ()));
             mask.clear(b);
             mask.clear(GENR + i);
             mask.clear(SECR + i);
         }
-        mask.clear(0, from);
-        if (to + 1 < secs.size()) mask.clear(to + 1, secs.size());
+        sp.clearOutside(mask, 0, secs.size());
         if (!drop.isEmpty()) {
             cacheDrop(p, c, dropIdx);                                       // кэш 0.51: клиент унесёт их в кэш
             unloadedCubes += drop.size();
@@ -1153,6 +1268,7 @@ public final class CubeStreamer {
         State st = new State();
         st.sy = sy;
         st.v = v;
+        st.s = surface(p);
         st.instance = c.getInstance();
         update(p, st, c, mask);
         return mask;
@@ -1163,6 +1279,7 @@ public final class CubeStreamer {
         State st = new State();
         st.sy = sy;
         st.v = v;
+        st.s = surface(p);
         st.instance = c.getInstance();
         BitSet mask = new BitSet();
         update(p, st, c, mask);
@@ -2165,6 +2282,7 @@ public final class CubeStreamer {
                 + (FLOOR_CHECK ? ", расхождений floorcheck " + floorMismatch : "")
                 + "; сдвиг окна: столбцов " + shiftCols + ", последний " + lastShiftCols + " за " + lastShiftTicks + " тик., прервано " + shiftRestarts
                 + "; op 17 столбцов " + heightsSent + ", op 18 столбцов " + heights2Sent + (CLIENT_LIGHT_ON ? "" : " (свет на клиенте ВЫКЛ)")
+                + "; полоса поверхности: обходов столбцов " + surfaceCols + ", кубов вне окна " + surfaceCubes + (SURFACE_MAX == 0 ? " (ВЫКЛ)" : " (до ±" + SURFACE_MAX + ")")
                 + "; правило записи: отменено " + cancelled + ", кубов ресинк " + resyncCubes
                 + "; кубов загружено " + CubeStore.loads.get() + ", в очереди " + CubeStore.queued()
                 + ", ошибок чтения " + CubeStore.loadErrors.get() + ", запись в незагруженный " + CubeStore.violations.get()

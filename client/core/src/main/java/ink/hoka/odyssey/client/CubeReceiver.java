@@ -44,6 +44,11 @@ public final class CubeReceiver {
         return level == windowLevel && level != null && (sectionY < from || sectionY > to);
     }
 
+    /** 0.62: куб дальше кольца ±1 за окном op 5 (полоса поверхности) — движок света его не считает, свет — по F. */
+    static boolean farY(net.minecraft.world.level.Level level, int sectionY) {
+        return level == windowLevel && level != null && (sectionY < from - 1 || sectionY > to + 1);
+    }
+
     /** Есть ли окно для этого мира (кубовая карта). */
     public static boolean active(net.minecraft.world.level.Level level) { return level != null && level == windowLevel; }
 
@@ -425,7 +430,8 @@ public final class CubeReceiver {
             // 0.57: свет на клиенте — пометку сетки придержать до света куба (одна сборка); ушедший куб — сразу
             if (LocalLight.on(level) && !YardColumns.isYard(x)) {
                 LocalLight.cube(level, x, y, z, gone);
-                if (gone || !LocalLight.hold(x, y, z, code)) SectionDirty.mark(x, y, z, code);
+                // 0.62: куб полосы поверхности (вне окна) света от движка не ждёт — у него F сразу
+                if (gone || farY(level, y) || !LocalLight.hold(x, y, z, code)) SectionDirty.mark(x, y, z, code);
             } else SectionDirty.mark(x, y, z, code);
         } else {
             level.setSectionDirtyWithNeighbors(x, y, z);

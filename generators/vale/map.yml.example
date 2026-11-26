@@ -1,19 +1,34 @@
-# Карта «vale» v2 — горы до ~1950, хребты, мезы, тепуи, разломы, 24 биома, деревья-великаны, грибы и цветы.
-# Скопировать в maps/vale/map.yml, объекты demo-objects/* → maps/vale/objects/ (или общий objects/ сервера).
-# v1 → v2: рельеф другой — старую карту перегенерировать (удалить кубы/genidx карты), клиенты перекачают vale.jar сами.
+# Карта «HOKA23» на генераторе vale v3 — горы до ~1950, хребты, мезы, тепуи, разломы, 24 биома, деревья-великаны,
+# грибы, цветы, рудные валуны (уголь/железо/медь). Мир 25000×25000 (±12500 от 0,0), снаружи пусто.
+# Выкладка: maps/hoka23/map.yml — папка СТРОЧНЫМИ: имена карт только [a-z0-9_-] (Maps.NAME), «HOKA23» сервер не увидит;
+# папка пустая — карта создаётся с нуля. Объекты demo-objects/* → maps/hoka23/objects/
+# (или общий objects/ сервера). Старую карту vale удалить целиком (кубы/genidx) — v3 ставит другие объекты.
+# v2 → v3: листва естественная (persistent=false — не носители своих блоков «Ступка» и т.п.), рудные валуны.
 tall: true
 store: cubes
 cubes: true
 generator: vale
 gen_min_y: -500
 gen_max_y: 2000
+gen_size: 25000
 seed: 20261126
 sun: true
-# категории из objects/ (крупные деревья/грибы/цветы vale строит сам, их здесь нет)
+# категории из objects/ (крупные деревья/грибы/цветы/рудные валуны vale строит сам, их здесь нет)
 objects: [oak, birch, spruce, bushes, rocks, glycine, azure, palm, glowfingers, bellflowers, rafflesia]
 generator_options:
   sea_level: 300
   tree_density: 1.0                            # 0…2: густота деревьев (и великанов)
+# Небо карты — рисует клиентский модуль sky (сервер: modules/sky). Все ключи необязательны, полный список —
+# в modules/sky (SkyModule) и client/modules/sky. Цвета — в кавычках ("#rrggbb"), иначе # — комментарий YAML.
+# Без раздела sky (или sky: off) — ванильное небо. После правки: /hosky (без перезахода).
+sky:
+  preset: hoka                                 # hoka | dusk | alien | vanilla
+  seed: 23                                     # узор, туманность, звёзды
+  tilt: 15                                     # наклон дуги солнца/луны к югу, градусы
+  pattern: bands                               # bands | waves | cells | none
+  stars: 2200
+  sun: { type: cube, size: 7 }                 # cube | square (ванильный квадрат) | none
+  moon: { type: cube, size: 5, phases: true }
 spawn:
   x: 0.5
   y: 306.0

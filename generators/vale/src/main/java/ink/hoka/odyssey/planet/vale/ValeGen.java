@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import static ink.hoka.odyssey.planet.vale.Terrain.*;
 
 /**
- * «vale» v2: рельеф {@link Terrain} (горы до ~1950, хребты, мезы, тепуи, разломы, реки, топи) и 24 зоны-биома.
+ * «vale» v3: рельеф {@link Terrain} (горы до ~1950, хребты, мезы, тепуи, разломы, реки, топи) и 24 зоны-биома.
  * Под верхом — почва зоны, слои пород на открытых стенах, лёд ледников; ниже 144 — глубинный сланец, на дне бедрок.
  * Объекты двух видов, в одном порядке (слой → gz → gx): процедурные ({@link Flora}: секвойи, тропические гиганты,
  * баобабы, сакуры, ивы, мангры, призрачные дубы, ели-пагоды, «леденцы», грибы, цветы-великаны) и .hobj из objects/.
@@ -148,6 +148,11 @@ final class ValeGen implements PlanetGenerator {
         hobj(ls, c, placer, "spruce", 10, 0.35 * dens, 2, "redwood", bits(REDWOOD, ALPINE), 3, 300, 1150, false);
         hobj(ls, c, placer, "spruce", 14, 0.35 * dens, 2, "snow", bits(GROVE), 3, 300, 1150, false);
         hobj(ls, c, placer, "bushes", 9, 0.33 * dens, 1, "", bits(PLAINS, FOREST, BIRCH, MEADOW, FLOWER, JUNGLE, SAVANNA, CHERRY), 2, 300, 1150, false);
+        // v3: рудные валуны (уголь, железо, медь) — торчат из земли, частота по зонам
+        proc(ls, "ore_boulder", 36, 5, 12, 7, 300, 1950, 1, K_ORE, z(PLAINS, 0.22), z(MEADOW, 0.22), z(FLOWER, 0.12), z(FOREST, 0.15),
+                z(BIRCH, 0.15), z(TAIGA, 0.3), z(REDWOOD, 0.25), z(CHERRY, 0.12), z(SWAMP, 0.08), z(GLOW, 0.15), z(SAVANNA, 0.4),
+                z(MESA, 0.45), z(JUNGLE, 0.12), z(PALE, 0.12), z(BEACH, 0.15), z(ALPINE, 0.55), z(GROVE, 0.45), z(JAGGED, 0.5),
+                z(FROZEN, 0.3), z(STONY, 0.6));
         hobj(ls, c, placer, "rocks", 27, 0.22, 2, "", land | bits(ALPINE, GROVE, REDWOOD), 5, 300, 1250, false);
         hobj(ls, c, placer, "rocks", 32, 0.3, 2, "high", bits(ALPINE, GROVE, REDWOOD), 6, 300, 1250, false);
         layers = ls.toArray(new Layer[0]);
@@ -228,7 +233,7 @@ final class ValeGen implements PlanetGenerator {
 
     // виды процедурных объектов
     static final int K_SEQUOIA = 0, K_JUNGLE = 1, K_BAOBAB = 2, K_GHOST = 3, K_PAGODA = 4, K_UMBRELLA = 5, K_DRAGON = 6, K_SAKURA = 7,
-            K_WILLOW = 8, K_MANGROVE = 9, K_SPIRAL = 10, K_SHROOM = 11, K_FLOWER = 12, K_LILY = 13;
+            K_WILLOW = 8, K_MANGROVE = 9, K_SPIRAL = 10, K_SHROOM = 11, K_FLOWER = 12, K_LILY = 13, K_ORE = 14;
 
     private record Built(int layer, int gx, int gz, Shape s) {}
 
@@ -287,7 +292,10 @@ final class ValeGen implements PlanetGenerator {
             } else {
                 if (c.slope[k] > maxSlope || h < minY || h > maxY) return null;
                 if (wet && (kind != K_MANGROVE || sea - h > 3)) return null;
-                if (kind != K_MANGROVE && !wet && c.top[k] != GRASS && c.top[k] != PODZOL && c.top[k] != COARSE && c.top[k] != MOSS
+                if (kind == K_ORE) {                                           // валун — на любой «твёрдый» верх
+                    byte tp = c.top[k];
+                    if (wet || tp == LAVA || tp == MAGMA || tp == ICE || tp == BASALT) return null;
+                } else if (kind != K_MANGROVE && !wet && c.top[k] != GRASS && c.top[k] != PODZOL && c.top[k] != COARSE && c.top[k] != MOSS
                         && c.top[k] != MYCELIUM && c.top[k] != PALE_MOSS && c.top[k] != MUD && c.top[k] != RED_SAND) return null;
                 if (nearRift(x, z)) return null;
                 if (kind == K_SEQUOIA) {                                       // ровное место под комель
@@ -335,8 +343,34 @@ final class ValeGen implements PlanetGenerator {
                     double q = r.next();
                     yield q < 0.34 ? Flora.sunflower(pal, fs, r, e) : q < 0.67 ? Flora.tulip(pal, fs, r, e) : Flora.daisy(pal, fs, r, e);
                 }
+                case K_ORE -> oreBoulder(r, e, x, ay, z, zone);
                 default -> Flora.lilyPad(pal, fs, r, e);
             };
+        }
+
+        /**
+         * Рудный валун: вид руды по зоне и высоте — уголь чаще всего; железо в горах и предгорьях; медь у воды, в саванне
+         * и мезах. В горах (и выше 650) — глубинные варианты.
+         */
+        private Shape oreBoulder(Shape.Rnd r, Flora.Env e, int x, int ay, int z, byte zone) {
+            boolean mount = zone == ALPINE || zone == GROVE || zone == JAGGED || zone == FROZEN || zone == STONY;
+            boolean foot = zone == TAIGA || zone == REDWOOD || ay > 480;
+            boolean dry = zone == SAVANNA || zone == MESA;
+            boolean water = false;
+            int[][] ring = {{16, 0}, {-16, 0}, {0, 16}, {0, -16}, {11, 11}, {-11, 11}, {11, -11}, {-11, -11}};   // вода в 16 блоках
+            for (int[] o : ring) if (e.wet(o[0], o[1])) { water = true; break; }
+            double coal, iron;                                                // медь — остаток
+            if (mount || ay > 800) { coal = 0.35; iron = 0.5; }
+            else if (foot) { coal = 0.45; iron = 0.4; }
+            else if (dry) { coal = 0.35; iron = 0.15; }
+            else { coal = 0.65; iron = 0.15; }
+            if (water) { coal *= 0.6; iron *= 0.6; }                          // у воды — больше меди
+            double q = r.next();
+            int ore = q < coal ? Flora.ORE_COAL : q < coal + iron ? Flora.ORE_IRON : Flora.ORE_COPPER;
+            boolean deep = mount || ay > 650;
+            boolean mossy = zone == FOREST || zone == BIRCH || zone == TAIGA || zone == REDWOOD || zone == JUNGLE || zone == SWAMP
+                    || zone == PALE || zone == GLOW;
+            return Flora.oreBoulder(pal, fs, r, e, ore, deep, mossy);
         }
     }
 
@@ -793,6 +827,9 @@ final class ValeGen implements PlanetGenerator {
 
     /** Все состояния, которые генератор может поставить (строки) — сверка флагов с ядром. */
     List<String> statesUsed() { return pal.used(); }
+
+    /** Номера к statesUsed (тот же порядок): строка → какой номер генератор реально взял. */
+    int[] statesUsedIds() { return pal.usedIds(); }
 
     /** Флаги высот состояния (как их видит генератор). */
     static int flagsOf(String state) { return Flags.of(state); }
