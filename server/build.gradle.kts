@@ -31,5 +31,9 @@ tasks.test {
     // 0.60: генератор planet (объекты) — настоящий jar
     dependsOn(":generators:planet:jar")
     systemProperty("hoka.test.planet-jar", project(":generators:planet").layout.buildDirectory.file("libs/planet.jar").get().asFile.absolutePath)
+    // генератор vale (долина, свои объекты demo-objects/)
+    dependsOn(":generators:vale:jar")
+    systemProperty("hoka.test.vale-jar", project(":generators:vale").layout.buildDirectory.file("libs/vale.jar").get().asFile.absolutePath)
+    systemProperty("hoka.test.demo-objects-dir", rootProject.layout.projectDirectory.dir("demo-objects").asFile.absolutePath)
     systemProperty("hoka.test.golden-dir", rootProject.layout.projectDirectory.dir("gen-golden").asFile.absolutePath)
 }

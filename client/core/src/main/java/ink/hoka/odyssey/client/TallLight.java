@@ -43,6 +43,13 @@ public final class TallLight {
 
     private static boolean tall(ClientLevel l) { return l != null && l.getSectionsCount() > 64; }
 
+    /** 0.61: бит «есть данные» куба по зеркалу: 1/0, −1 — зеркало для мира не ведётся. Только главный поток. */
+    static int bit(ClientLevel l, int x, int y, int z) {
+        if (!tracked(l)) return -1;
+        IntOpenHashSet s = DATA_Y.get(ChunkPos.asLong(x, z));
+        return s != null && s.contains(y) ? 1 : 0;
+    }
+
     /** Из LevelLightEngine.updateSectionStatus (HEAD): отследить бит. */
     public static void status(LevelLightEngine e, SectionPos p, boolean empty) {
         Minecraft mc = Minecraft.getInstance();
@@ -74,7 +81,7 @@ public final class TallLight {
         for (int i = 0; i < secs.length; i++) {
             LevelChunkSection s = secs[i];
             if (s instanceof SparseSections.Shared) continue;
-            e.updateSectionStatus(SectionPos.of(cp, level.getSectionYFromSectionIndex(i)), s.hasOnlyAir());
+            e.updateSectionStatus(SectionPos.of(cp, level.getSectionYFromSectionIndex(i)), !SolidCubes.lit(level, cp.x, s));   // 0.61: сплошной — как пустой
         }
         IntOpenHashSet set = DATA_Y.get(cp.toLong());
         if (set != null) {

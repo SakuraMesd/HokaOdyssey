@@ -16,6 +16,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(LevelChunk.class)
 public abstract class LocalLightEditMixin {
 
+    /** 0.61: правка в сплошной куб без ванильного света (SolidCubes) — сначала вернуть ему бит «есть данные». */
+    @Inject(method = "setBlockState", at = @At("HEAD"))
+    private void hoka$solid(BlockPos pos, BlockState state, int flags, CallbackInfoReturnable<BlockState> cir) {
+        if (!LocalLight.active()) return;
+        LevelChunk self = (LevelChunk) (Object) this;
+        int idx = self.getSectionIndex(pos.getY());
+        var secs = self.getSections();
+        if (idx < 0 || idx >= secs.length) return;
+        ink.hoka.odyssey.client.SolidCubes.beforeEdit(self.getLevel(), pos.getX(), pos.getY(), pos.getZ(), secs[idx], state);
+    }
+
     @Inject(method = "setBlockState", at = @At("RETURN"))
     private void hoka$edit(BlockPos pos, BlockState state, int flags, CallbackInfoReturnable<BlockState> cir) {
         BlockState was = cir.getReturnValue();

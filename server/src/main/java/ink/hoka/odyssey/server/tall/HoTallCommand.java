@@ -27,8 +27,7 @@ public final class HoTallCommand extends Command {
         if (m == null) { s.sendMessage(Component.text("Нет карты «tall»", NamedTextColor.RED)); return; }
         maps.touch(m);
         Pos to = new Pos(0.5, y, 0.5, p.getPosition().yaw(), p.getPosition().pitch());
-        if (p.getInstance() == m.instance) p.teleport(to);
-        else p.setInstance(m.instance, to);
+        Maps.transfer(p, m.instance, to);
         p.setFlying(true);
         s.sendMessage(Component.text("Высокий мир: y = " + (y - 1), NamedTextColor.GREEN));
     }

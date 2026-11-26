@@ -84,7 +84,7 @@ public final class HoMapCommand extends Command {
         Maps.GameMap m = maps.load(name);
         if (m == null) { err(s, "карты «" + name + "» нет. Список: /homap list"); return; }
         maps.touch(m);
-        var move = target.getInstance() == m.instance ? target.teleport(m.spawn()) : target.setInstance(m.instance, m.spawn());   // уже на этой карте — на спавн
+        var move = Maps.transfer(target, m.instance, m.spawn());   // уже на этой карте — на спавн; переходы по очереди (0.61)
         move.thenRun(() -> {
             target.setRespawnPoint(m.spawn());
             ok(target, "Вы на карте «" + name + "»");

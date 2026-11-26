@@ -411,8 +411,12 @@ public final class CubeReceiver {
     private static void put(ClientLevel level, LevelChunk c, int idx, int x, int y, int z, LevelChunkSection sec, boolean gone) {
         LevelChunkSection old = c.getSections()[idx];
         c.getSections()[idx] = sec;
-        boolean empty = sec.hasOnlyAir();
-        if (old.hasOnlyAir() != empty) level.getChunkSource().getLightEngine().updateSectionStatus(SectionPos.of(x, y, z), empty);
+        // 0.61: сплошной камень в режиме света на клиенте ванильному свету «пустой» (SolidCubes) — без слоёв и обхода соседей
+        // бит берём из зеркала (TallLight): режим света мог смениться после вставки old — не верим пересчёту по old
+        int bit = TallLight.bit(level, x, y, z);
+        boolean was = bit >= 0 ? bit == 1 : SolidCubes.lit(level, x, old), now = SolidCubes.lit(level, x, sec);
+        if (was != now) level.getChunkSource().getLightEngine().updateSectionStatus(SectionPos.of(x, y, z), !now);
+        else if (!now && !sec.hasOnlyAir()) SolidCubes.skipped++;
         if (level.getSectionsCount() > 64) {
             TallHeight.cube(level, c, y, sec, gone);               // 0.56: карта высот для дождя/снега
             // высокий мир: сам куб + соседи только за изменившимися гранями (закрывшиеся — мягко), слияние за кадр (SectionDirty)

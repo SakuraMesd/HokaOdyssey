@@ -1,0 +1,4 @@
+{
+  "on": ["minecraft:grass_block","minecraft:snow_block"],
+  "weight": 3.0
+}

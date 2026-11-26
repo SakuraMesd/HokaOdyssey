@@ -61,6 +61,7 @@
     "ServerLightEngineMixin",
     "ServerLightStorageMixin",
     "ServerLightBlockStorageMixin",
+    "LightSwapMixin",
     "ServerLightChunkMixin",
     "ServerLightForgetMixin",
     "ServerLightUpdateMixin",

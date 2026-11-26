@@ -307,7 +307,7 @@ public final class HoCubesCommand extends Command {
         if (m == null || !TallWorld.isCubes(m.instance)) { s.sendMessage(Component.text("Нет карты «cubes» (map.yml: tall: true, cubes: true)", NamedTextColor.RED)); return; }
         maps.touch(m);
         var to = new net.minestom.server.coordinate.Pos(0.5, y, 0.5, p.getPosition().yaw(), p.getPosition().pitch());
-        if (p.getInstance() == m.instance) p.teleport(to); else p.setInstance(m.instance, to);
+        ink.hoka.odyssey.server.maps.Maps.transfer(p, m.instance, to);
         p.setFlying(true);
         s.sendMessage(Component.text("Кубовая карта: y = " + (y - 1), NamedTextColor.GREEN));
     }

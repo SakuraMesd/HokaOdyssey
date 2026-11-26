@@ -29,6 +29,31 @@ import java.util.stream.Stream;
  */
 public final class Maps {
 
+    /** 0.61: переходы игроков между картами — по одному на игрока (см. {@link #transfer}). */
+    private static final Map<UUID, CompletableFuture<Void>> MOVING = new ConcurrentHashMap<>();
+
+    /**
+     * Перевести игрока на карту inst в точку to. Переходы одного игрока идут по очереди: Minestom решает «смена
+     * измерения» в момент вызова setInstance, а спавнит после загрузки чанков (задачей планировщика) — второй вызов
+     * на ту же карту, пока первый грузит (долгая первая загрузка), падал там «The dimension needs to be different
+     * than the current one!». Уже на этой карте — просто телепорт.
+     */
+    public static CompletableFuture<Void> transfer(Player p, net.minestom.server.instance.Instance inst, Pos to) {
+        UUID id = p.getUuid();
+        CompletableFuture<Void> next = new CompletableFuture<>();
+        CompletableFuture<Void> prev = MOVING.put(id, next);
+        CompletableFuture<Void> base = prev == null ? CompletableFuture.completedFuture(null) : prev.handle((v, e) -> null);
+        base.thenCompose(v -> {
+            if (!p.isOnline() || !inst.isRegistered()) return CompletableFuture.<Void>completedFuture(null);
+            return p.getInstance() == inst ? p.teleport(to) : p.setInstance(inst, to);
+        }).whenComplete((v, e) -> {
+            MOVING.remove(id, next);
+            if (e != null) next.completeExceptionally(e); else next.complete(null);
+        });
+        return next;
+    }
+
+
     public static final String DEFAULT = "world";
     public static final Pattern NAME = Pattern.compile("[a-z0-9_\\-]{1,32}");
     private static final Logger LOG = LoggerFactory.getLogger("maps");
@@ -274,7 +299,7 @@ public final class Maps {
             List<CompletableFuture<Void>> fs = new ArrayList<>();
             for (Player p : m.instance.getPlayers()) {
                 p.sendMessage(net.kyori.adventure.text.Component.text("Карта «" + name + "» удалена — вы на основной карте.", net.kyori.adventure.text.format.NamedTextColor.YELLOW));
-                fs.add(p.setInstance(def.instance, def.spawn()));
+                fs.add(transfer(p, def.instance, def.spawn()));
             }
             moved = CompletableFuture.allOf(fs.toArray(CompletableFuture[]::new));
         }
@@ -358,7 +383,7 @@ public final class Maps {
         List<CompletableFuture<Void>> fs = new ArrayList<>();
         for (Player p : m.instance.getPlayers()) {
             p.sendMessage(net.kyori.adventure.text.Component.text("Карта «" + name + "» выгружена — вы на основной карте.", net.kyori.adventure.text.format.NamedTextColor.YELLOW));
-            fs.add(p.setInstance(def.instance, def.spawn()));
+            fs.add(transfer(p, def.instance, def.spawn()));
         }
         CompletableFuture<Void> done = new CompletableFuture<>();
         CompletableFuture.allOf(fs.toArray(CompletableFuture[]::new)).thenCompose(v -> save(m)).whenComplete((v, e) ->

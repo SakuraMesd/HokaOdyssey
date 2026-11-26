@@ -143,6 +143,13 @@ public final class SparseSections {
         synchronized (c) { return c.byBiome.computeIfAbsent(one, h -> new Shared(f.createForBlockStates(), bio)); }
     }
 
+    /** 0.61: общая секция «весь воздух» с биомом h (однородный воздух из метки генерации — без своей секции). */
+    public static LevelChunkSection sharedAir(PalettedContainerFactory f, Holder<Biome> h) {
+        if (h == null) return fallback(f);
+        Cache c = cache(f);
+        synchronized (c) { return c.byBiome.computeIfAbsent(h, q -> new Shared(f.createForBlockStates(), new PalettedContainer<>(q, f.biomeStrategy()))); }
+    }
+
     /** Своя копия общей секции перед записью блока. */
     public static LevelChunkSection copyForWrite(PalettedContainerFactory f, Shared s) {
         COPIED.incrementAndGet();

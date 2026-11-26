@@ -15,3 +15,4 @@ include("modules:houi")       // окна и меню: раскладка JSON �
 include("modules:axiom")      // Axiom (клиентский редактор мира): серверная часть по протоколу AxiomPaperPlugin, только OP
 include("generators:noise-test") // переносимый генератор планеты «noise-test» v2 → run/generators/ (сервер и клиент)
 include("generators:planet")     // генератор планеты «planet» v1: −500…2000, море 300, объекты из objects/ (рельеф — позже)
+include("generators:vale")       // генератор «vale» v1: долина — рельеф из шума, море 300, горы со снегом, свои деревья из objects/

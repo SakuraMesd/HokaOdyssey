@@ -495,7 +495,7 @@ final class CubeLight {
             long now = System.nanoTime();
             if (!work) {
                 boolean extra = !missed.isEmpty() || !pendingCols.isEmpty();     // грубое чтение без замка: пишет только этот поток
-                if (!extra || now - lastExtra < EXTRA_NS) {
+                if (!extra || now - lastExtra < EXTRA_NS && !pendScanCut) {
                     java.util.concurrent.locks.LockSupport.parkNanos(extra ? Math.max(1, EXTRA_NS - (now - lastExtra)) : PARK_NS);
                     continue;
                 }
@@ -745,6 +745,8 @@ final class CubeLight {
 
     /** Перебор pendingCols (запасной путь к CACHED и сроки): в тике/тестах — каждую партию, у потока света — раз в PEND_SCAN_MS. */
     private long lastPendScan;
+    /** 0.61: прошлый перебор pendingCols оборван по размеру партии — следующая партия перебирает сразу. */
+    private boolean pendScanCut;
     private static final long PEND_SCAN_MS = 1_000;
 
     /**
@@ -756,7 +758,7 @@ final class CubeLight {
         taken.clear();
         Ev e = next(onlyEdits);
         long nowMs = System.currentTimeMillis();
-        boolean scan = !onlyEdits && !pendingCols.isEmpty() && (!async || nowMs - lastPendScan >= PEND_SCAN_MS);
+        boolean scan = !onlyEdits && !pendingCols.isEmpty() && (!async || pendScanCut || nowMs - lastPendScan >= PEND_SCAN_MS);
         if (e == null && (onlyEdits || !scan && missed.isEmpty())) return 0;
         long t0 = System.nanoTime();
         int nEdit = 0, nLoad = 0, nUnload = 0, nCol = 0, nSky = 0;
@@ -765,7 +767,11 @@ final class CubeLight {
         LongLinkedOpenHashSet cols = new LongLinkedOpenHashSet();
         if (scan) {                                                          // отложенные COLUMN: столбец появился — в проход
             lastPendScan = nowMs;
+            pendScanCut = false;
             for (var it = pendingCols.long2LongEntrySet().iterator(); it.hasNext(); ) {
+                // 0.61: не больше партии (limit): первая загрузка карты — сотни дождавшихся столбцов одной партией
+                // давали «партия 16 с»; остальные — следующими партиями сразу, без ожидания PEND_SCAN_MS
+                if (limit != Integer.MAX_VALUE && cols.size() * 32 >= limit) { pendScanCut = true; break; }
                 var pe = it.next();
                 long ck = pe.getLongKey();
                 if (w.column((int) (ck >> 32), (int) ck) != null) { cols.add(ck); it.remove(); colsResolved++; }

@@ -184,11 +184,18 @@ public final class CubeQueue {
         if (last != null) drain(Long.MAX_VALUE, last);
     }
 
+    /** 0.61: однородных меток сверх бюджета за кадр (каждая — десятки мкс: секция из одного значения, без света игры). */
+    static final int CHEAP = 192;
+    private static int cheapLeft;
+
     private static void drain(long end, Entry stop) {
         if (draining) return;                                          // повторный вход (правка блока изнутри применения)
         draining = true;
+        cheapLeft = end == Long.MAX_VALUE ? 0 : CHEAP;
         try {
             Minecraft mc = Minecraft.getInstance();
+            // сплошной камень дёшев только со светом на клиенте (SolidCubes); иначе — ванильный свет с соседями, по бюджету
+            boolean solidCheap = mc.level != null && LocalLight.on(mc.level);
             boolean first = true;
             while (!Q.isEmpty()) {
                 Entry e = Q.peek();
@@ -248,7 +255,12 @@ public final class CubeQueue {
                         if (!e.peeked && p.op != 4 && p.op != 21) { e.peeked = true; lightAhead(e); }
                         int n = p.pos.length, from = e.next;
                         while (e.next < n) {
-                            if (!first && System.nanoTime() >= end) break;
+                            // 0.61: однородная метка (воздух / сплошной камень) дешёвая — сверх бюджета до CHEAP за кадр
+                            int us = p.op == 21 ? p.uni[2 * e.next] : -1;
+                            boolean cheap = cheapLeft > 0 && (us == 0 || us > 0 && solidCheap
+                                    && SolidCubes.opaque(net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.byId(us)));   // вода — нет
+                            if (cheap) cheapLeft--;
+                            else if (!first && System.nanoTime() >= end) break;
                             first = false;
                             int i = e.next++;
                             cubeDone(e, i);

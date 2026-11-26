@@ -262,7 +262,42 @@ public final class GenPool {
         return r;
     }
 
+    /** Биом по номеру генератора (нет — первый / по умолчанию фабрики). */
+    static Holder<Biome> biome(Job j, PalettedContainerFactory f, int id) {
+        Holder<Biome>[] hs = j.biomes();
+        Holder<Biome> h = id >= 0 && id < hs.length ? hs[id] : null;
+        if (h == null) h = hs.length > 0 ? hs[0] : f.defaultBiome();
+        return h;
+    }
+
+    /**
+     * 0.61: однородный куб (метка op 21 / весь куб одним блоком) — палитра из одного значения: без 4096 записей и без
+     * 2 КБ массива на куб (толща камня — сотни тысяч кубов). Воздух — общая секция SparseSections. null — неизвестное
+     * состояние.
+     */
+    static LevelChunkSection uniform(Job j, PalettedContainerFactory f, int state, int biome) {
+        BlockState s = Block.BLOCK_STATE_REGISTRY.byId(state);
+        if (s == null) return null;
+        Holder<Biome> h = biome(j, f, biome);
+        if (s.isAir()) return SparseSections.sharedAir(f, h);
+        return new LevelChunkSection(new PalettedContainer<>(s, f.blockStatesStrategy()), new PalettedContainer<>(h, f.biomeStrategy()));
+    }
+
     private static void build(Result r, GenArrayCube c, PalettedContainerFactory f, Job j) {
+        int[] b0 = c.blocks;
+        int u = b0[0];
+        boolean one = true;
+        for (int i = 1; i < 4096 && one; i++) one = b0[i] == u;
+        if (one) {                                                       // 0.61: весь куб одним блоком — одно значение
+            BlockState us = Block.BLOCK_STATE_REGISTRY.byId(u);
+            if (us == null) throw new IllegalStateException("неизвестное состояние " + u);
+            if (!us.hasBlockEntity()) {
+                PalettedContainer<BlockState> st1 = us.isAir() ? f.createForBlockStates() : new PalettedContainer<>(us, f.blockStatesStrategy());
+                r.sec = new LevelChunkSection(st1, biomes(c, f, j));
+                r.bes = null;
+                return;
+            }
+        }
         PalettedContainer<BlockState> st = f.createForBlockStates();
         int last = Integer.MIN_VALUE, air = 0;
         BlockState ls = null;
@@ -284,16 +319,28 @@ public final class GenPool {
                 bes[nb++] = i;
             }
         }
-        PalettedContainer<Holder<Biome>> bi = f.createForBiomes();
+        r.sec = new LevelChunkSection(st, biomes(c, f, j));
+        r.bes = bes == null ? null : Arrays.copyOf(bes, nb);
+    }
+
+    private static PalettedContainer<Holder<Biome>> biomes(GenArrayCube c, PalettedContainerFactory f, Job j) {
+        int b = c.biomes[0];
+        boolean one = true;
+        for (int i = 1; i < 64 && one; i++) one = c.biomes[i] == b;
         Holder<Biome>[] hs = j.biomes();
+        if (one) {                                                       // 0.61: один биом — одно значение
+            Holder<Biome> h = b >= 0 && b < hs.length ? hs[b] : null;
+            if (h == null) h = hs.length > 0 ? hs[0] : null;
+            if (h != null) return new PalettedContainer<>(h, f.biomeStrategy());
+        }
+        PalettedContainer<Holder<Biome>> bi = f.createForBiomes();
         for (int i = 0; i < 64; i++) {
             int id = c.biomes[i];
             Holder<Biome> h = id >= 0 && id < hs.length ? hs[id] : null;
             if (h == null) h = hs.length > 0 ? hs[0] : null;
             if (h != null) bi.getAndSetUnchecked(i & 3, i >> 4, (i >> 2) & 3, h);
         }
-        r.sec = new LevelChunkSection(st, bi);
-        r.bes = bes == null ? null : Arrays.copyOf(bes, nb);
+        return bi;
     }
 
     // ───────────── вставка (главный поток) ─────────────

@@ -116,12 +116,15 @@ public final class PlanetsModule extends OdysseyModule {
         entering.add(p.getUuid());
         send(p, out -> { out.writeByte(2); out.writeInt(FADE_IN); out.writeInt(HOLD); out.writeInt(FADE_OUT); });
         scheduler().later(() -> {
+            // 0.61: «вход» держим до конца переноса: первая загрузка карты планеты долгая, и тик успевал позвать
+            // setInstance второй раз — Minestom падал «The dimension needs to be different than the current one!»
+            java.util.concurrent.CompletableFuture<Void> move = java.util.concurrent.CompletableFuture.completedFuture(null);
             try {
                 if (!p.isOnline()) return;
                 var target = pl.target.isEmpty() ? java.util.Optional.<net.minestom.server.instance.InstanceContainer>empty() : server().map(pl.target);
                 if (p.getVehicle() != null) p.getVehicle().removePassenger(p);    // из кресла корабля — корабль остаётся на орбите
                 if (target.isPresent()) {
-                    if (p.getInstance() == target.get()) p.teleport(pl.targetPos); else p.setInstance(target.get(), pl.targetPos);
+                    move = p.getInstance() == target.get() ? p.teleport(pl.targetPos) : p.setInstance(target.get(), pl.targetPos);
                 } else {
                     logger().warn("планета {}: карта «{}» не найдена — просто отталкиваем", pl.id, pl.target);
                     var pos = p.getPosition();
@@ -130,7 +133,7 @@ public final class PlanetsModule extends OdysseyModule {
                 }
                 logger().info("{} вошёл в планету {}", p.getUsername(), pl.id);
             } finally {
-                scheduler().later(() -> entering.remove(p.getUuid()), HOLD + FADE_OUT + 40);
+                move.whenComplete((v, e) -> scheduler().later(() -> entering.remove(p.getUuid()), HOLD + FADE_OUT + 40));
             }
         }, FADE_IN + 4);
     }

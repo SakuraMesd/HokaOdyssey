@@ -1,0 +1,19 @@
+# Карта «vale» — долина у моря со своими деревьями. Скопировать в maps/vale/map.yml, объекты demo-objects/* → objects/
+tall: true
+store: cubes
+cubes: true
+generator: vale
+gen_min_y: -500
+gen_max_y: 2000
+seed: 20261126
+sun: true
+objects: [oak, birch, spruce, bushes, rocks]   # категории из objects/
+generator_options:
+  sea_level: 300
+  tree_density: 1.0                            # 0…2: густота деревьев
+spawn:
+  x: 0.5
+  y: 307.0
+  z: 32.5
+  yaw: 0.0
+  pitch: 0.0

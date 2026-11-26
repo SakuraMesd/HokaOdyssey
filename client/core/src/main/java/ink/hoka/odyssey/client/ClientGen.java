@@ -59,7 +59,7 @@ public final class ClientGen {
 
     private static final LongArrayList SAMPLES = new LongArrayList();
     private static long sampleCounter, lastSampleFlush;
-    public static long labels, memoHits, mismatches, samplesSent, checks, checkBad, secretsApplied;
+    public static long labels, memoHits, mismatches, samplesSent, checks, checkBad, secretsApplied, uniformFast;
     private static int failures;
 
     /** Ключ генератора — как у сервера (ClientGen.key): 0.60 — с пакетом объектов (сменился — кэш GenMemo сбрасывается). */
@@ -262,6 +262,17 @@ public final class ClientGen {
         GenWire.Def d = def;
         GenPool.Job j = GenPool.job();
         if (d == null || slot != d.slot() || j == null || j.slot() != slot) { CubeReceiver.dropped++; return; }
+        if (uni >= 0) {                                                // 0.61: однородный — сразу, без пула и памяти
+            LevelChunkSection sec = GenPool.uniform(j, level.palettedContainerFactory(), uni, uniBiome);
+            if (sec != null) {
+                GenPool.cancel(pos);
+                if (GenMemo.get(pos) != 0) GenMemo.remove(pos);
+                uniformFast++;
+                if (CubeReceiver.applyGenerated(level, pos, sec, null, sec.maybeHas(net.minecraft.world.level.block.state.BlockState::hasBlockEntity)))
+                    afterPlace(level, pos);
+                return;
+            }
+        }
         long mh = GenMemo.get(pos);
         if (mh != 0 && (expect == 0 || expect == mh) && CubeCache.on(ns)) {
             LevelChunkSection sec = CubeCache.takeQuiet(ns, pos, mh, level.palettedContainerFactory());
@@ -398,13 +409,13 @@ public final class ClientGen {
         if (d == null && GenPool.generated == 0) return null;
         String st = d == null ? "нет" : loading ? "загрузка" : status < 0 ? (loaded == null ? "ждём jar" : "…") : STATUS[status];
         return "Hoka генерация: " + (d == null ? "—" : d.id() + "@" + d.version()) + " " + st
-                + ", потоков " + GenPool.threads() + ", меток " + labels + ", из памяти " + memoHits + ", " + GenPool.stats()
+                + ", потоков " + GenPool.threads() + ", меток " + labels + " (однородных сразу " + uniformFast + "), из памяти " + memoHits + ", " + GenPool.stats()
                 + ", расхождений " + mismatches + (checks > 0 ? ", сверка " + (checks - checkBad) + "/" + checks : "")
                 + ", выборок " + samplesSent;
     }
 
     public static String stats() {
-        return "генерация: меток " + labels + ", из памяти " + memoHits + ", " + GenPool.stats() + ", расхождений " + mismatches
-                + ", выборок " + samplesSent + ", секретов " + secretsApplied;
+        return "генерация: меток " + labels + " (однородных сразу " + uniformFast + "), из памяти " + memoHits + ", " + GenPool.stats() + ", расхождений " + mismatches
+                + ", выборок " + samplesSent + ", секретов " + secretsApplied + ", " + SolidCubes.stats();
     }
 }
