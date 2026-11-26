@@ -260,10 +260,19 @@ public final class CubeCache {
      */
     static LevelChunkSection takeBlocks(Ns ns, long pos, long h, PalettedContainerFactory f) {
         refs++;
+        return take(ns, pos, h, f, false);
+    }
+
+    /** 0.59: куб, сгенерированный клиентом раньше (GenMemo), — из кэша по его хэшу; промах — без WANT (сгенерируем). */
+    static LevelChunkSection takeQuiet(Ns ns, long pos, long h, PalettedContainerFactory f) {
+        return take(ns, pos, h, f, true);
+    }
+
+    private static LevelChunkSection take(Ns ns, long pos, long h, PalettedContainerFactory f, boolean quiet) {
         int x = SectionPos.x(pos), y = SectionPos.y(pos), z = SectionPos.z(pos);
         Col c = ns == null ? null : col(ns, x, z, false);
         Ent e = c == null ? null : c.cubes.get(y);
-        if (e == null || e.sec == null) { missNone++; want(pos, WANT_BLOCKS); return null; }
+        if (e == null || e.sec == null) { if (!quiet) { missNone++; want(pos, WANT_BLOCKS); } return null; }
         LevelChunkSection s = e.sec;
         PalettedContainerFactory ef = e.f;
         long eh = e.h;
@@ -276,6 +285,11 @@ public final class CubeCache {
         e.sec = null;
         e.f = null;
         if (e.light == null) removeEnt(ns, x, z, c, y);
+        if (quiet) {
+            if (eh != h) return null;
+            if (ef == f || f == null) return s;
+            return rebuild(s, f);
+        }
         winRefs++;
         if (eh != h) { missHash++; winMiss++; want(pos, WANT_BLOCKS); autoCheck(); return null; }
         hits++;

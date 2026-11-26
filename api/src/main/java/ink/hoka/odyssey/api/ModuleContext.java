@@ -44,4 +44,10 @@ public interface ModuleContext {
      * сначала /homap unload &lt;карта&gt;. Исключение — id занят.
      */
     void registerGenerator(ink.hoka.odyssey.api.worldgen.GeneratorProvider provider);
+
+    /**
+     * Зарегистрировать ПЕРЕНОСИМЫЙ генератор (jar на gen-api с hoka-gen.json): работает на сервере и у клиентов 0.59+
+     * (нетронутые кубы генерирует клиент). Снимается при выключении модуля. Исключение — jar плохой или id занят.
+     */
+    default void registerGenerator(java.nio.file.Path genJar) { throw new UnsupportedOperationException("ядро без переносимых генераторов"); }
 }

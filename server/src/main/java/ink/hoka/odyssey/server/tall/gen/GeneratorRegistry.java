@@ -29,8 +29,9 @@ public final class GeneratorRegistry {
     private static final Map<String, String> USERS = new ConcurrentHashMap<>();
 
     static {
-        MAP.put("flat", new Entry(FlatGenerator.PROVIDER, CORE));
-        MAP.put("void", new Entry(VoidGenerator.PROVIDER, CORE));
+        // встроенные — переносимые (gen-api): нетронутое клиент 0.59+ генерирует сам
+        MAP.put("flat", new Entry(PortableProvider.builtin(ink.hoka.odyssey.gen.BuiltinGens.FLAT), CORE));
+        MAP.put("void", new Entry(PortableProvider.builtin(ink.hoka.odyssey.gen.BuiltinGens.VOID), CORE));
     }
 
     /** Зарегистрировать (модуль owner). Исключение — id неверный или занят. */
@@ -38,9 +39,16 @@ public final class GeneratorRegistry {
         String id = p.id();
         if (id == null || !ID.matcher(id).matches()) throw new IllegalArgumentException("id генератора: a-z 0-9 _ - (до 32), а не «" + id + "»");
         Entry old = MAP.get(id);
+        if (old != null && old.provider instanceof PortableProvider && !(p instanceof PortableProvider) && PortableGens.OWNER.equals(old.owner)) {
+            // старый модуль-генератор (например noisegen) при переносимом jar с тем же id из generators/ — не нужен
+            LOG.warn("генератор {} модуля {} не зарегистрирован: есть переносимый {} из generators/ (старый модуль можно убрать)", id, owner, old.tag());
+            return;
+        }
         if (old != null) throw new IllegalStateException("генератор «" + id + "» уже есть (модуль " + old.owner + ")");
         MAP.put(id, new Entry(p, owner));
-        LOG.info("генератор {} v{} (модуль {}{})", id, p.version(), owner, p.deterministic() ? "" : ", НЕдетерминированный");
+        LOG.info("генератор {} v{} (модуль {}{}{})", id, p.version(), owner, p.deterministic() ? "" : ", НЕдетерминированный",
+                p instanceof PortableProvider pp ? ", переносимый " + pp.filePath : "");
+        if (p instanceof PortableProvider pp && pp.jar != null) PortableGens.filesChanged();
     }
 
     /** Снять все генераторы модуля (выключение). */
@@ -51,7 +59,16 @@ public final class GeneratorRegistry {
             if (e != null && e.owner.equals(owner))
                 LOG.warn("генератор {} снят с модулем {}, а им ещё пользуется: {}", e.provider.id(), owner, u.getKey());
         }
+        boolean files = MAP.values().stream().anyMatch(e -> e.owner.equals(owner) && e.provider instanceof PortableProvider pp && pp.jar != null);
         MAP.values().removeIf(e -> e.owner.equals(owner));
+        if (files) PortableGens.filesChanged();
+    }
+
+    /** Все переносимые генераторы с jar (раздача клиентам). */
+    public static java.util.List<PortableProvider> portableJars() {
+        java.util.List<PortableProvider> r = new java.util.ArrayList<>();
+        for (Entry e : MAP.values()) if (e.provider instanceof PortableProvider pp && pp.jar != null) r.add(pp);
+        return r;
     }
 
     public static Entry get(String id) { return id == null ? null : MAP.get(id); }

@@ -5,8 +5,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 
 /**
- * Версия куба для кэша кубов (0.51) — КОПИЯ ядра серверного {@code ink.hoka.odyssey.server.tall.CubeHash}: менять оба
- * файла и FORMAT вместе. Хэш содержимого: 4096 id блоков (y&lt;&lt;8|z&lt;&lt;4|x) и 64 id биомов (y&lt;&lt;4|z&lt;&lt;2|x) по
+ * Версия куба для кэша кубов (0.51); 0.59: ядро алгоритма — общий GenHash (gen-api), второй копии нет. Хэш содержимого: 4096 id блоков (y&lt;&lt;8|z&lt;&lt;4|x) и 64 id биомов (y&lt;&lt;4|z&lt;&lt;2|x) по
  * сетевым номерам реестров; порядок палитры не важен. Секция клиента считается через её сетевую форму
  * (LevelChunkSection.write → тот же разбор, что проверяет серверный тест на секциях Minestom). Эталоны (как в
  * CubeCacheTest сервера): нули — d7b11457959f700c, узор i*7%23 / i*7%5 — f12b4d5e0f896b11, свет «формула 0..16,
@@ -16,33 +15,15 @@ public final class CubeHash {
 
     private CubeHash() {}
 
-    public static final int FORMAT = 1;
-    static final long SEED = 0x484F4B4143554245L ^ FORMAT;
-    static final long SEED_LIGHT = 0x484F4B414C494748L ^ FORMAT;
-    private static final long P1 = 0x9E3779B185EBCA87L, P2 = 0xC2B2AE3D27D4EB4FL, P3 = 0x165667B19E3779F9L,
-            P4 = 0x85EBCA77C2B2AE63L, P5 = 0x27D4EB2F165667C5L;
+    public static final int FORMAT = ink.hoka.odyssey.gen.GenHash.FORMAT;
+    static final long SEED_LIGHT = ink.hoka.odyssey.gen.GenHash.SEED_LIGHT;
 
-    static long round(long h, long v) {
-        h ^= v * P2;
-        return Long.rotateLeft(h, 31) * P1 + P4;
-    }
+    static long round(long h, long v) { return ink.hoka.odyssey.gen.GenHash.round(h, v); }
 
-    static long avalanche(long h) {
-        h ^= h >>> 33;
-        h *= P2;
-        h ^= h >>> 29;
-        h *= P3;
-        h ^= h >>> 32;
-        return h == 0 ? 1 : h;
-    }
+    static long avalanche(long h) { return ink.hoka.odyssey.gen.GenHash.avalanche(h); }
 
-    static long ids(int[] blocks, int[] biomes) {
-        long h = SEED;
-        for (int v : blocks) h = round(h, v & 0xFFFFFFFFL);
-        h = round(h, P5);
-        for (int v : biomes) h = round(h, v & 0xFFFFFFFFL);
-        return avalanche(h ^ (blocks.length + biomes.length));
-    }
+    /** 0.59: алгоритм — единственная копия в общем API (GenHash), сервер делегирует туда же. */
+    static long ids(int[] blocks, int[] biomes) { return ink.hoka.odyssey.gen.GenHash.ids(blocks, biomes); }
 
     /** Хэш живой секции клиента (главный поток). */
     public static long of(LevelChunkSection s) {

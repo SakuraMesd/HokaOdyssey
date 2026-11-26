@@ -71,6 +71,14 @@ final class ModuleContextImpl implements ModuleContext {
     }
 
     @Override
+    public synchronized void registerGenerator(Path genJar) {
+        check();
+        try { ink.hoka.odyssey.server.tall.gen.PortableGens.register(descriptor.id(), Files.readAllBytes(genJar)); }
+        catch (RuntimeException e) { throw e; }
+        catch (Exception e) { throw new IllegalArgumentException("генератор " + genJar + ": " + e.getMessage(), e); }
+    }
+
+    @Override
     public Path dataFolder() {
         try { Files.createDirectories(dataFolder); } catch (IOException e) { throw new IllegalStateException(e); }
         return dataFolder;

@@ -21,5 +21,7 @@ public abstract class CubeLoadedMixin {
         Level self = (Level) (Object) this;
         if (pos.getX() >= 399_000) return;                                        // верфь кораблей — по своим правилам
         if (CubeReceiver.unloadedY(self, SectionPos.blockToSectionCoord(pos.getY()))) cir.setReturnValue(false);
+        else if (self.isClientSide() && ink.hoka.odyssey.client.GenPool.waiting(SectionPos.blockToSectionCoord(pos.getX()),
+                SectionPos.blockToSectionCoord(pos.getY()), SectionPos.blockToSectionCoord(pos.getZ()))) cir.setReturnValue(false);   // 0.59: ждёт генерации
     }
 }

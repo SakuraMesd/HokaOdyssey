@@ -83,4 +83,7 @@ public abstract class OdysseyModule {
 
     /** Генератор планеты (map.yml generator: id). Снимается при выключении модуля. */
     public final void registerGenerator(ink.hoka.odyssey.api.worldgen.GeneratorProvider provider) { context().registerGenerator(provider); }
+
+    /** Переносимый генератор из jar (gen-api) — сервер и клиент 0.59+. */
+    public final void registerGenerator(java.nio.file.Path genJar) { context().registerGenerator(genJar); }
 }

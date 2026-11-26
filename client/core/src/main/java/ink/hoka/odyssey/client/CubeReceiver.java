@@ -23,6 +23,9 @@ import org.slf4j.LoggerFactory;
  * <p>0.57, свет на клиенте: op 19 LIGHT_MODE (byte 1 — свет считает клиент, LocalLight; сразу, до скелетов), op 18
  * HEIGHTS2 (вместо op 17: MOTION_BLOCKING и skyTop+1 столбца, флаги сжатия — CubeStreamer сервера). В этом режиме
  * сервер шлёт блоки окна ±1 куб (кольцо — для света края), op 11/14/16 не шлёт.</p>
+ * <p>0.59, генерация на клиенте (ClientGen): op 20 GEN_DEF — генератор карты (сразу, до скелетов), op 21 GEN_CUBES —
+ * метки нетронутых кубов (в очереди, как op 2: ставят задачи GenPool), op 22 SECRETS — секреты поверх сгенерированного,
+ * op 23 GEN_CHECK — сверка хэшей (ответ op 9).</p>
  */
 public final class CubeReceiver {
 
@@ -71,6 +74,9 @@ public final class CubeReceiver {
         CubeCache.Ns ns;                         // op 2/11/13/14: пространство имён кэша на момент прихода
         LevelChunkSection[] secs;                // op 2
         BE[][] bes;                              // op 2: блок-сущности куба (null — нет)
+        int[] uni;                               // op 21: пары (однородное состояние −1 — генерировать, биом); hash — visHash (0 — нет)
+        ink.hoka.odyssey.gen.GenWire.Def def;    // op 20
+        java.util.List<ink.hoka.odyssey.gen.GenWire.Secret> secrets;   // op 22
         ServerLight.Batch light;                 // op 11
         Parsed(int op, net.minecraft.world.level.chunk.PalettedContainerFactory f) { this.op = op; this.f = f; }
     }
@@ -133,6 +139,34 @@ public final class CubeReceiver {
                     else if ((fl & 2) != 0) java.util.Arrays.fill(r.sky, b + 2, b + 258, buf.readShort());
                     else for (int i = 0; i < 256; i++) r.sky[b + 2 + i] = buf.readShort();
                 }
+                return r;
+            }
+            case 20 -> { Parsed r = new Parsed(op, null); r.def = ClientGen.parseDef(data); return r; }
+            case 21 -> {                                                // 0.59: GEN_CUBES (общий кодек GenWire)
+                ink.hoka.odyssey.gen.GenWire.Cubes cs = ink.hoka.odyssey.gen.GenWire.decodeCubes(data);
+                int n = 0;
+                for (var c : cs.cols()) n += c.cubes().size();
+                Parsed r = new Parsed(op, null);
+                r.a = cs.slot();
+                r.pos = new long[n];
+                r.hash = new long[n];
+                r.uni = new int[n * 2];
+                int k = 0;
+                for (var c : cs.cols()) for (var q : c.cubes()) {
+                    r.pos[k] = SectionPos.asLong(c.cx(), q.sy(), c.cz());
+                    r.hash[k] = q.hash();
+                    r.uni[2 * k] = q.uniformState();
+                    r.uni[2 * k + 1] = q.uniformBiome();
+                    k++;
+                }
+                return r;
+            }
+            case 22 -> { Parsed r = new Parsed(op, null); r.secrets = ink.hoka.odyssey.gen.GenWire.decodeSecrets(data); return r; }
+            case 23 -> {
+                long[][] c = ink.hoka.odyssey.gen.GenWire.decodeCheck(data);
+                Parsed r = new Parsed(op, null);
+                r.check = c[0];
+                r.hash = c[1];
                 return r;
             }
             case 19 -> { Parsed r = new Parsed(op, null); r.a = buf.readableBytes() > 0 ? buf.readByte() : 0; return r; }
@@ -209,6 +243,7 @@ public final class CubeReceiver {
         if (level == null) {                                            // op 12 может прийти и без мира
             if (data.length > 0 && data[0] == 12) try { LocalLight.instanceEntry(); CubeCache.onKey(parse(data, null).map); } catch (Exception ignored) {}
             if (data.length > 0 && data[0] == 19) try { LocalLight.mode(parse(data, null).a); } catch (Exception ignored) {}
+            if (data.length > 0 && data[0] == 20) try { ClientGen.onDef(ClientGen.parseDef(data)); } catch (Exception e) { LOG.warn("кубы: битый op 20 ({})", e.toString()); }
             return;
         }
         Parsed p;
@@ -222,7 +257,9 @@ public final class CubeReceiver {
         if (p == null) return;
         if (p.op == 12) { LocalLight.instanceEntry(); CubeCache.onKey(p.map); return; }   // 0.57: вход в инстанс — режим света ждёт op 19 заново            // сразу: по порядку со скелетами (метки столбцов)
         if (p.op == 19) { LocalLight.mode(p.a); return; }              // 0.57: сразу (до скелетов) — кто считает свет
-        if (p.op != 2 && p.op != 4 && p.op != 5 && p.op != 6 && p.op != 11 && p.op != 13 && p.op != 14 && p.op != 15 && p.op != 16 && p.op != 17 && p.op != 18) {   // незнакомая операция (сервер новее): пропустить,
+        if (p.op == 20) { ClientGen.onDef(p.def); return; }            // 0.59: сразу (до скелетов) — генератор карты
+        if (p.op != 2 && p.op != 4 && p.op != 5 && p.op != 6 && p.op != 11 && p.op != 13 && p.op != 14 && p.op != 15 && p.op != 16 && p.op != 17 && p.op != 18
+                && p.op != 21 && p.op != 22 && p.op != 23) {   // незнакомая операция (сервер новее): пропустить,
             if (UNKNOWN.add(p.op)) LOG.warn("кубы: незнакомая операция {} — пропускаю (ядро старше сервера)", p.op);   // блок-энтити не трогать
             return;
         }
@@ -237,6 +274,8 @@ public final class CubeReceiver {
         if (p.op == 15) { CubeCache.hashCheck(level, p.check, p.hash); return; }
         if (p.op == 16) { ServerLight.floor(level, p.floor); return; }
         if (p.op == 17) { TallHeight.heights(level, p.heights); return; }
+        if (p.op == 22) { ClientGen.secrets(level, p.secrets); return; }
+        if (p.op == 23) { ClientGen.check(level, p.check, p.hash); return; }
         if (p.op == 6) for (int i = 0; i + 1 < p.yard.length; i += 2) YardColumns.forget(level, p.yard[i], p.yard[i + 1]);   // забыть столбцы верфи кораблей
     }
 
@@ -259,6 +298,12 @@ public final class CubeReceiver {
                 : (LevelChunk) level.getChunkSource().getChunk(x, z, ChunkStatus.FULL, false);
         int idx = level.getSectionIndexFromSectionY(y);
         boolean ok = c != null && idx >= 0 && idx < c.getSections().length;
+        if (p.op == 21) {                                               // 0.59: метка — генерируем сами
+            if (!ok || YardColumns.isYard(x)) { dropped++; return; }
+            ClientGen.label(level, pos, p.a, p.hash[i], p.uni[2 * i], p.uni[2 * i + 1], p.ns);
+            return;
+        }
+        ClientGen.serverCube(pos, p.op == 4);                           // 0.59: сервер прислал правду — генерация не нужна
         if (p.op == 13) {                                               // 0.51: куб из кэша
             if (!ok) { dropped++; return; }
             LevelChunkSection sec = CubeCache.takeBlocks(p.ns, pos, p.hash[i], level.palettedContainerFactory());
@@ -290,6 +335,57 @@ public final class CubeReceiver {
                 put(level, c, idx, x, y, z, SparseSections.fallback(level.palettedContainerFactory()), true);
                 unloaded++;
             } else dropped++;
+        }
+    }
+
+    /**
+     * 0.59: вставить куб, сгенерированный клиентом (или взятый из кэша по памяти генерации): как op 2, блок-сущности —
+     * пустые по состояниям (bes — индексы; null и scan — найти по палитре). false — столбца нет.
+     */
+    static boolean applyGenerated(ClientLevel level, long pos, LevelChunkSection sec, int[] bes, boolean scan) {
+        int x = SectionPos.x(pos), y = SectionPos.y(pos), z = SectionPos.z(pos);
+        LevelChunk c = (LevelChunk) level.getChunkSource().getChunk(x, z, ChunkStatus.FULL, false);
+        int idx = level.getSectionIndexFromSectionY(y);
+        if (c == null || idx < 0 || idx >= c.getSections().length) { dropped++; return false; }
+        serverLight(level);
+        removeBlockEntities(c, y);
+        CubeCache.unwaitAll(pos);
+        put(level, c, idx, x, y, z, sec);
+        if (bes != null) for (int i : bes) blockEntity(c, x, y, z, i);
+        else if (scan && sec.maybeHas(net.minecraft.world.level.block.state.BlockState::hasBlockEntity))
+            for (int i = 0; i < 4096; i++) if (sec.getBlockState(i & 15, i >> 8, (i >> 4) & 15).hasBlockEntity()) blockEntity(c, x, y, z, i);
+        received++;
+        return true;
+    }
+
+    private static void blockEntity(LevelChunk c, int x, int y, int z, int i) {
+        c.getBlockEntity(new net.minecraft.core.BlockPos((x << 4) + (i & 15), (y << 4) + (i >> 8), (z << 4) + ((i >> 4) & 15)), LevelChunk.EntityCreationType.IMMEDIATE);
+    }
+
+    /** 0.59, op 22: секреты (руды, тайники) поверх куба — как правки блоков от сервера; данные блок-сущностей — SNBT. */
+    static void applySecrets(ClientLevel level, long pos, ink.hoka.odyssey.gen.GenWire.Secret s) {
+        int x = SectionPos.x(pos), y = SectionPos.y(pos), z = SectionPos.z(pos);
+        var bp = new net.minecraft.core.BlockPos.MutableBlockPos();
+        for (int k = 0; k < s.idx().length; k++) {
+            int i = s.idx()[k];
+            var st = net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.byId(s.state()[k]);
+            if (st == null) continue;
+            bp.set((x << 4) + (i & 15), (y << 4) + (i >> 8), (z << 4) + ((i >> 4) & 15));
+            level.setServerVerifiedBlockState(bp, st, 19);
+        }
+        if (s.dataIdx().length == 0) return;
+        LevelChunk c = (LevelChunk) level.getChunkSource().getChunk(x, z, ChunkStatus.FULL, false);
+        if (c == null) return;
+        for (int k = 0; k < s.dataIdx().length; k++) {
+            int i = s.dataIdx()[k];
+            var at = new net.minecraft.core.BlockPos((x << 4) + (i & 15), (y << 4) + (i >> 8), (z << 4) + ((i >> 4) & 15));
+            try {
+                var tag = net.minecraft.nbt.TagParser.parseCompoundFully(s.snbt()[k]);
+                var be = c.getBlockEntity(at, LevelChunk.EntityCreationType.IMMEDIATE);
+                if (be != null) loadBlockEntity(level, c, at, be.getType(), tag);
+            } catch (Exception e) {
+                LOG.warn("секреты: битые данные блок-сущности {} ({})", at, e.toString());
+            }
         }
     }
 

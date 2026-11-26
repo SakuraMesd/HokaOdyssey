@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Без Sodium: ползунки «Дальность по высоте» и «Кэш кубов» сразу после «Дальности прорисовки» в настройках графики. */
+/** Без Sodium: ползунки «Дальность по высоте», «Кэш кубов» и «Генерация мира» сразу после «Дальности прорисовки» в настройках графики. */
 @Mixin(VideoSettingsScreen.class)
 public abstract class VideoOptionsMixin {
 
@@ -18,11 +18,12 @@ public abstract class VideoOptionsMixin {
         OptionInstance<?>[] a = cir.getReturnValue();
         int at = a.length;
         for (int i = 0; i < a.length; i++) if (a[i] == options.renderDistance()) { at = i + 1; break; }
-        OptionInstance<?>[] r = new OptionInstance<?>[a.length + 2];
+        OptionInstance<?>[] r = new OptionInstance<?>[a.length + 3];
         System.arraycopy(a, 0, r, 0, at);
         r[at] = VerticalView.option();
         r[at + 1] = ink.hoka.odyssey.client.CubeCacheSetting.option();   // 0.51: кэш кубов, МБ
-        System.arraycopy(a, at, r, at + 2, a.length - at);
+        r[at + 2] = ink.hoka.odyssey.client.GenSetting.option();         // 0.59: генерация мира на клиенте
+        System.arraycopy(a, at, r, at + 3, a.length - at);
         cir.setReturnValue(r);
     }
 }

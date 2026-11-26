@@ -23,5 +23,7 @@ public abstract class DebugCubesMixin {
         if (k != null) out.addLine(k);
         String l = ink.hoka.odyssey.client.LocalLight.debugLine();         // 0.57: свет на клиенте
         if (l != null) out.addLine(l);
+        String g = ink.hoka.odyssey.client.ClientGen.debugLine();         // 0.59: генерация на клиенте
+        if (g != null) out.addLine(g);
     }
 }

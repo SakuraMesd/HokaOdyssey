@@ -68,17 +68,21 @@ public final class CubeQueue {
             if (!GEN.isEmpty())
                 for (int i = 0; i < gens.length; i++) gens[i] = GEN.get(col(p.pos[i]));
             pending += p.pos.length;
-            if (p.op == 2 || p.op == 4 || p.op == 13) for (long q : p.pos) SECS.addTo(q, 1);
+            if (cube(p.op)) for (long q : p.pos) SECS.addTo(q, 1);
         }
         Q.add(new Entry(level, p, gens, System.nanoTime()));
         if (Q.size() > maxLen) maxLen = Q.size();
     }
+
+    /** Операции «по кубу» (держат секцию, применяются по одному): 2, 4, 13 и 0.59: 21 (метка генерации). */
+    private static boolean cube(int op) { return op == 2 || op == 4 || op == 13 || op == 21; }
 
     private static long col(long sec) { return ChunkPos.asLong(SectionPos.x(sec), SectionPos.z(sec)); }
 
     /** Столбец заменён новым пакетом / забыт (главный поток): ждущие кубы старого столбца станут устаревшими. */
     public static void columnChanged(int x, int z) {
         CubeCache.columnChanged(x, z);                                 // 0.51: ждать кубы старого столбца нечего
+        GenPool.columnChanged(x, z);                                   // 0.59: генерировать для старого столбца — тоже
         if (Q.isEmpty()) return;
         GEN.put(ChunkPos.asLong(x, z), ++counter);
     }
@@ -137,12 +141,13 @@ public final class CubeQueue {
     /** Куб i записи e больше не ждёт (применён / пропущен / мир сменился). */
     private static void cubeDone(Entry e, int i) {
         CubeReceiver.Parsed p = e.p;
-        if (p.pos != null && (p.op == 2 || p.op == 4 || p.op == 13)) dec(SECS, p.pos[i]);
+        if (p.pos != null && cube(p.op)) dec(SECS, p.pos[i]);
     }
 
     /** Каждый кадр: применять, пока не вышел бюджет. */
     public static void run() {
-        if (Q.isEmpty()) return;
+        ClientGen.frame();                                             // 0.59: генерация на клиенте — загрузка, пул, выборка
+        if (Q.isEmpty()) { GenPool.apply(0); return; }
         long now = System.nanoTime();
         Entry head = Q.peek();
         // ждёт дольше 300 мс (поток пакетов больше бюджета) — бюджет больше: задержка не растёт без предела
@@ -154,6 +159,7 @@ public final class CubeQueue {
                 : wait > 1_000_000_000L ? 6_000_000L
                 : wait > 300_000_000L ? 4_000_000L : FrameWatch.budgetNs(0.25, 300_000L, 1_500_000L);
         drain(now + budget, null);
+        GenPool.apply(now + budget);                                   // 0.59: готовые кубы генерации — остаток бюджета
     }
 
     /** Дожать всё (смена мира и т.п.). */
@@ -171,7 +177,7 @@ public final class CubeQueue {
         Entry last = null;
         for (var it = Q.descendingIterator(); it.hasNext() && last == null; ) {
             Entry e = it.next();
-            if ((e.p.op != 2 && e.p.op != 4 && e.p.op != 13) || e.p.pos == null) continue;
+            if (!cube(e.p.op) || e.p.pos == null) continue;
             long[] ps = e.p.pos;
             for (int i = e.next; i < ps.length; i++) if (ps[i] == sec) { last = e; break; }
         }
@@ -210,7 +216,7 @@ public final class CubeQueue {
                     continue;
                 }
                 switch (p.op) {
-                    case 5, 6, 15, 16, 17, 18 -> { CubeReceiver.applySimple(e.level, p); Q.poll(); }
+                    case 5, 6, 15, 16, 17, 18, 22, 23 -> { CubeReceiver.applySimple(e.level, p); Q.poll(); }
                     case 14 -> {                                       // 0.51: свет из кэша (как op 11)
                         List<Long> ps = new ArrayList<>(p.pos.length);
                         List<ServerLight.Cube> cs = new ArrayList<>(p.pos.length);
@@ -239,7 +245,7 @@ public final class CubeQueue {
                         Q.poll();
                     }
                     default -> {                                       // 2, 4, 13: по кубу, с проверкой времени
-                        if (!e.peeked && p.op != 4) { e.peeked = true; lightAhead(e); }
+                        if (!e.peeked && p.op != 4 && p.op != 21) { e.peeked = true; lightAhead(e); }
                         int n = p.pos.length, from = e.next;
                         while (e.next < n) {
                             if (!first && System.nanoTime() >= end) break;

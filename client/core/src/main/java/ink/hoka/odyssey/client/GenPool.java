@@ -1,0 +1,358 @@
+package ink.hoka.odyssey.client;
+
+import ink.hoka.odyssey.gen.GenArrayCube;
+import ink.hoka.odyssey.gen.GenBounds;
+import ink.hoka.odyssey.gen.GenFingerprint;
+import ink.hoka.odyssey.gen.PlanetGenerator;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.Holder;
+import net.minecraft.core.SectionPos;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunkSection;
+import net.minecraft.world.level.chunk.PalettedContainer;
+import net.minecraft.world.level.chunk.PalettedContainerFactory;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * 0.59: пул генерации нетронутых кубов на клиенте (op 21). Задачи — по кольцам расстояния Чебышёва от куба игрока
+ * (0..64), в кольце — сначала впереди по взгляду. Рабочие потоки (низкий приоритет) генерируют в свои массивы,
+ * считают GenHash и собирают секцию; готовое — в RESULTS (не больше 256, обратное давление), вставляет главный поток
+ * по бюджету кадра (CubeQueue.run → apply). Отмена: op 2/4/13 по кубу, новый скелет/Forget столбца, смена мира/слота.
+ * Состояние задач (PENDING, BY_COL) — только главный поток; кольца — под LOCK.
+ */
+public final class GenPool {
+
+    private GenPool() {}
+
+    static final int RINGS = 65, MAX_RESULTS = 256;
+
+    /** Текущий генератор: всё, что нужно рабочему потоку (неизменяемо). */
+    record Job(int slot, PlanetGenerator gen, GenBounds bounds, long seed, Holder<Biome>[] biomes) {}
+
+    static final class Task {
+        final long pos;
+        final Job job;
+        final ClientLevel level;
+        final PalettedContainerFactory f;
+        final long expect;                       // хэш от сервера (0 — нет)
+        final int uni, uniBiome;                 // однородный куб (op 21): состояние (-1 — генерировать) и биом
+        volatile boolean cancelled;
+        Task(long pos, Job job, ClientLevel level, PalettedContainerFactory f, long expect, int uni, int uniBiome) {
+            this.pos = pos; this.job = job; this.level = level; this.f = f; this.expect = expect; this.uni = uni; this.uniBiome = uniBiome;
+        }
+    }
+
+    static final class Result {
+        final Task t;
+        LevelChunkSection sec;
+        long hash;
+        int[] bes;                               // индексы y<<8|z<<4|x состояний с блок-сущностью (null — нет)
+        Throwable err;
+        long ns;
+        Result(Task t) { this.t = t; }
+    }
+
+    private static final Object LOCK = new Object();
+    @SuppressWarnings("unchecked")
+    private static final ArrayDeque<Task>[] RING = new ArrayDeque[RINGS];
+    static { for (int i = 0; i < RINGS; i++) RING[i] = new ArrayDeque<>(); }
+    private static int queued;                                  // под LOCK
+    private static volatile Job job;
+    private static final List<Thread> THREADS = new ArrayList<>();
+    private static volatile int active;
+    private static final ArrayBlockingQueue<Result> RESULTS = new ArrayBlockingQueue<>(MAX_RESULTS);
+
+    // главный поток
+    private static final Long2ObjectOpenHashMap<Task> PENDING = new Long2ObjectOpenHashMap<>();
+    private static final Long2ObjectOpenHashMap<ObjectArrayList<Task>> BY_COL = new Long2ObjectOpenHashMap<>();
+    private static long playerSec = Long.MIN_VALUE;
+    private static ClientLevel lastLevel;
+    private static boolean wake;
+    private static final GenArrayCube MAIN = new GenArrayCube(false);
+
+    public static volatile long generated, genNs, errors, forced, dropped;
+
+    static Job job() { return job; }
+
+    /** Число потоков по настройке (0 — выкл). */
+    static int wanted() { return GenSetting.threads(); }
+
+    /** Включить генератор (главный поток). */
+    static void start(Job j) {
+        cancelAll();
+        job = j;
+        int n = wanted();
+        ensureThreads(n);
+        active = n;
+        synchronized (LOCK) { LOCK.notifyAll(); }
+    }
+
+    private static void ensureThreads(int n) {
+        synchronized (THREADS) {
+            while (THREADS.size() < n) {
+                int idx = THREADS.size();
+                Thread t = new Thread(() -> work(idx), "hoka-gen-" + idx);
+                t.setDaemon(true);
+                t.setPriority(Thread.MIN_PRIORITY);
+                THREADS.add(t);
+                t.start();
+            }
+        }
+    }
+
+    /** Выключить (сброс слота, выход, настройка «Выкл»). */
+    static void stop() {
+        job = null;
+        cancelAll();
+    }
+
+    static int threads() { return job == null ? 0 : active; }
+
+    // ───────────── задачи (главный поток) ─────────────
+
+    static boolean pending(long sec) { return !PENDING.isEmpty() && PENDING.containsKey(sec); }
+
+    public static boolean waiting(int x, int y, int z) {
+        return !PENDING.isEmpty() && Minecraft.getInstance().isSameThread() && PENDING.containsKey(SectionPos.asLong(x, y, z));
+    }
+
+    public static int pendingCount() { return PENDING.size(); }
+
+    static void submit(ClientLevel level, long pos, long expect, int uni, int uniBiome) {
+        Job j = job;
+        if (j == null) return;
+        cancel(pos);
+        Task t = new Task(pos, j, level, level.palettedContainerFactory(), expect, uni, uniBiome);
+        PENDING.put(pos, t);
+        long col = ChunkPos.asLong(SectionPos.x(pos), SectionPos.z(pos));
+        ObjectArrayList<Task> l = BY_COL.get(col);
+        if (l == null) BY_COL.put(col, l = new ObjectArrayList<>(4));
+        l.add(t);
+        synchronized (LOCK) { enqueue(t); }                        // кольцо — от куба игрока на начало кадра (frame)
+        wake = true;
+    }
+
+    /** Отменить задачу куба (op 2/4/13 по нему). */
+    static void cancel(long pos) {
+        if (PENDING.isEmpty()) return;
+        Task t = PENDING.remove(pos);
+        if (t == null) return;
+        t.cancelled = true;
+        long col = ChunkPos.asLong(SectionPos.x(pos), SectionPos.z(pos));
+        ObjectArrayList<Task> l = BY_COL.get(col);
+        if (l != null) { l.remove(t); if (l.isEmpty()) BY_COL.remove(col); }
+    }
+
+    /** Новый скелет / Forget столбца: его задачи больше не нужны. */
+    public static void columnChanged(int x, int z) {
+        if (BY_COL.isEmpty()) return;
+        ObjectArrayList<Task> l = BY_COL.remove(ChunkPos.asLong(x, z));
+        if (l == null) return;
+        for (Task t : l) { t.cancelled = true; if (PENDING.get(t.pos) == t) PENDING.remove(t.pos); }
+    }
+
+    static void cancelAll() {
+        for (Task t : PENDING.values()) t.cancelled = true;
+        PENDING.clear();
+        BY_COL.clear();
+        synchronized (LOCK) { for (ArrayDeque<Task> r : RING) r.clear(); queued = 0; }
+        RESULTS.clear();
+    }
+
+    /**
+     * Ванильная правка в куб, ждущий генерации (PacketDeferMixin): сгенерировать его сейчас на главном потоке и
+     * вставить, чтобы правка легла поверх.
+     */
+    public static void forceNow(ClientLevel level, long sec) {
+        if (PENDING.isEmpty()) return;
+        Task t = PENDING.get(sec);
+        if (t == null || t.level != level) return;
+        cancel(sec);
+        Result r = run(t, MAIN);
+        forced++;
+        finish(r);
+    }
+
+    // ───────────── приоритет ─────────────
+
+    private static int px, py, pz;
+    private static double lx, ly, lz;
+
+    /** Куб игрока сменился — переложить задачи по кольцам (O(n)). */
+    private static void updatePlayer(boolean rebucket) {
+        var p = Minecraft.getInstance().player;
+        if (p == null) return;
+        long s = SectionPos.asLong(p.blockPosition());
+        var look = p.getLookAngle();
+        lx = look.x; ly = look.y; lz = look.z;
+        if (s == playerSec) return;
+        playerSec = s;
+        px = SectionPos.x(s); py = SectionPos.y(s); pz = SectionPos.z(s);
+        if (!rebucket) return;
+        synchronized (LOCK) {
+            List<Task> all = new ArrayList<>(queued);
+            for (ArrayDeque<Task> r : RING) { for (Task t : r) if (!t.cancelled) all.add(t); r.clear(); }
+            queued = 0;
+            for (Task t : all) enqueue(t);
+        }
+    }
+
+    /** Под LOCK. */
+    private static void enqueue(Task t) {
+        int dx = SectionPos.x(t.pos) - px, dy = SectionPos.y(t.pos) - py, dz = SectionPos.z(t.pos) - pz;
+        int ring = Math.min(RINGS - 1, Math.max(Math.abs(dx), Math.max(Math.abs(dy), Math.abs(dz))));
+        if (dx * lx + dy * ly + dz * lz >= 0) RING[ring].addFirst(t); else RING[ring].addLast(t);
+        queued++;
+    }
+
+    // ───────────── рабочие потоки ─────────────
+
+    private static void work(int idx) {
+        GenArrayCube buf = new GenArrayCube(false);
+        while (true) {
+            Task t = null;
+            try {
+                synchronized (LOCK) {
+                    while (job == null || idx >= active || queued == 0) LOCK.wait(250);
+                    for (ArrayDeque<Task> r : RING) if ((t = r.pollFirst()) != null) break;
+                    if (t != null) queued--;
+                }
+                if (t == null || t.cancelled || t.job != job) continue;
+                Result res = run(t, buf);
+                while (!RESULTS.offer(res, 100, TimeUnit.MILLISECONDS)) if (t.cancelled || t.job != job) break;
+            } catch (InterruptedException e) {
+                return;
+            } catch (Throwable e) {
+                errors++;
+            }
+        }
+    }
+
+    /**
+     * Сгенерировать куб и собрать секцию (любой поток). Путь — общий GenFingerprint.visible (границы → hasBlocks →
+     * uniform → generate без секретов), тот же, что у сверки сервера; однородный из op 21 — заливка.
+     */
+    static Result run(Task t, GenArrayCube c) {
+        Result r = new Result(t);
+        long t0 = System.nanoTime();
+        Job j = t.job;
+        int x = SectionPos.x(t.pos), y = SectionPos.y(t.pos), z = SectionPos.z(t.pos);
+        try {
+            if (t.uni >= 0) { c.reset(x, y, z, j.seed()); c.fill(t.uni); c.fillBiome(t.uniBiome); }
+            else GenFingerprint.visible(j.gen(), j.bounds(), j.seed(), x, y, z, c);
+            r.hash = c.visHash();
+            build(r, c, t.f, j);
+        } catch (Throwable e) {
+            r.err = e;
+            r.sec = null;
+        }
+        r.ns = System.nanoTime() - t0;
+        return r;
+    }
+
+    private static void build(Result r, GenArrayCube c, PalettedContainerFactory f, Job j) {
+        PalettedContainer<BlockState> st = f.createForBlockStates();
+        int last = Integer.MIN_VALUE, air = 0;
+        BlockState ls = null;
+        int[] bes = null;
+        int nb = 0;
+        int[] b = c.blocks;
+        for (int i = 0; i < 4096; i++) {
+            int id = b[i];
+            if (id == air) continue;
+            if (id != last) {
+                last = id;
+                ls = Block.BLOCK_STATE_REGISTRY.byId(id);
+                if (ls == null) throw new IllegalStateException("неизвестное состояние " + id);
+            }
+            st.getAndSetUnchecked(i & 15, i >> 8, (i >> 4) & 15, ls);
+            if (ls.hasBlockEntity()) {
+                if (bes == null) bes = new int[16];
+                else if (nb == bes.length) bes = Arrays.copyOf(bes, nb * 2);
+                bes[nb++] = i;
+            }
+        }
+        PalettedContainer<Holder<Biome>> bi = f.createForBiomes();
+        Holder<Biome>[] hs = j.biomes();
+        for (int i = 0; i < 64; i++) {
+            int id = c.biomes[i];
+            Holder<Biome> h = id >= 0 && id < hs.length ? hs[id] : null;
+            if (h == null) h = hs.length > 0 ? hs[0] : null;
+            if (h != null) bi.getAndSetUnchecked(i & 3, i >> 4, (i >> 2) & 3, h);
+        }
+        r.sec = new LevelChunkSection(st, bi);
+        r.bes = bes == null ? null : Arrays.copyOf(bes, nb);
+    }
+
+    // ───────────── вставка (главный поток) ─────────────
+
+    /** Кадр: прежде всего — смена мира, взгляд/кольца, разбудить потоки, адаптация к долгим кадрам. */
+    static void frame() {
+        ClientLevel lvl = Minecraft.getInstance().level;
+        if (lvl != lastLevel) { lastLevel = lvl; cancelAll(); }
+        if (job == null) return;
+        updatePlayer(!PENDING.isEmpty());
+        int n = wanted();
+        ensureThreads(n);
+        long avg = FrameWatch.avgFrameNs();
+        boolean near;                                                  // ближние кубы ждут (телепорт, вход) — все потоки:
+        synchronized (LOCK) { near = !RING[0].isEmpty() || !RING[1].isEmpty() || !RING[2].isEmpty(); }   // кадры долгие как раз от прогрузки
+        int a = near ? n : avg > 50_000_000L ? 1 : avg > 33_000_000L ? Math.max(1, n / 2) : n;   // долгие кадры — меньше потоков
+        synchronized (THREADS) { a = Math.min(a, THREADS.size()); }
+        if (a != active) { active = a; wake = true; }
+        if (wake) { wake = false; synchronized (LOCK) { LOCK.notifyAll(); } }
+    }
+
+    /** Вставить готовые кубы до end (хотя бы один). */
+    static void apply(long end) {
+        if (RESULTS.isEmpty()) return;
+        // свой бюджет (как у op 2): обычно доля кадра, потоки упёрлись в RESULTS — больше (они простаивают)
+        int n = RESULTS.size();
+        long b = n >= MAX_RESULTS ? (Minecraft.getInstance().isWindowActive() ? 4_000_000L : 20_000_000L)
+                : n > MAX_RESULTS / 2 ? 2_000_000L : FrameWatch.budgetNs(0.25, 300_000L, 1_500_000L);
+        long until = Math.max(end, System.nanoTime() + b);
+        Result r;
+        boolean first = true;
+        while ((first || System.nanoTime() < until) && (r = RESULTS.poll()) != null) {
+            first = false;
+            Task t = r.t;
+            if (t.cancelled || PENDING.get(t.pos) != t) { dropped++; continue; }
+            cancel(t.pos);
+            finish(r);
+        }
+    }
+
+    private static void finish(Result r) {
+        Task t = r.t;
+        ClientLevel level = Minecraft.getInstance().level;
+        if (t.level != level || t.job != job) { dropped++; return; }
+        if (r.err != null || r.sec == null) {
+            if (errors++ < 5) HokaOdysseyClient.LOG.warn("генерация куба {} упала — прошу у сервера", SectionPos.of(t.pos), r.err);
+            CubeCache.want(t.pos, CubeCache.WANT_BLOCKS);
+            ClientGen.failed();
+            return;
+        }
+        if (t.f != level.palettedContainerFactory()) { dropped++; CubeCache.want(t.pos, CubeCache.WANT_BLOCKS); return; }
+        generated++;
+        genNs += r.ns;
+        ClientGen.placed(level, t.pos, r.sec, r.bes, r.hash, t.expect);
+    }
+
+    public static String stats() {
+        return "сгенерировано " + generated + (generated > 0 ? String.format(" (%.0f мкс/куб)", genNs / 1e3 / generated) : "")
+                + ", ждут " + PENDING.size() + ", готово " + RESULTS.size() + ", синхронно " + forced + ", отброшено " + dropped
+                + (errors > 0 ? ", ошибок " + errors : "");
+    }
+}

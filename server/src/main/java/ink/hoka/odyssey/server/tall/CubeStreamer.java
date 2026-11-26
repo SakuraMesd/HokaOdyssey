@@ -67,6 +67,13 @@ import java.util.concurrent.ConcurrentHashMap;
  *   6 HASH_REPORT (0.51) varint проверено, varint расхождений, varint k, k × long pos
  *   7 LAG     (0.57) varint задержка_мс, varint макс_мс_за_5с, varint очередь — раз в секунду: сколько ответ на Ping
  *             ждал главного потока клиента (DebugTab)
+ *   8 GEN_STATUS, 9 GEN_SAMPLE (0.59) — см. GenWire / ClientGen
+ * 0.59 генерация нетронутых кубов на клиенте (ClientGen, формат — ink.hoka.odyssey.gen.GenWire): S2C op 20 GEN_DEF при
+ *   входе в инстанс (после op 12/19, до скелетов); пока клиент не ответил op 8 «ок» — всё по-старому. Дальше куб окна
+ *   ±(v+1), которого нет на диске и который не менялся (CubeColumn.touched), у переносимого генератора НЕ грузится и
+ *   уходит меткой op 21 (бит GENB маски); сервер грузит только зону ±ZONE кубов вокруг игрока (правки, сущности,
+ *   секреты op 22, хэш в op 21). Первая правка нетронутого куба — op 2 всем, у кого он меткой (drainTouched).
+ *   op 4 снимает и метки. op 20 со slot 0 — генерация выключена: метки сняты, окно перешлётся op 2.
  * </pre>
  * <p>Кэш кубов (0.51, CubeCacheModel): куб, который клиент унёс в кэш с той же версией, шлём ссылкой op 13/op 14
  * вместо op 2/op 11 — те же биты sent/LIT, тот же порядок. Клиент сверяет хэш сам; промах — WANT.</p>
@@ -133,6 +140,8 @@ public final class CubeStreamer {
         int pendAt, pendN, shiftTicks;
         /** op 17 (0.56) для пришедших скелетов: шлёт тик пачками (после скелета — порядок соблюдён). */
         final java.util.concurrent.ConcurrentLinkedQueue<Long> heightsQ = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        /** 0.59: WANT клиента по кубам-меткам (хэш op 21 не сошёлся / не сгенерировал) — правду op 2 (тик). */
+        final java.util.concurrent.ConcurrentLinkedQueue<Long> genWants = new java.util.concurrent.ConcurrentLinkedQueue<>();
     }
 
     private static final Map<UUID, State> STATES = new ConcurrentHashMap<>();
@@ -245,8 +254,9 @@ public final class CubeStreamer {
             // кэш 0.51: ключ новой карты — до первого скелета (sendPendingChunks идёт после этого события)
             try { sendCacheKey(p, e.getInstance()); } catch (RuntimeException ex) { failed("op 12 игроку " + p.getUsername(), ex); }
             try { sendLightMode(p, e.getInstance()); } catch (RuntimeException ex) { failed("op 19 игроку " + p.getUsername(), ex); }
+            try { ClientGen.enter(p, e.getInstance()); } catch (RuntimeException ex) { failed("op 20 игроку " + p.getUsername(), ex); }
         });
-        ev.addListener(PlayerDisconnectEvent.class, e -> { STATES.remove(e.getPlayer().getUuid()); REQUESTED.remove(e.getPlayer().getUuid()); HEADINGS.remove(e.getPlayer().getUuid()); CubeCacheModel.remove(e.getPlayer().getUuid()); });
+        ev.addListener(PlayerDisconnectEvent.class, e -> { STATES.remove(e.getPlayer().getUuid()); REQUESTED.remove(e.getPlayer().getUuid()); HEADINGS.remove(e.getPlayer().getUuid()); CubeCacheModel.remove(e.getPlayer().getUuid()); ClientGen.quit(e.getPlayer()); });
         // этап 5: объявить канал wc новому ядру — оно пришлёт VIEW (смена окна — в tick, как при смене секции)
         ev.addListener(PlayerSpawnEvent.class, e -> {
             if (e.isFirstSpawn() && Handshake.coreAtLeast(e.getPlayer(), VIEW_CORE))
@@ -265,6 +275,12 @@ public final class CubeStreamer {
                     if (!Handshake.coreAtLeast(p, Handshake.CLIENT_LIGHT_CORE)) return;
                     int last = b.read(NetworkBuffer.VAR_INT), max = b.read(NetworkBuffer.VAR_INT), q = b.read(NetworkBuffer.VAR_INT);
                     ink.hoka.odyssey.server.DebugTab.clientLag(p, last, max, q);
+                    return;
+                }
+                if (op == 8 || op == 9) {                                      // 0.59: генерация на клиенте
+                    if (!Handshake.coreAtLeast(p, Handshake.CLIENT_GEN_CORE)) return;
+                    if (op == 8) ClientGen.onStatus(p, ink.hoka.odyssey.gen.GenWire.decodeStatus(m));
+                    else ClientGen.onSample(p, ink.hoka.odyssey.gen.GenWire.decodeSample(m));
                     return;
                 }
                 if (op != 2) return;                                           // незнакомый op — пропуск
@@ -287,6 +303,7 @@ public final class CubeStreamer {
     /** Каждый тик: дослать ставшие READY кубы; игрок сменил секцию по высоте — сдвинуть окно во всех видимых столбцах (порциями). */
     private static void tick() {
         drainReady();
+        drainTouched();                                                    // 0.59: первая правка куба-метки — op 2
         drainHeights();
         long deadline = System.nanoTime() + SHIFT_BUDGET_NS;              // общий бюджет сдвига окна на тик
         for (Player p : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
@@ -298,6 +315,7 @@ public final class CubeStreamer {
             if (st == null || st.instance != inst) continue;
             try {
                 wants(p, st);                                               // кэш 0.51: промахи клиента — кубы/свет целиком
+                genWants(p, st);                                            // 0.59: куб-метка не сошёлся у клиента — правду op 2
                 if (!st.heightsQ.isEmpty()) {                               // op 17 пришедших скелетов
                     List<int[]> hs = new ArrayList<>();
                     for (Long k; (k = st.heightsQ.poll()) != null; )      // высоты — на сейчас (не старее op 17 из drainHeights)
@@ -714,7 +732,18 @@ public final class CubeStreamer {
             int e1 = ext(p);
             int from = Math.max(0, st.sy - st.v - e1 - min), to = Math.min(n - 1, st.sy + st.v + e1 - min);
             boolean miss = false, unsent = false;
+            var g = genFor(p, st, c);
             for (int i = from; i <= to; i++) {
+                if (g != null && genCube(g, c, i, mask)) {                 // 0.59: куб — меткой; грузим только зону
+                    boolean zone = zone(p, c.getChunkX(), i + min, c.getChunkZ());
+                    if (!c.ready(i)) { if (zone) { c.request(i, prio(p, c.getChunkX(), i + min, c.getChunkZ())); miss = true; } }
+                    else if (mask.get(GENB + i)) {
+                        mask.set(LIT + i);                                  // в памяти — правило записи пускает
+                        if (zone) genSecrets(p, g, c, i, mask);
+                    }
+                    if (!mask.get(GENB + i)) unsent = true;                // метка не ушла — update пошлёт op 21
+                    continue;
+                }
                 if (!c.ready(i)) { if (lazy) { c.request(i, prio(p, c.getChunkX(), i + min, c.getChunkZ())); miss = true; } }
                 else if (!mask.get(LIT + i)) unsent = true;                // в памяти, а игроку не ушёл (сбой/гонка) — дослать
             }
@@ -755,17 +784,21 @@ public final class CubeStreamer {
         Instance inst = p.getInstance();
         int pcx = p.getPosition().blockX() >> 4, pcz = p.getPosition().blockZ() >> 4;
         int lo = st.sy - st.v, hi = st.sy + st.v;
-        if (!layerReady(inst, pcx, pcz, st.sy)) return ((long) (st.sy + 1) << 32) | (st.sy & 0xFFFFFFFFL);
+        if (!layerReady(inst, st, pcx, pcz, st.sy)) return ((long) (st.sy + 1) << 32) | (st.sy & 0xFFFFFFFFL);
         int a = st.sy, b = st.sy;
-        while (a - 1 >= lo && layerReady(inst, pcx, pcz, a - 1)) a--;
-        while (b + 1 <= hi && layerReady(inst, pcx, pcz, b + 1)) b++;
+        while (a - 1 >= lo && layerReady(inst, st, pcx, pcz, a - 1)) a--;
+        while (b + 1 <= hi && layerReady(inst, st, pcx, pcz, b + 1)) b++;
         return ((long) a << 32) | (b & 0xFFFFFFFFL);
     }
 
-    private static boolean layerReady(Instance inst, int pcx, int pcz, int sy) {
+    /** Слой sy в 3×3 столбцах «есть у клиента»: в памяти сервера или (0.59) ушёл меткой — клиент сам не пустит в ждущий генерации куб. */
+    private static boolean layerReady(Instance inst, State st, int pcx, int pcz, int sy) {
         int i = sy - (TallWorld.MIN_Y >> 4);
         for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++)
-            if (inst.getChunk(pcx + dx, pcz + dz) instanceof TallColumn tc && !tc.ready(i)) return false;
+            if (inst.getChunk(pcx + dx, pcz + dz) instanceof TallColumn tc && !tc.ready(i)) {
+                BitSet m = st.sent.get(key(pcx + dx, pcz + dz));
+                if (m == null || i < 0 || i >= LIT || !m.get(GENB + i)) return false;
+            }
         return true;
     }
 
@@ -800,11 +833,24 @@ public final class CubeStreamer {
                     int from = Math.max(0, st.sy - st.v - e1 - min), to = Math.min(secs.size() - 1, st.sy + st.v + e1 - min);
                     List<Integer> add = new ArrayList<>(), lit = new ArrayList<>(), halo = new ArrayList<>();
                     boolean ho = haloOp(p);
+                    List<Integer> regen = null;
                     for (int i : e.getValue()) {
+                        if (mask.get(GENB + i)) {                           // 0.59: у клиента меткой — блоки не слать
+                            if (i < from || i > to || !c.ready(i)) continue;
+                            mask.set(LIT + i);                              // в памяти — правило записи пускает
+                            if (mask.get(GENR + i)) { mask.clear(GENR + i); if (regen == null) regen = new ArrayList<>(); regen.add(i); }
+                            var g = genFor(p, st, c);
+                            if (g != null && zone(p, c.getChunkX(), i + min, c.getChunkZ())) genSecrets(p, g, c, i, mask);
+                            continue;
+                        }
                         if ((i == from - 1 || i == to + 1) && ho && !mask.get(HALO + i) && !halo.contains(i) && c.ready(i)) { halo.add(i); continue; }   // кольцо ±1 (0.56)
                         if (i < from || i > to || mask.get(LIT + i) || lit.contains(i) || !c.ready(i)) continue;   // успели выгрузить — не слать
                         lit.add(i);
                         if (secs.get(i).blockPalette().count() > 0) add.add(i);
+                    }
+                    if (regen != null) {                                    // правку игрока в куб-метку отменили — откатить op 2
+                        writeCubes(p, c, regen, false);
+                        for (int i : regen) if (secs.get(i).blockPalette().count() > 0) mask.set(i);
                     }
                     if (lit.isEmpty() && halo.isEmpty()) continue;
                     if (!add.isEmpty()) {
@@ -946,6 +992,11 @@ public final class CubeStreamer {
         List<Integer> in = new ArrayList<>();
         List<Long> out = new ArrayList<>();
         for (int i : idx) {
+            if (mask.get(GENB + i) && !c.ready(i)) {                       // 0.59: метка, у сервера куба нет — op 2, когда загрузится
+                mask.set(GENR + i);
+                c.request(i, 0);
+                continue;
+            }
             if (mask.get(i) || mask.get(LIT + i)) in.add(i);
             else out.add(pos(c.getChunkX(), i + min, c.getChunkZ()));
         }
@@ -978,8 +1029,15 @@ public final class CubeStreamer {
         return true;
     }
 
-    /** Окно столбца: дослать непустые кубы окна, выгрузить отправленные вне окна. */
+    /**
+     * Окно столбца: дослать непустые кубы окна, выгрузить отправленные вне окна. Под замком состояния игрока: метка op 21
+     * (бит GENB ставится ДО проверки «тронут») и op 2 первой правки (drainTouched) не обгоняют друг друга.
+     */
     private static void update(Player p, State st, TallColumn c, BitSet mask) {
+        synchronized (st) { updateLocked(p, st, c, mask); }
+    }
+
+    private static void updateLocked(Player p, State st, TallColumn c, BitSet mask) {
         List<Section> secs = c.getSections();
         int min = c.getMinSection();
         boolean cl = clientLight(p);                                        // 0.57: блоки окна ±(v+1), свет не слать
@@ -989,8 +1047,33 @@ public final class CubeStreamer {
         // не попав в add, — drainReady его пропускал (LIT уже стоит), у игрока дыра до смены секции по Y
         BitSet rdy = new BitSet();
         List<Integer> add = new ArrayList<>();
+        // 0.59: нетронутые кубы переносимого генератора — меткой op 21 (клиент генерирует сам), грузим только зону
+        var g = genFor(p, st, c);
+        List<ink.hoka.odyssey.gen.GenWire.Cube> labels = null;
+        List<Integer> zoneReady = null;
+        int cx = c.getChunkX(), cz = c.getChunkZ();
         for (int i = from; i <= to; i++) {
-            if (!c.ready(i)) { c.request(i, prio(p, c.getChunkX(), i + min, c.getChunkZ())); continue; }   // придёт через drainReady
+            if (g != null && genCube(g, c, i, mask)) {
+                int cy = i + min;
+                boolean zone = zone(p, cx, cy, cz);
+                if (zone && !c.ready(i)) c.request(i, prio(p, cx, cy, cz));
+                if (!mask.get(GENB + i)) {
+                    mask.set(GENB + i);                                     // сначала бит, потом «тронут?» (гонка с drainTouched)
+                    if (((CubeColumn) c).touched(i)) mask.clear(GENB + i);
+                    else {
+                        if (labels == null) labels = new ArrayList<>();
+                        labels.add(label(g, c, i));
+                    }
+                }
+                if (mask.get(GENB + i)) {
+                    if (c.ready(i)) {
+                        rdy.set(i);                                         // LIT: в памяти — правило записи пускает
+                        if (zone) { if (zoneReady == null) zoneReady = new ArrayList<>(); zoneReady.add(i); }
+                    }
+                    continue;
+                }
+            } else if (mask.get(GENB + i)) mask.clear(GENB + i);           // тронут / выключено — дальше по-старому
+            if (!c.ready(i)) { c.request(i, prio(p, cx, i + min, cz)); continue; }
             rdy.set(i);
             if (!mask.get(i) && secs.get(i).blockPalette().count() > 0) add.add(i);
         }
@@ -1022,6 +1105,14 @@ public final class CubeStreamer {
         BitSet dropIdx = new BitSet();
         for (int i = mask.nextSetBit(0); i >= 0 && i < LIT; i = mask.nextSetBit(i + 1))
             if (i < from || i > to) { drop.add(pos(c.getChunkX(), i + min, c.getChunkZ())); dropIdx.set(i); }
+        for (int b = mask.nextSetBit(GENB); b >= 0 && b < GENB + LIT; b = mask.nextSetBit(b + 1)) {   // 0.59: метки вне окна — тоже op 4
+            int i = b - GENB;
+            if (i >= from && i <= to) continue;
+            if (!dropIdx.get(i)) drop.add(pos(c.getChunkX(), i + min, c.getChunkZ()));
+            mask.clear(b);
+            mask.clear(GENR + i);
+            mask.clear(SECR + i);
+        }
         mask.clear(0, from);
         if (to + 1 < secs.size()) mask.clear(to + 1, secs.size());
         if (!drop.isEmpty()) {
@@ -1034,6 +1125,8 @@ public final class CubeStreamer {
             });
             p.sendPacket(new PluginMessagePacket(CHANNEL, b));
         }
+        if (labels != null) sendLabels(p, c, labels);                       // op 21 — после op 4 и до op 2 столбца
+        if (zoneReady != null) for (int i : zoneReady) genSecrets(p, g, c, i, mask);
         if (!add.isEmpty()) {
             writeCubes(p, c, add, true);
             for (int i : add) mask.set(i);
@@ -1053,6 +1146,16 @@ public final class CubeStreamer {
         // света, и после исключения в CubeLight куб считался отправленным навсегда)
         for (int i = rdy.nextSetBit(0); i >= 0; i = rdy.nextSetBit(i + 1)) mask.set(LIT + i);
         for (int h : halo) mask.set(HALO + h);
+    }
+
+    /** Тесты: update() с уже отправленной маской (как повторный update того же столбца). */
+    static BitSet updateForTest(Player p, TallColumn c, int sy, int v, BitSet mask) {
+        State st = new State();
+        st.sy = sy;
+        st.v = v;
+        st.instance = c.getInstance();
+        update(p, st, c, mask);
+        return mask;
     }
 
     /** Тесты: update() столбца игроку с окном sy ± v (состояние вне STATES); ответ — маска sent. */
@@ -1655,12 +1758,13 @@ public final class CubeStreamer {
         switch (op) {
             case 3 -> {                                                     // WANT
                 CubeCacheModel.P m = CubeCacheModel.get(u);
-                if (m == null) return;
+                State st = STATES.get(u);                                   // 0.59: и кубы-метки (хэш не сошёлся)
                 int n = Math.min(4096, b.read(NetworkBuffer.VAR_INT));
                 for (int k = 0; k < n; k++) {
                     long pos = b.read(NetworkBuffer.LONG);
                     int what = b.read(NetworkBuffer.BYTE);
-                    if (m.wants.size() < 65536) m.wants.add(new long[]{pos, what});
+                    if (m != null && m.wants.size() < 65536) m.wants.add(new long[]{pos, what});
+                    if (st != null && (what & 1) != 0 && st.genWants.size() < 4096) st.genWants.add(pos);
                 }
             }
             case 4 -> {                                                     // HAVE
@@ -1785,6 +1889,216 @@ public final class CubeStreamer {
      */
     private static final int HALO = 3 * LIT;
 
+    /** Биты от GENB (0.59): куб ушёл клиенту меткой op 21 — клиент генерирует его сам (блоков сервер не слал). */
+    private static final int GENB = 4 * LIT;
+    /** Биты от GENX (0.59): куб этому игроку — только настоящими блоками (хэш разошёлся / клиент не смог). */
+    private static final int GENX = 5 * LIT;
+    /** Биты от SECR (0.59): секреты куба-метки (op 22) игроку досланы. */
+    private static final int SECR = 6 * LIT;
+    /** Биты от GENR (0.59): правку в куб-метку отменили, а куба у сервера нет — откатить op 2, когда загрузится. */
+    private static final int GENR = 7 * LIT;
+
+    // ───────────── 0.59: генерация нетронутых кубов на клиенте ─────────────
+
+    /** Генератор для меток в этом столбце: генерация на клиенте у игрока включена, столбец ленивый, иначе null. */
+    private static ink.hoka.odyssey.server.tall.gen.ModuleCubeGen genFor(Player p, State st, TallColumn c) {
+        if (!(c instanceof CubeColumn cc) || !cc.isLazy()) return null;
+        return ClientGen.active(p, st.instance);
+    }
+
+    /** Куб i — меткой: не тронут, игроку не велено «только блоками», генератор считает его непустым. */
+    private static boolean genCube(ink.hoka.odyssey.server.tall.gen.ModuleCubeGen g, TallColumn c, int i, BitSet mask) {
+        if (i < 0 || i >= LIT || mask.get(GENX + i) || ((CubeColumn) c).touched(i)) return false;
+        return g.hasBlocks(c.getChunkX(), i + c.getMinSection(), c.getChunkZ());
+    }
+
+    /** Куб в зоне ±ZONE вокруг куба игрока (её сервер грузит и при генерации на клиенте). */
+    private static boolean zone(Player p, int cx, int cy, int cz) {
+        var pos = p.getPosition();
+        int z = ClientGen.ZONE;
+        return Math.abs(cx - (pos.blockX() >> 4)) <= z && Math.abs(cz - (pos.blockZ() >> 4)) <= z && Math.abs(cy - (pos.blockY() >> 4)) <= z;
+    }
+
+    /** Метка куба: однородный (индекс/генератор) — заливкой; в памяти сервера (не тронут, без секретов) — с хэшем. */
+    private static ink.hoka.odyssey.gen.GenWire.Cube label(ink.hoka.odyssey.server.tall.gen.ModuleCubeGen g, TallColumn c, int i) {
+        int cx = c.getChunkX(), cy = i + c.getMinSection(), cz = c.getChunkZ();
+        int[] u = g.uniform(cx, cy, cz);
+        if (u != null) return new ink.hoka.odyssey.gen.GenWire.Cube(cy, 0, u[0], u[1]);
+        long h = 0;
+        if (c.ready(i) && !g.mayHaveSecrets(cx, cy, cz)) {
+            c.lockReadLock();
+            try { if (c.ready(i)) h = c.cubeHash(i); } finally { c.unlockReadLock(); }
+        }
+        return new ink.hoka.odyssey.gen.GenWire.Cube(cy, h, -1, 0);
+    }
+
+    /** op 21 одного столбца. */
+    private static void sendLabels(Player p, TallColumn c, List<ink.hoka.odyssey.gen.GenWire.Cube> labels) {
+        byte[] b = ink.hoka.odyssey.gen.GenWire.encodeCubes(ClientGen.slot(p),
+                List.of(new ink.hoka.odyssey.gen.GenWire.Col(c.getChunkX(), c.getChunkZ(), labels)));
+        p.sendPacket(new PluginMessagePacket(CHANNEL, b));
+        int hashed = 0, uni = 0;
+        for (var l : labels) { if (l.hash() != 0) hashed++; if (l.uniformState() >= 0) uni++; }
+        ClientGen.labelled(p, labels.size(), hashed, uni);
+    }
+
+    /** Секреты куба-метки зоны (op 22) — один раз (бит SECR). Генерирует куб заново с секретами (только если они возможны). */
+    private static void genSecrets(Player p, ink.hoka.odyssey.server.tall.gen.ModuleCubeGen g, TallColumn c, int i, BitSet mask) {
+        int cx = c.getChunkX(), cy = i + c.getMinSection(), cz = c.getChunkZ();
+        if (mask.get(SECR + i) || !g.mayHaveSecrets(cx, cy, cz)) return;
+        mask.set(SECR + i);
+        try {
+            var a = g.visible(cx, cy, cz, true);
+            var sec = a.secretList();
+            var data = a.dataList();
+            if (sec.isEmpty() && data.isEmpty()) return;
+            int[] idx = new int[sec.size()], st = new int[sec.size()];
+            int k = 0;
+            for (var e : sec.entrySet()) { idx[k] = e.getKey(); st[k++] = e.getValue(); }
+            int[] di = new int[data.size()];
+            String[] sn = new String[data.size()];
+            k = 0;
+            for (var e : data.entrySet()) { di[k] = e.getKey(); sn[k++] = e.getValue(); }
+            byte[] b = ink.hoka.odyssey.gen.GenWire.encodeSecrets(List.of(new ink.hoka.odyssey.gen.GenWire.Secret(pos(cx, cy, cz), idx, st, di, sn)));
+            p.sendPacket(new PluginMessagePacket(CHANNEL, b));
+            ClientGen.secretsSent.incrementAndGet();
+        } catch (RuntimeException ex) {
+            mask.clear(SECR + i);
+            failed("секреты куба " + cx + " " + cy + " " + cz, ex);
+        }
+    }
+
+    /** Нетронутые кубы, ставшие тронутыми (CubeColumn.firstTouch, любой поток): тик дошлёт op 2 тем, у кого они меткой. */
+    private record Touch(CubeColumn c, int i) {}
+
+    private static final java.util.concurrent.ConcurrentLinkedQueue<Touch> TOUCHED = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    /** Отладка: кубов-меток дослано op 2 после первой правки; правдой по WANT/выборке. */
+    static volatile long genTouched, genForced;
+
+    static void firstTouch(CubeColumn c, int i) {
+        if (STATES.isEmpty() || c.getInstance() == null || !TallWorld.isCubes(c.getInstance())) return;
+        TOUCHED.add(new Touch(c, i));
+    }
+
+    /** Тик: первая правка куба-метки — op 2 каждому, у кого он меткой (один раз за жизнь куба). */
+    private static void drainTouched() {
+        for (Touch t; (t = TOUCHED.poll()) != null; ) {
+            CubeColumn c = t.c();
+            int i = t.i();
+            if (!c.isLoaded() || c.getInstance() == null) continue;
+            long k = key(c.getChunkX(), c.getChunkZ());
+            for (Player p : receivers(c)) {
+                State st = STATES.get(p.getUuid());
+                if (st == null || st.instance != c.getInstance()) continue;
+                BitSet mask = st.sent.get(k);
+                if (mask == null) continue;
+                synchronized (st) {
+                    if (!mask.get(GENB + i)) continue;
+                    mask.clear(GENB + i);
+                    mask.clear(GENR + i);
+                    mask.clear(SECR + i);
+                    try {
+                        if (c.ready(i)) {
+                            writeCubes(p, c, List.of(i), false);
+                            if (c.getSections().get(i).blockPalette().count() > 0) mask.set(i); else mask.clear(i);
+                            mask.set(LIT + i);
+                            genTouched++;
+                        } else mask.clear(LIT + i);                        // дошлёт heal/drainReady
+                    } catch (RuntimeException ex) {
+                        mask.clear(LIT + i);
+                        failed("op 2 первой правки " + c.getChunkX() + " " + c.getChunkZ(), ex);
+                    }
+                }
+            }
+        }
+    }
+
+    /** Куб pos этому игроку — только блоками (GENX): метку снять, в памяти — op 2 сейчас, иначе загрузить (дошлёт drainReady). */
+    static void forceReal(Player p, long pos) {
+        State st = STATES.get(p.getUuid());
+        if (st == null || st.instance == null || st.sy == Integer.MIN_VALUE) return;
+        int x = posX(pos), y = posY(pos), z = posZ(pos);
+        BitSet mask = st.sent.get(key(x, z));
+        if (mask == null || !(st.instance.getChunk(x, z) instanceof TallColumn c)) return;
+        int i = y - c.getMinSection();
+        if (i < 0 || i >= LIT) return;
+        synchronized (st) {
+            mask.set(GENX + i);
+            if (!mask.get(GENB + i)) return;
+            mask.clear(GENB + i);
+            mask.clear(GENR + i);
+            mask.clear(LIT + i);
+            genForced++;
+            if (c.ready(i)) {
+                try {
+                    writeCubes(p, c, List.of(i), false);
+                    if (c.getSections().get(i).blockPalette().count() > 0) mask.set(i);
+                    mask.set(LIT + i);
+                } catch (RuntimeException ex) { failed("op 2 по расхождению", ex); }
+            } else c.request(i, prio(p, x, y, z));
+        }
+    }
+
+    /** Тик: WANT клиента по кубам-меткам — хэш op 21 не сошёлся (или не сгенерировал): правду op 2 и расхождение. */
+    private static void genWants(Player p, State st) {
+        if (st.genWants.isEmpty()) return;
+        int n = 0;
+        for (Long pos; n < 512 && (pos = st.genWants.poll()) != null; n++) {
+            BitSet mask = st.sent.get(key(posX(pos), posZ(pos)));
+            if (mask == null) continue;
+            int i = posY(pos) - (TallWorld.MIN_Y >> 4);
+            if (i < 0 || i >= LIT || !mask.get(GENB + i)) continue;
+            forceReal(p, pos);
+            ClientGen.mismatch(p, pos, "хэш op 21");
+        }
+    }
+
+    /** Генерация игроку выключена (op 20 slot 0): снять метки — heal/update перешлют окно op 2 (LIT снят). */
+    static void genOff(Player p) {
+        State st = STATES.get(p.getUuid());
+        if (st == null) return;
+        synchronized (st) {
+            for (BitSet mask : st.sent.values()) {
+                for (int b = mask.nextSetBit(GENB); b >= 0 && b < GENB + LIT; b = mask.nextSetBit(b + 1)) mask.clear(LIT + (b - GENB));
+                mask.clear(GENB, GENB + LIT);
+                mask.clear(SECR, SECR + LIT);
+                mask.clear(GENR, GENR + LIT);
+            }
+        }
+        st.heal = 19;                                                       // полная подстраховка — в следующий тик
+    }
+
+    /** До n кубов-меток игрока (для op 23), ближние столбцы первыми. */
+    static long[] genPositions(Player p, int n) {
+        State st = STATES.get(p.getUuid());
+        if (st == null) return new long[0];
+        int pcx = p.getPosition().blockX() >> 4, pcz = p.getPosition().blockZ() >> 4;
+        long[] keys = new long[st.sent.size()];
+        int m = 0;
+        for (Long k : st.sent.keySet()) { if (m == keys.length) break; keys[m++] = k; }
+        long[] ord = order(keys, m, pcx, pcz);
+        List<Long> out = new ArrayList<>();
+        int min = TallWorld.MIN_Y >> 4;
+        for (long k : ord) {
+            BitSet mask = st.sent.get(k);
+            if (mask == null) continue;
+            for (int b = mask.nextSetBit(GENB); b >= 0 && b < GENB + LIT && out.size() < n; b = mask.nextSetBit(b + 1))
+                out.add(pos((int) (k >> 32), b - GENB + min, (int) k));
+            if (out.size() >= n) break;
+        }
+        long[] r = new long[out.size()];
+        for (int j = 0; j < r.length; j++) r[j] = out.get(j);
+        return r;
+    }
+
+    /** Тесты: маска столбца игрока (или null). */
+    static BitSet maskForTest(Player p, int cx, int cz) {
+        State st = STATES.get(p.getUuid());
+        return st == null ? null : st.sent.get(key(cx, cz));
+    }
+
+    static int genbBit(int i) { return GENB + i; }
+
     /** Свет столбца только для этих секций (бит маски света = индекс секции + 1: нулевой — под миром). */
     private static LightData slice(TallColumn c, LightData full, List<Integer> idx, boolean sun) {
         BitSet want = new BitSet();
@@ -1854,6 +2168,7 @@ public final class CubeStreamer {
                 + "; правило записи: отменено " + cancelled + ", кубов ресинк " + resyncCubes
                 + "; кубов загружено " + CubeStore.loads.get() + ", в очереди " + CubeStore.queued()
                 + ", ошибок чтения " + CubeStore.loadErrors.get() + ", запись в незагруженный " + CubeStore.violations.get()
-                + "; " + CubeCacheModel.stats();
+                + "; " + CubeCacheModel.stats()
+                + "; " + ClientGen.stats() + ", op 2 после первой правки " + genTouched + ", правдой по расхождению " + genForced;
     }
 }

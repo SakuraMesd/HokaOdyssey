@@ -94,7 +94,46 @@ SpaceApi space = services().require(SpaceApi.class);
 ## Генератор планеты
 
 Каждая планета — отдельная высокая карта (`maps/<планета>/map.yml`: `tall: true`, `store: cubes`) со своим
-модулем-генератором. Пример целиком — `modules/noisegen` (генератор `noise-test`, синусный рельеф).
+генератором.
+
+### Переносимый генератор (рекомендуется, ядро мода 0.59+)
+
+Пишется ОДИН раз на `gen-api` (пакет `ink.hoka.odyssey.gen`, чистая Java 21, без Minestom/MC) и работает и на
+сервере, и у клиента: нетронутые кубы (нет на диске, никто не правил) сервер не генерирует и не шлёт — шлёт метку
+op 21, клиент генерирует сам в фоне. Пример целиком — `generators/noise-test` (jar → `run/generators/`, ядро
+грузит папку `generators/` при запуске; модуль может поставить свой jar через `registerGenerator(Path)`).
+
+```java
+public final class MarsGen implements GenProvider {             // класс указан в hoka-gen.json
+    public String id() { return "mars"; }
+    public int version() { return 1; }                          // поменял вывод — увеличь (иначе клиенты разойдутся)
+    public GenBounds defaultBounds() { return new GenBounds(-1000, 1000, 0); }
+    public PlanetGenerator create(GenContext ctx) {             // свой экземпляр на сервере и у каждого клиента
+        int stone = ctx.ids().defaultState("minecraft:stone");  // номера состояний — через ctx.ids(), не константами
+        GenNoise n = new GenNoise(ctx.seed());
+        return out -> { /* out.set(lx, ly, lz, stone), out.fillY(...), out.biome(...) */ };
+    }
+}
+```
+`hoka-gen.json` в корне jar: `{"id":"mars","version":1,"provider":"my.pkg.MarsGen"}`. Свои классы — НЕ в пакете
+`ink.hoka.odyssey.gen`. Зависимость в сборке — только `compileOnly(project(":gen-api"))`, `options.release = 21`.
+
+Правила (проверяются при загрузке jar — GenBytecodeCheck — и сверкой с клиентом):
+1. Только `StrictMath` (Math.sin/cos/tan/pow/exp/log/… запрещены: 1 ulp разницы между JVM и платформами — другой
+   рельеф у клиента). `+ − × /`, `Math.sqrt/floor/abs/min/max` можно. Случайность — `GenRandom`/`GenNoise` от сида и
+   координат; без `Random()`, `ThreadLocalRandom`, времени, `parallelStream`.
+2. Руды и тайники — только `out.secret(...)` и только от `ctx.secretSeed()` (map.yml `secret_seed`, ядро создаёт
+   само; клиенту не уходит). У клиента `out.secrets() == false` — их присылает сервер, когда игрок рядом (op 22).
+   `uniform()` для куба с секретами — `-1`; `mayHaveSecrets()` — true там, где они бывают.
+3. `hasBlocks`/`uniform`/`highest` — как у старого API (скорость и свет); `highest` обязателен или pregen — иначе
+   сервер генерирует кубы ради высот.
+4. Встроенные `flat` и `void` — тоже переносимые (код в gen-api, jar не нужен).
+
+Раздаёт jar клиентам модуль `clientmods` (подписанный список файлов, клиент кэширует по sha). Нет clientmods —
+генерация только на сервере, как раньше. Отладка: `/hocubes genstats`, `/hocubes gencheck [ник] [N]`,
+`/hocubes gen on|off <ник>`; эталон сервер↔клиент — `gen-golden/<id>@<v>.txt` (GenPortableTest).
+
+### Генератор модуля (старый API, только сервер)
 
 ```java
 public final class MarsModule extends OdysseyModule {

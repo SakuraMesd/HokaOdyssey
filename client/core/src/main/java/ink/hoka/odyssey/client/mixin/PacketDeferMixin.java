@@ -63,6 +63,7 @@ public abstract class PacketDeferMixin {
 
     @Inject(method = "handleForgetLevelChunk", at = @At(value = "INVOKE", target = ENSURE, shift = At.Shift.AFTER), cancellable = true)
     private void hoka$forget(ClientboundForgetLevelChunkPacket p, CallbackInfo ci) {
+        if (TallWorld.net && !CubeQueue.REPLAY) ink.hoka.odyssey.client.GenPool.columnChanged(p.pos().x, p.pos().z);   // 0.59: генерация столбца не нужна
         if (!hoka$tall() || !CubeQueue.waitsColumn(p.pos().x, p.pos().z)) return;
         CubeQueue.columnChanged(p.pos().x, p.pos().z);                 // при повторе — не растить (ServerLightForgetMixin)
         ClientPacketListener self = (ClientPacketListener) (Object) this;
@@ -91,6 +92,8 @@ public abstract class PacketDeferMixin {
     /** Правка в секции pos: ждёт столбец или куб этой секции — в очередь (держит секцию и столбец). */
     @Unique
     private boolean hoka$sec(BlockPos pos, Runnable r) {
+        // 0.59: куб ждёт генерации — сгенерировать сейчас (главный поток), правка ляжет поверх (и при повторе из очереди)
+        if (pos != null && TallWorld.net && level != null) ink.hoka.odyssey.client.GenPool.forceNow(level, SectionPos.asLong(pos));
         if (pos == null || !hoka$tall()) return false;
         long sec = SectionPos.asLong(pos);
         if (!CubeQueue.waits(sec)) return false;

@@ -105,6 +105,12 @@ public final class CubeColumn extends Chunk implements TallColumn {
     /** Откуда читать кубы с диска (null — только генератор) и какие кубы брать с диска (заголовок при загрузке). */
     private CubeRegionLoader source;
     private BitSet fromDisk = new BitSet();
+    /**
+     * Тронутые кубы (0.59, генерация на клиенте): лежат на диске (отличаются от генератора) или менялись с загрузки
+     * столбца. Нетронутый куб у переносимого генератора равен выводу генератора — его клиент генерирует сам (op 21).
+     * Только растёт (сохранение не очищает: файл на диске — источник правды). Под своим замком.
+     */
+    private final BitSet touched = new BitSet();
 
     /**
      * Верх колонки в кубе не в памяти: генератор аналитически, куб с диска — с запасом (уточнит {@link HeightIndex#fix}),
@@ -156,6 +162,8 @@ public final class CubeColumn extends Chunk implements TallColumn {
         source = src;
         fromDisk = new BitSet(CUBES);                                      // сразу на все кубы: дальше без перевыделения (читают без замка)
         fromDisk.or(onDisk);
+        synchronized (touched) { touched.or(onDisk); }                     // с диска — не как у генератора
+        st.onTouch = this::firstTouch;
         for (int i = 0; i < CUBES; i++)
             if (onDisk.get(i) || g.hasBlocks(chunkX, i + MIN_SECTION, chunkZ)) state[i] = ABSENT;
         if (heights != null) st.heights.load(heights);
@@ -176,6 +184,22 @@ public final class CubeColumn extends Chunk implements TallColumn {
     }
 
     public boolean isLazy() { return lazy; }
+
+    /** Куб i тронут (на диске или менялся) — клиенту только настоящими блоками (op 2). */
+    public boolean touched(int i) { synchronized (touched) { return touched.get(i); } }
+
+    /** Тесты/отладка: копия набора тронутых. */
+    BitSet touchedSet() { synchronized (touched) { return (BitSet) touched.clone(); } }
+
+    /** Хук ColumnState.markDirty: первая правка куба — у кого он «меткой генератора», дослать op 2 (CubeStreamer). */
+    private void firstTouch(int i) {
+        if (i < 0 || i >= CUBES) return;
+        synchronized (touched) {
+            if (touched.get(i)) return;
+            touched.set(i);
+        }
+        CubeStreamer.firstTouch(this, i);
+    }
 
     @Override
     public boolean ready(int i) {

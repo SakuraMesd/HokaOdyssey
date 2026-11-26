@@ -45,6 +45,15 @@ public abstract class SodiumOptionsMixin {
                                 : Component.translatable("options.hoka_odyssey.cube_cache.value", v))
                         .setImpact(OptionImpact.LOW)
                         .setBinding(CubeCacheSetting::set, CubeCacheSetting::get)
-                        .setStorageHandler(CubeCacheSetting::save)));
+                        .setStorageHandler(CubeCacheSetting::save))
+                .addOption(builder.createIntegerOption(Identifier.fromNamespaceAndPath("hoka_odyssey", "client_gen"))   // 0.59
+                        .setName(Component.translatable("options.hoka_odyssey.client_gen"))
+                        .setTooltip(Component.translatable("options.hoka_odyssey.client_gen.tooltip"))
+                        .setRange(0, ink.hoka.odyssey.client.GenSetting.AUTO, 1)
+                        .setDefaultValue(ink.hoka.odyssey.client.GenSetting.AUTO)
+                        .setValueFormatter(ink.hoka.odyssey.client.GenSetting::valueText)
+                        .setImpact(OptionImpact.MEDIUM)
+                        .setBinding(ink.hoka.odyssey.client.GenSetting::set, ink.hoka.odyssey.client.GenSetting::get)
+                        .setStorageHandler(ink.hoka.odyssey.client.GenSetting::save)));
     }
 }

@@ -52,6 +52,7 @@ public final class OdysseyServer implements OdysseyServerApi {
     }
     @Override public java.util.SortedSet<String> mapNames() { return maps.names(); }
     @Override public java.util.SortedSet<String> generatorIds() { return ink.hoka.odyssey.server.tall.gen.GeneratorRegistry.ids(); }
+    @Override public java.util.Map<String, byte[]> generatorFiles() { return ink.hoka.odyssey.server.tall.gen.PortableGens.files(); }
     @Override public java.util.Optional<String> mapName(net.minestom.server.instance.Instance instance) {
         for (var m : maps.loadedMaps()) if (m.instance == instance) return java.util.Optional.of(m.name);
         return java.util.Optional.empty();
@@ -81,6 +82,9 @@ public final class OdysseyServer implements OdysseyServerApi {
 
         // карты — maps/<имя>/ (Anvil); основная — maps/world. Операторы — ops.json
         ink.hoka.odyssey.server.tall.TallWorld.init(Path.of("maps"));     // высокий мир — до карт и до входа игроков
+        // переносимые генераторы планет (jar на gen-api) — до карт: им генерируют и сервер, и клиенты 0.59+
+        int pg = ink.hoka.odyssey.server.tall.gen.PortableGens.scan(Path.of("generators"));
+        if (pg > 0) LOG.info("переносимых генераторов из generators/: {}", pg);
         var maps = new ink.hoka.odyssey.server.maps.Maps(Path.of("maps"));
         var ops = new ink.hoka.odyssey.server.perms.Ops(Path.of("ops.json"));
         OdysseyServer core = new OdysseyServer(maps, ops);
@@ -134,6 +138,8 @@ public final class OdysseyServer implements OdysseyServerApi {
 
         // модули: включаются до открытия порта — их команды и слушатели готовы к первому игроку
         core.modules = new ModuleManager(Path.of("module"), core);
+        // jar переносимых генераторов раздаёт клиентам clientmods (сервис GenFilesSink); нет его — генерация только на сервере
+        ink.hoka.odyssey.server.tall.gen.PortableGens.setSink(() -> core.modules.services().view("core").get(ink.hoka.odyssey.api.GenFilesSink.class));
         // генератор планеты модуля в работе (карта загружена / pregen) — модуль не выгружать (MODULES.md «Генератор планеты»)
         core.modules.addUnloadGuard(ink.hoka.odyssey.server.tall.gen.GeneratorRegistry::guard);
         cm.register(new ModuleCommand(core.modules, ops));

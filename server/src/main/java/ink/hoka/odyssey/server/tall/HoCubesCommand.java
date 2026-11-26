@@ -30,7 +30,7 @@ public final class HoCubesCommand extends Command {
     public HoCubesCommand(ink.hoka.odyssey.server.maps.Maps maps, Ops ops) {
         super("hocubes");
         setCondition(ops.admin());
-        setDefaultExecutor((s, c) -> s.sendMessage(Component.text("/hocubes stats | cachecheck | player <ник> | dump [x y z] | go [y] | convert <карта> | verify <карта> | compact <карта> | pregen … | size <карта> [N] | gentest <карта> [N]", NamedTextColor.GRAY)));
+        setDefaultExecutor((s, c) -> s.sendMessage(Component.text("/hocubes stats | cachecheck | genstats | gencheck [ник] [N] | gen on|off <ник> | player <ник> | dump [x y z] | go [y] | convert <карта> | verify <карта> | compact <карта> | pregen … | size <карта> [N] | gentest <карта> [N]", NamedTextColor.GRAY)));
         addSyntax((s, c) -> stats(s), ArgumentType.Literal("stats"));
         addSyntax((s, c) -> {                                              // кэш кубов 0.51: сверить хэши клиента и сервера
             if (!(s instanceof Player p)) return;
@@ -67,6 +67,26 @@ public final class HoCubesCommand extends Command {
         var cnt = ArgumentType.Integer("кубов").between(8, 100_000);
         addSyntax((s, c) -> gentest(s, maps, c.get(map), 256), ArgumentType.Literal("gentest"), map);
         addSyntax((s, c) -> gentest(s, maps, c.get(map), c.get(cnt)), ArgumentType.Literal("gentest"), map, cnt);
+        // 0.59: генерация нетронутых кубов на клиенте (ClientGen)
+        addSyntax((s, c) -> s.sendMessage(Component.text(ClientGen.stats(), NamedTextColor.GRAY)), ArgumentType.Literal("genstats"));
+        var gn = ArgumentType.Integer("кубов").between(1, 4096);
+        addSyntax((s, c) -> { if (s instanceof Player p) genCheck(s, p, 64); }, ArgumentType.Literal("gencheck"));
+        addSyntax((s, c) -> genCheck(s, MinecraftServer.getConnectionManager().findOnlinePlayer(c.get(nick)), 64), ArgumentType.Literal("gencheck"), nick);
+        addSyntax((s, c) -> genCheck(s, MinecraftServer.getConnectionManager().findOnlinePlayer(c.get(nick)), c.get(gn)), ArgumentType.Literal("gencheck"), nick, gn);
+        var onoff = ArgumentType.Word("вкл").from("on", "off");
+        addSyntax((s, c) -> {
+            Player p = MinecraftServer.getConnectionManager().findOnlinePlayer(c.get(nick));
+            if (p == null) { s.sendMessage(Component.text("Нет такого игрока онлайн", NamedTextColor.RED)); return; }
+            s.sendMessage(Component.text(ClientGen.admin(p, c.get(onoff).equals("on")), NamedTextColor.GRAY));
+        }, ArgumentType.Literal("gen"), onoff, nick);
+    }
+
+    /** /hocubes gencheck: op 23 — клиент сверит свои сгенерированные кубы с хэшами сервера и ответит выборкой op 9. */
+    private static void genCheck(CommandSender s, Player p, int n) {
+        if (p == null) { s.sendMessage(Component.text("Нет такого игрока онлайн", NamedTextColor.RED)); return; }
+        int k = ClientGen.genCheck(p, n);
+        if (k < 0) s.sendMessage(Component.text(p.getUsername() + ": генерация на клиенте не включена", NamedTextColor.RED));
+        else s.sendMessage(Component.text(p.getUsername() + ": сверка " + k + " кубов-меток отправлена (итог — /hocubes genstats, расхождения — в лог)", NamedTextColor.GRAY));
     }
 
     static final String PREGEN_HELP = "/hocubes pregen <карта> <радиус_чанков> [ymin ymax] [потоков] | pregen <карта> box <x1> <z1> <x2> <z2> [ymin ymax] [потоков]"
@@ -355,6 +375,7 @@ public final class HoCubesCommand extends Command {
                 pos.blockY() >> 4, view, (2 * view + 1) * (2 * view + 1)), NamedTextColor.GRAY));
         s.sendMessage(Component.text("по высоте ±" + CubeStreamer.vertical(p) + " кубов (предел сервера " + CubeStreamer.VERTICAL_MAX + ")", NamedTextColor.GRAY));
         s.sendMessage(Component.text(CubeCacheModel.describe(p.getUuid()), NamedTextColor.GRAY));
+        s.sendMessage(Component.text(ClientGen.describe(p), NamedTextColor.GRAY));
     }
 
     private static void dump(CommandSender s, Instance inst, int x, int y, int z) {

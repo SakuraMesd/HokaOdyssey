@@ -25,9 +25,10 @@ public abstract class CubeFreezeMixin {
         AABB b = self.getBoundingBox();
         double y = v.y > 0 ? b.maxY + v.y : b.minY + v.y;
         int sy = SectionPos.blockToSectionCoord(net.minecraft.util.Mth.floor(y));
-        // 0.51: куб, ждущий ответа на WANT (промах кэша), — тоже «неизвестно» (~1 RTT)
-        if (CubeReceiver.unloadedY(self.level(), sy) || ink.hoka.odyssey.client.CubeCache.waiting(
-                SectionPos.blockToSectionCoord(self.getBlockX()), sy, SectionPos.blockToSectionCoord(self.getBlockZ()))) {
+        // 0.51: куб, ждущий ответа на WANT (промах кэша), — тоже «неизвестно» (~1 RTT); 0.59: и ждущий генерации
+        int sx = SectionPos.blockToSectionCoord(self.getBlockX()), sz = SectionPos.blockToSectionCoord(self.getBlockZ());
+        if (CubeReceiver.unloadedY(self.level(), sy) || ink.hoka.odyssey.client.CubeCache.waiting(sx, sy, sz)
+                || ink.hoka.odyssey.client.GenPool.waiting(sx, sy, sz)) {
             self.setDeltaMovement(self.getDeltaMovement().multiply(1, 0, 1));
             return new Vec3(v.x, 0, v.z);
         }

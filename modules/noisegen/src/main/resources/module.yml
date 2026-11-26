@@ -1,9 +1,0 @@
-# Пример генератора планеты. Карта: map.yml — tall: true, store: cubes, generator: noise-test
-id: noisegen
-name: Генератор noise-test
-version: 0.1.0
-main: ink.hoka.odyssey.noisegen.NoiseGenModule
-authors: [Takuyamo]
-description: Пример модуля-генератора планеты (синусный рельеф)
-depends: []
-softdepends: []

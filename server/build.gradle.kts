@@ -25,4 +25,8 @@ tasks.test {
     useJUnitPlatform()
     // старые тесты света проверяют синхронный путь (process/data в том же потоке); поток света — CubeLightAsyncTest
     systemProperty("hoka.light.async", "false")
+    // 0.59: тесты переносимого генератора — настоящий jar noise-test и эталон для сверки с клиентом (gen-golden/)
+    dependsOn(":generators:noise-test:jar")
+    systemProperty("hoka.test.noise-jar", project(":generators:noise-test").layout.buildDirectory.file("libs/noise-test.jar").get().asFile.absolutePath)
+    systemProperty("hoka.test.golden-dir", rootProject.layout.projectDirectory.dir("gen-golden").asFile.absolutePath)
 }

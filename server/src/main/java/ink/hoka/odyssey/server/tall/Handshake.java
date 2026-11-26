@@ -35,6 +35,8 @@ public final class Handshake {
     static final long AFTER_PACKS_MS = Long.getLong("hoka.handshake.after-packs-ms", 250);
     /** С какой версии ядро само считает свет (небо и блоки) в своём окне: сервер свет не шлёт (CubeStreamer.clientLight). */
     public static final int[] CLIENT_LIGHT_CORE = {0, 57, 0};
+    /** С какой версии ядро генерирует нетронутые кубы само (op 20–23, wc op 8/9; ClientGen). */
+    public static final int[] CLIENT_GEN_CORE = {0, 59, 0};
 
     /** Что сообщил клиент. core = null — ответа не было (ядро старше 0.29 или без мода). */
     public record Hi(String core, boolean sodium, String sodiumVersion, long ms) {

@@ -5,5 +5,10 @@
   "options.hoka_odyssey.cube_cache": "Кэш кубов",
   "options.hoka_odyssey.cube_cache.tooltip": "Сколько памяти держать под кубы, ушедшие из обзора, на картах Hoka Odyssey с кубическими чанками. При возврате они показываются сразу, а не качаются заново; изменённые сервер пришлёт сам. 0 — кэш выключен.",
   "options.hoka_odyssey.cube_cache.value": "%s МБ",
-  "options.hoka_odyssey.cube_cache.off": "Выкл"
+  "options.hoka_odyssey.cube_cache.off": "Выкл",
+  "options.hoka_odyssey.client_gen": "Генерация мира",
+  "options.hoka_odyssey.client_gen.tooltip": "На картах Hoka Odyssey, генератор которых может работать у вас, нетронутая местность строится на вашем компьютере, а не качается с сервера: после телепорта мир появляется намного быстрее, трафика гораздо меньше. Места, изменённые игроками, по-прежнему приходят с сервера. Авто — до 4 потоков по числу ядер; Выкл — всё качается, как раньше.",
+  "options.hoka_odyssey.client_gen.value": "потоков: %s",
+  "options.hoka_odyssey.client_gen.auto": "Авто (%s)",
+  "options.hoka_odyssey.client_gen.off": "Выкл"
 }

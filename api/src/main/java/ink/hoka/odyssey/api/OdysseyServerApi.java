@@ -46,6 +46,12 @@ public interface OdysseyServerApi {
     /** id зарегистрированных генераторов планет (встроенные flat, void и модулей). */
     default java.util.SortedSet<String> generatorIds() { return new java.util.TreeSet<>(); }
 
+    /**
+     * jar переносимых генераторов планет для раздачи клиентам (путь "gen/&lt;id&gt;@&lt;v&gt;-&lt;sha8&gt;.jar" → байты) — их
+     * кладёт в свои файлы модуль clientmods (см. {@link GenFilesSink}).
+     */
+    default java.util.Map<String, byte[]> generatorFiles() { return java.util.Map.of(); }
+
     // ───────────── кубы 16³ (высокий мир, CUBIC-CHUNKS.md §4.10) ─────────────
     // Карты с кубами по запросу (store: cubes + cubes: true, ядро 0.4 шаг 10): куб загружен = он в памяти (READY);
     // писать в незагруженный куб нельзя (IllegalStateException), getBlock там — воздух. Закрепление сразу грузит

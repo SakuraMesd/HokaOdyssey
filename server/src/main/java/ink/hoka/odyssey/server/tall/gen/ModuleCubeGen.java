@@ -27,6 +27,10 @@ public final class ModuleCubeGen implements CubeGen {
 
     public final GeneratorProvider provider;
     public final WorldGenerator w;
+    /** Переносимый генератор (gen-api, целые номера) или null — старый на Block. */
+    public final ink.hoka.odyssey.gen.PlanetGenerator pg;
+    /** Сид секретов (map.yml secret_seed) — только переносимому; null — секретов нет. */
+    private final Long secretSeed;
     public final GenSettings settings;
     private final String tag;
     private final boolean det;
@@ -34,10 +38,14 @@ public final class ModuleCubeGen implements CubeGen {
     public final int minCy, maxCy;
     private volatile GenIndex index;
 
-    public ModuleCubeGen(GeneratorProvider provider, GenSettings settings) {
+    public ModuleCubeGen(GeneratorProvider provider, GenSettings settings) { this(provider, settings, null); }
+
+    public ModuleCubeGen(GeneratorProvider provider, GenSettings settings, Long secretSeed) {
         this.provider = provider;
         this.settings = settings;
-        this.w = provider.create(settings);
+        this.secretSeed = secretSeed;
+        this.w = provider instanceof PortableProvider pp ? pp.create(settings, secretSeed) : provider.create(settings);
+        this.pg = w instanceof PortableWorldGen p ? p.pg : null;
         this.tag = provider.id() + "@" + provider.version();
         this.det = provider.deterministic();
         int top = TallWorld.MIN_Y + TallWorld.HEIGHT - 1;
@@ -58,6 +66,14 @@ public final class ModuleCubeGen implements CubeGen {
     public String id() { return provider.id(); }
     public Bounds bounds() { return settings.bounds(); }
 
+    /** Генератор переносимый (gen-api): нетронутые кубы может генерировать клиент. */
+    public boolean portable() { return pg != null; }
+
+    public PortableProvider portableProvider() { return provider instanceof PortableProvider pp ? pp : null; }
+
+    /** Контекст переносимого генератора (как у клиента) или null. */
+    public ink.hoka.odyssey.gen.GenContext genContext() { return w instanceof PortableWorldGen p ? p.ctx : null; }
+
     // ───────────── без индекса (pregen, отпечаток) ─────────────
 
     /** Куб может быть непустым по границам и верфи (до индекса и модуля). */
@@ -71,6 +87,7 @@ public final class ModuleCubeGen implements CubeGen {
 
     /** Однородный куб по словам модуля (stateId) или -1. */
     int rawUniform(int cx, int cy, int cz) {
+        if (pg != null) return Math.max(-1, pg.uniform(cx, cy, cz));
         Block b = w.uniform(cx, cy, cz);
         return b == null || b.hasNbt() || b.handler() != null ? -1 : b.stateId();
     }
@@ -80,17 +97,93 @@ public final class ModuleCubeGen implements CubeGen {
         if (!rawHasBlocks(cx, cy, cz)) return new Cube(new Section(), new Int2ObjectOpenHashMap<>(0));
         int u = rawUniform(cx, cy, cz);
         if (u >= 0) return uniformCube(u, 0);
+        return generated(cx, cy, cz);
+    }
+
+    /** Куб только через generate модуля (без границ, hasBlocks и uniform) — проверка их честности (gentest). */
+    Cube directCube(int cx, int cy, int cz) {
+        return generated(cx, cy, cz);
+    }
+
+    /** generate модуля в новую секцию: переносимый — целыми числами (секреты поверх видимой части), старый — через CubeBuffer. */
+    private Cube generated(int cx, int cy, int cz) {
+        if (pg != null) return toCube(generateArray(cx, cy, cz, true));
         CubeBufferImpl buf = new CubeBufferImpl(cx, cy, cz, settings.seed());
         w.generate(buf);
         return buf.toCube();
     }
 
-    /** Куб только через generate модуля (без границ, hasBlocks и uniform) — проверка их честности (gentest). */
-    Cube directCube(int cx, int cy, int cz) {
-        CubeBufferImpl buf = new CubeBufferImpl(cx, cy, cz, settings.seed());
-        w.generate(buf);
-        return buf.toCube();
+    /** Переносимый: generate в массивы (secrets — сервер, с секретами отдельно). */
+    private ink.hoka.odyssey.gen.GenArrayCube generateArray(int cx, int cy, int cz, boolean secrets) {
+        var c = new ink.hoka.odyssey.gen.GenArrayCube(secrets && secretSeed != null).reset(cx, cy, cz, settings.seed());
+        pg.generate(c);
+        return c;
     }
+
+    /** Массивы → секция: видимая часть, поверх секреты; данные блок-сущностей (SNBT) — в specials. */
+    static Cube toCube(ink.hoka.odyssey.gen.GenArrayCube c) {
+        int[] b = c.blocks;
+        if (!c.secretList().isEmpty()) {
+            b = b.clone();
+            for (var e : c.secretList().entrySet()) b[e.getKey()] = e.getValue();
+        }
+        final int[] fb = b, bio = c.biomes;
+        Section s = new Section();
+        boolean any = false;
+        for (int v : fb) if (v != 0) { any = true; break; }
+        if (any) s.blockPalette().setAll((x, y, z) -> fb[y << 8 | z << 4 | x]);
+        boolean anyB = false;
+        for (int v : bio) if (v != 0) { anyB = true; break; }
+        if (anyB) s.biomePalette().setAll((x, y, z) -> bio[y << 4 | z << 2 | x]);
+        Int2ObjectOpenHashMap<Block> sp = new Int2ObjectOpenHashMap<>(0);
+        for (var e : c.dataList().entrySet()) {
+            int i = e.getKey();
+            Block blk = Block.fromStateId(fb[i]);
+            if (blk == null || blk.isAir()) continue;
+            try { blk = blk.withNbt(net.kyori.adventure.nbt.TagStringIO.tagStringIO().asCompound(e.getValue())); }
+            catch (java.io.IOException ex) { throw new IllegalStateException("генератор: битый SNBT в " + i + ": " + ex.getMessage(), ex); }
+            sp.put(net.minestom.server.coordinate.CoordConversion.chunkBlockIndex(i & 15, i >> 8, (i >> 4) & 15), blk);
+        }
+        return new Cube(s, sp);
+    }
+
+    /**
+     * Видимая часть куба так, как её получит клиент по op 21 (границы и индекс сервера → однородный → generate без
+     * секретов), с секретами отдельно (secrets): для выборочной сверки и op 22. Только переносимый генератор.
+     */
+    public ink.hoka.odyssey.gen.GenArrayCube visible(int cx, int cy, int cz, boolean secrets) {
+        if (pg == null) throw new IllegalStateException("генератор не переносимый");
+        if (!hasBlocks(cx, cy, cz)) return new ink.hoka.odyssey.gen.GenArrayCube(false).reset(cx, cy, cz, settings.seed());
+        int[] u = uniform(cx, cy, cz);
+        if (u != null) {
+            var c = new ink.hoka.odyssey.gen.GenArrayCube(false).reset(cx, cy, cz, settings.seed());
+            c.fill(u[0]);
+            c.fillBiome(u[1]);
+            return c;
+        }
+        return generateArray(cx, cy, cz, secrets);
+    }
+
+    /** Хэш видимой части (как посчитает клиент) — {@link #visible}. */
+    public long visHash(int cx, int cy, int cz) { return visible(cx, cy, cz, false).visHash(); }
+
+    /** Отпечаток переносимого генератора (op 20): {@link ink.hoka.odyssey.gen.GenFingerprint} по настройкам карты. */
+    private volatile Long genFingerprint;
+
+    public long genFingerprint() {
+        Long f = genFingerprint;
+        if (f != null) return f;
+        Bounds b = settings.bounds();
+        long v = ink.hoka.odyssey.gen.GenFingerprint.of(pg, new ink.hoka.odyssey.gen.GenBounds(b.minY(), b.maxY(), b.size()), settings.seed());
+        genFingerprint = v;
+        return v;
+    }
+
+    /** У переносимого генератора есть сид секретов (секреты возможны — op 22). */
+    public boolean secretsEnabled() { return pg != null && secretSeed != null; }
+
+    /** Секреты могут быть в кубе (переносимый, есть сид секретов и генератор так говорит). */
+    public boolean mayHaveSecrets(int cx, int cy, int cz) { return pg != null && secretSeed != null && inside(cx, cy, cz) && pg.mayHaveSecrets(cx, cy, cz); }
 
     static Cube uniformCube(int stateId, int biomeId) {
         Section s = new Section();
@@ -138,9 +231,7 @@ public final class ModuleCubeGen implements CubeGen {
         if (!hasBlocks(cx, cy, cz)) return new Cube(new Section(), new Int2ObjectOpenHashMap<>(0));
         int[] u = uniform(cx, cy, cz);
         if (u != null) return uniformCube(u[0], u[1]);
-        CubeBufferImpl buf = new CubeBufferImpl(cx, cy, cz, settings.seed());
-        w.generate(buf);
-        return buf.toCube();
+        return generated(cx, cy, cz);
     }
 
     /** Путь Minestom (GenerationUnit) — для совместимости: та же секция, переписанная в unit. */

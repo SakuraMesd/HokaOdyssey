@@ -5,5 +5,10 @@
   "options.hoka_odyssey.cube_cache": "Cube Cache",
   "options.hoka_odyssey.cube_cache.tooltip": "How much memory to keep for cubes that left your view on Hoka Odyssey cubic-chunk maps. Coming back shows them instantly instead of downloading again; changed cubes are re-sent by the server. 0 turns the cache off.",
   "options.hoka_odyssey.cube_cache.value": "%s MB",
-  "options.hoka_odyssey.cube_cache.off": "Off"
+  "options.hoka_odyssey.cube_cache.off": "Off",
+  "options.hoka_odyssey.client_gen": "World Generation",
+  "options.hoka_odyssey.client_gen.tooltip": "On Hoka Odyssey maps whose generator can run on your computer, untouched terrain is generated locally instead of being downloaded: the world loads much faster after teleports and uses far less traffic. Places changed by players still come from the server. Auto uses up to 4 threads depending on your CPU; Off downloads everything as before.",
+  "options.hoka_odyssey.client_gen.value": "%s threads",
+  "options.hoka_odyssey.client_gen.auto": "Auto (%s)",
+  "options.hoka_odyssey.client_gen.off": "Off"
 }

@@ -82,6 +82,8 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
     protected void onEnable() {
         rescan();
         services().register(ClientModsApi.class, this);
+        // jar переносимых генераторов планет (ядро) — нашими файлами: подписанный список, клиент кэширует по sha
+        services().register(ink.hoka.odyssey.api.GenFilesSink.class, this::publishFiles);
         rescanFiles();
         // объявить канал ядра: мод видит его и здоровается (так ведёт себя и Paper с плагинами). Раньше — по
         // PlayerSpawnEvent, т.е. ПОСЛЕ первой пачки столбцов; теперь при входе в мир (AddEntityToInstanceEvent идёт в
@@ -118,6 +120,7 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
     @Override
     protected void onDisable() {
         services().unregister(ClientModsApi.class);
+        services().unregister(ink.hoka.odyssey.api.GenFilesSink.class);
         ready.clear();
         announced.clear();
         pushed.clear();
@@ -282,6 +285,8 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
             }
         }
         for (var m : modFiles.values()) files.putAll(m);
+        try { files.putAll(server().generatorFiles()); }                        // jar переносимых генераторов (ядро)
+        catch (RuntimeException e) { logger().warn("jar генераторов не взяты: {}", e.toString()); }
         Map<String, byte[]> objects = new HashMap<>();
         JsonObject map = new JsonObject();
         long total = 0;

@@ -83,7 +83,14 @@ final class ColumnState {
     /** Тег масок по кубам on (для заголовка) или null. */
     String skyColsTag(BitSet on) { synchronized (clear) { return CubeMark.encodeCols(skyCols, on); } }
 
-    void markDirty(int i) { synchronized (dirtyCubes) { dirtyCubes.set(i); } }
+    /** Первая правка куба (CubeColumn: «тронут» — генерация на клиенте для него кончилась). */
+    volatile java.util.function.IntConsumer onTouch;
+
+    void markDirty(int i) {
+        synchronized (dirtyCubes) { dirtyCubes.set(i); }
+        var t = onTouch;
+        if (t != null) t.accept(i);
+    }
 
     /** Забрать набор изменённых кубов (очистить). */
     BitSet takeDirty() { synchronized (dirtyCubes) { var b = (BitSet) dirtyCubes.clone(); dirtyCubes.clear(); return b; } }

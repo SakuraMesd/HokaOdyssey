@@ -22,6 +22,8 @@ import java.util.Map;
  * gen_min_y / gen_max_y / gen_size — переопределяют Bounds провайдера
  * generator_options: {…}       — генератору как есть
  * generator_seen: &lt;id&gt;@&lt;ver&gt;  — пишет ядро; нет — старая карта: всегда flat (как было)
+ * secret_seed: &lt;long&gt;        — сид секретов переносимого генератора (руды, тайники): клиентам НЕ уходит. Нет — ядро
+ *                               создаёт случайный и сохраняет (единственная запись resolve)
  * </pre>
  */
 public final class CubeGens {
@@ -61,7 +63,15 @@ public final class CubeGens {
         Map<String, Object> options = opts instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
         GenSettings s = new GenSettings(map, meta.getLong("seed", 0L), b, options);
         ModuleCubeGen g;
-        try { g = new ModuleCubeGen(e.provider(), s); }
+        Long secret = null;
+        if (e.provider() instanceof PortableProvider) {
+            if (!meta.contains("secret_seed")) {                              // секреты — от своего сида, не от seed (seed знает клиент)
+                meta.set("secret_seed", new java.security.SecureRandom().nextLong());
+                try { meta.save(); } catch (RuntimeException ex) { LOG.warn("карта «{}»: secret_seed не сохранён: {}", map, ex.toString()); }
+            }
+            secret = meta.getLong("secret_seed", 0L);
+        }
+        try { g = new ModuleCubeGen(e.provider(), s, secret); }
         catch (Throwable t) { return new Resolved(null, "генератор «" + id + "» не создался: " + t, legacy, want); }
         return new Resolved(g.withIndex(dir.resolve("genidx")), null, legacy, want);
     }

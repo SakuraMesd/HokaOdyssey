@@ -1,5 +1,6 @@
 package ink.hoka.odyssey.server.tall;
 
+import ink.hoka.odyssey.gen.GenHash;
 import net.minestom.server.instance.Section;
 import net.minestom.server.instance.palette.Palette;
 
@@ -7,42 +8,24 @@ import net.minestom.server.instance.palette.Palette;
  * Версия куба для кэша клиента (ядро 0.51): 64-битный хэш СОДЕРЖИМОГО — 4096 stateId (индекс y&lt;&lt;8|z&lt;&lt;4|x) и 64 id
  * биомов (y&lt;&lt;4|z&lt;&lt;2|x). От порядка палитры и истории правок не зависит, поэтому одинаков после выгрузки, загрузки
  * с диска и перезапуска. Свет — хэш записи op 11 в каноническом виде (как ServerLight.Cube клиента).
- * <p>Копия ядра — в клиенте ({@code ink.hoka.odyssey.client.CubeHash}): менять ОБА файла и {@link #FORMAT} вместе.
+ * <p>Алгоритм хэша — общий с клиентом и генераторами: {@link GenHash} (gen-api), здесь — разбор палитр и света.
  * Разбор сетевой формы секции ({@link #wire}) — тот, которым считает клиент; тест сверяет его с {@link #of}.</p>
  */
 public final class CubeHash {
 
     private CubeHash() {}
 
-    /** Версия формата хэша (меняется — у старых кэшей просто промахи). */
-    public static final int FORMAT = 1;
-    static final long SEED = 0x484F4B4143554245L ^ FORMAT;                 // "HOKACUBE"
-    static final long SEED_LIGHT = 0x484F4B414C494748L ^ FORMAT;           // "HOKALIGH"
-    private static final long P1 = 0x9E3779B185EBCA87L, P2 = 0xC2B2AE3D27D4EB4FL, P3 = 0x165667B19E3779F9L,
-            P4 = 0x85EBCA77C2B2AE63L, P5 = 0x27D4EB2F165667C5L;
+    /** Версия формата хэша (меняется — у старых кэшей просто промахи). Алгоритм — один, в gen-api ({@link GenHash}). */
+    public static final int FORMAT = GenHash.FORMAT;
+    static final long SEED = GenHash.SEED;
+    static final long SEED_LIGHT = GenHash.SEED_LIGHT;
 
-    static long round(long h, long v) {
-        h ^= v * P2;
-        return Long.rotateLeft(h, 31) * P1 + P4;
-    }
+    static long round(long h, long v) { return GenHash.round(h, v); }
 
-    static long avalanche(long h) {
-        h ^= h >>> 33;
-        h *= P2;
-        h ^= h >>> 29;
-        h *= P3;
-        h ^= h >>> 32;
-        return h == 0 ? 1 : h;                                            // 0 — «неизвестно»
-    }
+    static long avalanche(long h) { return GenHash.avalanche(h); }
 
-    /** Хэш по значениям (blocks — 4096, biomes — 64). */
-    public static long ids(int[] blocks, int[] biomes) {
-        long h = SEED;
-        for (int v : blocks) h = round(h, v & 0xFFFFFFFFL);
-        h = round(h, P5);
-        for (int v : biomes) h = round(h, v & 0xFFFFFFFFL);
-        return avalanche(h ^ (blocks.length + biomes.length));
-    }
+    /** Хэш по значениям (blocks — 4096, biomes — 64) — {@link GenHash#ids}. */
+    public static long ids(int[] blocks, int[] biomes) { return GenHash.ids(blocks, biomes); }
 
     /** Хэш секции сервера (под замком чтения столбца). */
     public static long of(Section s) {
