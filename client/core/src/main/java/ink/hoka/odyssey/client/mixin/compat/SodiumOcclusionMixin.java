@@ -2,6 +2,7 @@ package ink.hoka.odyssey.client.mixin.compat;
 
 import ink.hoka.odyssey.client.ContentRange;
 import net.caffeinemc.mods.sodium.client.render.chunk.RenderSection;
+import net.caffeinemc.mods.sodium.client.render.viewport.CameraTransform;
 import net.minecraft.core.SectionPos;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
@@ -34,5 +35,30 @@ public abstract class SodiumOcclusionMixin {
         if (y >= Math.max(cy, ContentRange.hi + 1)) d &= ~HOKA_UP;
         if (y <= Math.min(cy, ContentRange.lo - 1)) d &= ~HOKA_DOWN;
         return d;
+    }
+
+    /**
+     * 0.63.3: окно Sodium в высоком мире (±«Дальность по высоте»+гистерезис) — целиком в обходе графа, не только в
+     * пределах дальности прорисовки по вертикали. У Sodium обход — цилиндр: секция дальше searchDistance по |dy| не
+     * берётся. Окно же шире (V=10 + 4 = 14 кубов = 224 блока при дальности 12 = 192): ряды окна выше дальности граф не
+     * брал, а проход полосы поверхности (SodiumBand) ряды окна пропускает как «дело графа» — горизонтальная дыра
+     * через всю гору между низом (граф) и вершиной (полоса вне окна, по дереву без вертикального предела). Туман
+     * дальности у игры цилиндрический — по вертикали он гору не прячет. По горизонтали предел прежний.
+     */
+    @ModifyReturnValue(method = "isWithinRenderDistance", at = @At("RETURN"), remap = false)
+    private static boolean hoka$windowHeight(boolean ok, @Local(argsOnly = true) CameraTransform cam,
+                                             @Local(argsOnly = true) RenderSection s, @Local(argsOnly = true) float max) {
+        if (ok || !ContentRange.track) return ok;
+        int y = s.getChunkY();
+        if (y < ContentRange.winLo || y > ContentRange.winHi) return ok;  // вне окна (и окна нет: lo > hi) — как у Sodium
+        int ox = s.getOriginX() - cam.intX, oz = s.getOriginZ() - cam.intZ;
+        float dx = hoka$nearest(ox - 1, ox + 17) - cam.fracX;
+        float dz = hoka$nearest(oz - 1, oz + 17) - cam.fracZ;
+        return dx * dx + dz * dz < max * max;
+    }
+
+    @Unique
+    private static int hoka$nearest(int min, int max) {
+        return min > 0 ? min : max < 0 ? max : 0;
     }
 }
