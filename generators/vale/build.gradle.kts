@@ -1,5 +1,5 @@
-// Переносимый генератор планеты «vale» v1 (сервер + клиент): только gen-api, StrictMath. jar → run/generators/.
-// Рельеф из шума: равнины/холмы, редкие горы со снегом, пляжи, озёра, биомы, растения; объекты oak/birch/spruce/bushes/rocks.
+// Переносимый генератор планеты «vale» v2 (сервер + клиент): только gen-api, StrictMath. jar → run/generators/.
+// Горы до ~1950, хребты, мезы, тепуи, разломы, реки, 24 биома; процедурные великаны, грибы, цветы + объекты из objects/.
 dependencies { compileOnly(project(":gen-api")) }
 
 tasks.withType<JavaCompile> { options.release.set(21) }      // клиент — Java 21

@@ -1,4 +1,6 @@
-# Карта «vale» — долина у моря со своими деревьями. Скопировать в maps/vale/map.yml, объекты demo-objects/* → objects/
+# Карта «vale» v2 — горы до ~1950, хребты, мезы, тепуи, разломы, 24 биома, деревья-великаны, грибы и цветы.
+# Скопировать в maps/vale/map.yml, объекты demo-objects/* → maps/vale/objects/ (или общий objects/ сервера).
+# v1 → v2: рельеф другой — старую карту перегенерировать (удалить кубы/genidx карты), клиенты перекачают vale.jar сами.
 tall: true
 store: cubes
 cubes: true
@@ -7,13 +9,14 @@ gen_min_y: -500
 gen_max_y: 2000
 seed: 20261126
 sun: true
-objects: [oak, birch, spruce, bushes, rocks]   # категории из objects/
+# категории из objects/ (крупные деревья/грибы/цветы vale строит сам, их здесь нет)
+objects: [oak, birch, spruce, bushes, rocks, glycine, azure, palm, glowfingers, bellflowers, rafflesia]
 generator_options:
   sea_level: 300
-  tree_density: 1.0                            # 0…2: густота деревьев
+  tree_density: 1.0                            # 0…2: густота деревьев (и великанов)
 spawn:
   x: 0.5
-  y: 307.0
+  y: 306.0
   z: 32.5
   yaw: 0.0
   pitch: 0.0

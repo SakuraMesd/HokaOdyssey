@@ -10,9 +10,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Свои объекты для карты «vale» (генератор vale@1): дубы, берёзы, ели, кусты, валуны — строятся кодом, детерминированно.
+ * Свои объекты для карты «vale» (генератор vale@2): дубы, берёзы, ели, кусты, валуны и (v2) глицинии,
+ * лазурные деревья, пальмы, пальцы-светляки, колокольчики-гирлянды, раффлезии; великанов vale строит сам, процедурно.
+ * Строятся кодом, детерминированно.
  * Якорь — центр-низ (основание ствола / низ камня), воздух не пишется, листва persistent=true (не опадает).
- * Категории: oak, birch, spruce, bushes, rocks (id объекта — «кат/имя», вложенных категорий нет).
+ * Категории: oak, birch, spruce, bushes, rocks, glycine, azure, palm, glowfingers, bellflowers, rafflesia (id объекта — «кат/имя», вложенных категорий нет).
  */
 final class ValeDemoObjects {
 
@@ -157,7 +159,177 @@ final class ValeDemoObjects {
                 new String[]{"minecraft:andesite", "minecraft:andesite", "minecraft:stone", "minecraft:tuff"}, meta(2, rockOn, "sink", 1)));
         r.add(rock("rocks/rock_small", 1.3, 1.1, 1.2, 503,
                 new String[]{"minecraft:cobblestone", "minecraft:mossy_cobblestone", "minecraft:andesite"}, meta(3, rockOn, "sink", 1)));
+        for (int i = 0; i < 8; i++) r.add(glycine(i));
+        for (int i = 0; i < 6; i++) r.add(azure(i));
+        for (int i = 0; i < 6; i++) r.add(palm(i));
+        for (int i = 0; i < 6; i++) r.add(glowfingers(i));
+        for (int i = 0; i < 6; i++) r.add(bellflowers(i));
+        for (int i = 0; i < 5; i++) r.add(rafflesia(i));
         return r;
+    }
+
+    static final String STEM = "minecraft:mushroom_stem[down=true,east=true,north=true,south=true,up=true,west=true]";
+
+    /** T6 глициния: кручёный ствол, плоская шапка, свисают грозди (цветущая азалия/сакура). */
+    static GenObject glycine(int v) {
+        B t = new B(); GenRandom g = new GenRandom(600 + v);
+        int h = 10 + g.nextInt(7);
+        double turn = g.nextDouble() * 6.283185307179586;
+        for (int y = 0; y < h; y++) {
+            double a = turn + y * 0.55;
+            t.log((int) Math.round(Math.cos(a) * 1.2), y, (int) Math.round(Math.sin(a) * 1.2), "minecraft:dark_oak_log[axis=y]");
+            t.log((int) Math.round(Math.cos(a + 3.14) * 0.6), y, (int) Math.round(Math.sin(a + 3.14) * 0.6), "minecraft:dark_oak_log[axis=y]");
+        }
+        int R = 8 + g.nextInt(3);
+        String L = leaves("azalea");
+        for (int x = -R; x <= R; x++) for (int z = -R; z <= R; z++) {
+            double d = Math.sqrt(x * x + z * z);
+            if (d > R + 0.3 || (d > R - 1.5 && g.nextDouble() < 0.35)) continue;
+            t.leaf(x, h, z, L);
+            if (d < R - 2) t.leaf(x, h + 1, z, g.nextDouble() < 0.25 ? leaves("flowering_azalea") : L);
+            if (d > 2 && d < R - 0.5 && g.nextDouble() < 0.2) {                 // гроздь
+                int len = 3 + g.nextInt(5);
+                String c = g.nextDouble() < 0.6 ? leaves("flowering_azalea") : leaves("cherry");
+                for (int k = 1; k <= len; k++) t.leaf(x, h - k, z, c);
+                g.nextDouble();     // ягодные лозы под листвой не держатся (листва — не прочная опора), генератор их снимет — не ставим
+            }
+        }
+        return t.build("glycine/glycine_" + (v + 1), meta(1, GRASS));
+    }
+
+    /** T11 лазурное дерево: бирюзовый ствол, ветви-рога вверх, шапки, светящиеся «плоды» на стеблях, вьюны у корней. */
+    static GenObject azure(int v) {
+        B t = new B(); GenRandom g = new GenRandom(700 + v);
+        int h = 18 + g.nextInt(13);
+        String stem = "minecraft:warped_stem[axis=y]";
+        for (int y = 0; y < h; y++) { t.log(0, y, 0, stem); if (y < 4) { t.log(1, y, 0, stem); t.log(0, y, 1, stem); } }
+        int horns = 2 + g.nextInt(3);
+        double a0 = g.nextDouble() * 6.283185307179586;
+        for (int i = 0; i < horns; i++) {
+            double a = a0 + i * 6.283185307179586 / horns;
+            int y0 = (int) (h * (0.45 + 0.3 * g.nextDouble()));
+            double x = 0, z = 0;
+            int len = 6 + g.nextInt(5);
+            for (int k = 1; k <= len; k++) {
+                double out = Math.min(1.0, 2.0 / k);
+                x += Math.cos(a) * out; z += Math.sin(a) * out;
+                t.log((int) Math.round(x), y0 + k, (int) Math.round(z), stem);
+            }
+            int ex = (int) Math.round(x), ez = (int) Math.round(z), ey = y0 + len;
+            t.blob(ex, ey + 1.5, ez, 2.6, 1.6, 2.6, "minecraft:warped_wart_block", g, 0.3);
+            t.blob(ex, ey + 2.5, ez, 2.0, 1.2, 2.0, leaves("oak"), g, 0.3);
+            for (int f = 0; f < 2; f++) {                                        // плоды на стебле
+                int fx = ex + g.nextInt(5) - 2, fz = ez + g.nextInt(5) - 2;
+                int s = 1 + g.nextInt(3);
+                for (int k = 0; k < s; k++) t.leaf(fx, ey - k, fz, "minecraft:weeping_vines_plant");
+                t.leaf(fx, ey - s, fz, "minecraft:shroomlight");
+            }
+        }
+        t.blob(0, h + 1.5, 0, 3.4, 2.0, 3.4, "minecraft:warped_wart_block", g, 0.3);
+        t.blob(0, h + 3, 0, 2.6, 1.4, 2.6, leaves("oak"), g, 0.3);
+        for (int i = 0; i < 6; i++) {                                           // вьюны вверх от корней
+            int x = g.nextInt(7) - 3, z = g.nextInt(7) - 3;
+            if (Math.abs(x) < 2 && Math.abs(z) < 2) continue;
+            int len = 2 + g.nextInt(4);
+            for (int k = 0; k < len; k++) t.leaf(x, k, z, k == len - 1 ? "minecraft:twisting_vines[age=25]" : "minecraft:twisting_vines_plant");
+        }
+        return t.build("azure/azure_" + (v + 1), meta(1, GRASS));
+    }
+
+    /** T14 пальма: ствол изогнут параболой, 6–8 листьев-перьев с изгибом вниз, кокосы. */
+    static GenObject palm(int v) {
+        B t = new B(); GenRandom g = new GenRandom(800 + v);
+        int h = 10 + g.nextInt(9);
+        double k = (2.5 + g.nextDouble() * 3) / (h * h);
+        int tx = 0;
+        for (int y = 0; y < h; y++) { tx = (int) Math.round(k * y * y); t.log(tx, y, 0, "minecraft:jungle_log[axis=y]"); }
+        String L = leaves("jungle");
+        int fr = 6 + g.nextInt(3);
+        double a0 = g.nextDouble() * 6.283185307179586;
+        t.leaf(tx, h, 0, L);
+        for (int i = 0; i < fr; i++) {
+            double a = a0 + i * 6.283185307179586 / fr;
+            int len = 4 + g.nextInt(3);
+            for (int s = 1; s <= len + 1; s++) {
+                int x = tx + (int) Math.round(Math.cos(a) * s), z = (int) Math.round(Math.sin(a) * s);
+                int y = h + (s <= 2 ? 1 : s <= 4 ? 0 : -(s - 4));
+                t.leaf(x, y, z, L);
+                if (s >= 3 && s % 2 == 1) t.leaf(x, y - 1, z, L);
+            }
+        }
+        String[] face = {"west", "east", "north", "south"};
+        int[][] off = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (int i = 0; i < 4; i++)
+            if (g.nextDouble() < 0.5) t.leaf(tx + off[i][0], h - 2, off[i][1], "minecraft:cocoa[age=2,facing=" + face[i] + "]");
+        return t.build("palm/palm_" + (v + 1), meta(1, List.of("minecraft:sand")));
+    }
+
+    /** M4 пальцы-светляки: куст тонких ножек со светящимися шариками. */
+    static GenObject glowfingers(int v) {
+        B t = new B(); GenRandom g = new GenRandom(900 + v);
+        int n = 5 + g.nextInt(8);
+        t.log(0, 0, 0, "minecraft:nether_wart_block");
+        for (int i = 0; i < n; i++) {
+            int x = g.nextInt(7) - 3, z = g.nextInt(7) - 3;
+            int h = 4 + g.nextInt(7);
+            for (int y = 0; y < h; y++) t.leaf(x, y, z, STEM);
+            t.leaf(x, h, z, "minecraft:pearlescent_froglight[axis=y]");
+            if (g.nextDouble() < 0.5) t.leaf(x + 1, 0, z, "minecraft:nether_wart_block");
+        }
+        return t.build("glowfingers/glowfingers_" + (v + 1), meta(1, List.of()));
+    }
+
+    /** F4 колокольчики-гирлянды: дуга-стебель, с неё свисают колокольчики с «язычком»-фонарём. */
+    static GenObject bellflowers(int v) {
+        B t = new B(); GenRandom g = new GenRandom(1000 + v);
+        int h = 8 + g.nextInt(7), span = 5 + g.nextInt(4);
+        String stem = "minecraft:green_concrete";
+        int[] topY = new int[span + 2];
+        java.util.Arrays.fill(topY, -1);
+        for (int s = 0; s <= 40; s++) {
+            double u = s / 40.0;
+            double y = h * Math.sin(Math.PI * 0.5 * Math.min(1, u * 1.6)) - (u > 0.62 ? (u - 0.62) * h * 0.9 : 0);
+            int x = (int) Math.round(span * u), yy = (int) Math.round(y);
+            t.log(x, yy, 0, stem);
+            topY[x] = Math.max(topY[x], yy);
+        }
+        int bells = 3 + g.nextInt(4);
+        for (int b = 0; b < bells; b++) {
+            int bx = 1 + (int) Math.round((span - 1) * (b + 0.5) / bells);
+            int by = topY[bx];
+            if (by < 6) continue;
+            int drop = 1 + g.nextInt(3);
+            for (int k = 1; k <= drop; k++) t.leaf(bx, by - k, 0, stem);
+            int top = by - drop - 1;
+            String c = g.nextDouble() < 0.5 ? "minecraft:light_blue_wool" : "minecraft:blue_concrete";
+            t.leaf(bx, top, 0, c);
+            for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) if (dx != 0 || dz != 0) t.leaf(bx + dx, top - 1, dz, c);
+            t.leaf(bx, top - 1, 0, "minecraft:sea_lantern");
+        }
+        return t.build("bellflowers/bellflowers_" + (v + 1), meta(1, GRASS));
+    }
+
+    /** F5 раффлезия: пять мясистых лепестков с белыми пятнами, в центре чаша с водой. */
+    static GenObject rafflesia(int v) {
+        B t = new B(); GenRandom g = new GenRandom(1100 + v);
+        double R = 5 + g.nextInt(4);
+        double a0 = g.nextDouble() * 6.283185307179586;
+        for (int x = -8; x <= 8; x++) for (int z = -8; z <= 8; z++) {
+            double d = Math.sqrt(x * x + z * z);
+            if (d > R || d < 2.4) continue;
+            double a = Math.atan2(z, x) - a0;
+            double lobe = Math.abs(Math.cos(a * 2.5));                          // 5 лепестков
+            if (d > 2.6 + (R - 2.6) * (0.35 + 0.65 * lobe)) continue;
+            t.log(x, d > R - 1.6 ? 1 : 0, z, g.nextDouble() < 0.18 ? STEM : "minecraft:red_terracotta");
+        }
+        for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
+            double d = Math.sqrt(x * x + z * z);
+            if (d > 2.3) continue;
+            t.log(x, 0, z, "minecraft:brown_terracotta");
+            t.log(x, 1, z, d > 1.2 ? "minecraft:brown_terracotta" : "minecraft:water[level=0]");
+            if (d > 1.2) t.log(x, 2, z, "minecraft:brown_terracotta");
+        }
+        return t.build("rafflesia/rafflesia_" + (v + 1), meta(1, GRASS));
     }
 
     /** Ель: ствол h, кольца лапника от низа к верху, радиус убывает с «зубцами», макушка. */
