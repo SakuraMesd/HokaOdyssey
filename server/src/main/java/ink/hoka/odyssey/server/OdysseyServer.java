@@ -93,8 +93,19 @@ public final class OdysseyServer implements OdysseyServerApi {
             var via = ink.hoka.odyssey.server.net.ProxyProtocol.proxyOf(e.getPlayer().getPlayerConnection());
             if (via != null) LOG.info("{} вошёл через прокси {}, реальный IP {}", e.getPlayer().getUsername(), via,
                     e.getPlayer().getPlayerConnection().getRemoteAddress());
-            if (ink.hoka.odyssey.server.tall.TallWorld.enabled)               // моду: позиции блоков — в формате высокого мира + рукопожатие
+            // столбцы вокруг точки появления — грузить уже сейчас, параллельно с рукопожатием, реестрами и подтверждением
+            // конца configuration (Player.setInstance иначе ждёт их загрузки уже после JoinGame); не ждём
+            if (e.isFirstConfig()) preloadSpawn(main, e.getPlayer());
+            if (ink.hoka.odyssey.server.tall.TallWorld.enabled) {             // моду: позиции блоков — в формате высокого мира + рукопожатие
                 ink.hoka.odyssey.server.tall.Handshake.onConfiguration(e);
+                if (e.isFirstConfig()) {
+                    JoinTrace.mark(e.getPlayer(), "рукопожатие");
+                    if (ink.hoka.odyssey.server.tall.Handshake.of(e.getPlayer()).known()
+                            && core.modules != null && core.modules.enabledDescriptors().stream().anyMatch(d -> d.id().equals("clientmods")))
+                        JoinTrace.expectMods(e.getPlayer());
+                    preloadSpawn(main, e.getPlayer());                         // дальность клиента уже точно пришла (ClientInformation)
+                }
+            }
             e.setSpawningInstance(main.instance);
             e.getPlayer().setRespawnPoint(main.spawn());
         });
@@ -109,6 +120,7 @@ public final class OdysseyServer implements OdysseyServerApi {
         cm.register(new ink.hoka.odyssey.server.tall.HoTallCommand(maps, ops));
         cm.register(new ink.hoka.odyssey.server.tall.HoCubesCommand(maps, ops));
         ink.hoka.odyssey.server.tall.Handshake.register();
+        JoinTrace.register(events);                                       // «вход ник: авторизация→мир N мс (этапы …)»
         ink.hoka.odyssey.server.tall.CubeStreamer.register();
         DebugTab.register();                                              // ВРЕМЕННО: пинг/TPS/MSPT в TAB (-Dhoka.tab.debug=false — выкл)
         ink.hoka.odyssey.server.tall.CubeEntities.register();             // шаг 10: сущности у незагруженных кубов — заморозка
@@ -140,6 +152,34 @@ public final class OdysseyServer implements OdysseyServerApi {
         LOG.info("Hoka Odyssey {} (Minestom, Minecraft 1.21.11) на порту {}", VERSION, port);
         // по этой строке панель Pterodactyl (яйцо Paper) понимает, что сервер запущен
         System.out.printf("Done (%.3fs)! For help, type \"help\"%n", (System.nanoTime() - START) / 1e9);
+    }
+
+    @Override public java.util.Optional<String> clientCore(Player p) {
+        var hi = ink.hoka.odyssey.server.tall.Handshake.of(p);
+        return hi.known() ? java.util.Optional.of(hi.core()) : java.util.Optional.empty();
+    }
+
+    @Override public void joinStage(Player p, String stage) { JoinTrace.mark(p, stage); }
+
+    /**
+     * Начать загрузку столбцов в дальности клиента вокруг точки появления основной карты (как посчитает
+     * Player.setInstance: min(дальность клиента, сервера) + 1). Не ждёт; загруженные — без работы.
+     */
+    private static void preloadSpawn(ink.hoka.odyssey.server.maps.Maps.GameMap m, Player p) {
+        Thread.startVirtualThread(() -> preloadSpawnNow(m, p));   // загрузчик без параллельной загрузки грузил бы в этом потоке
+    }
+
+    private static void preloadSpawnNow(ink.hoka.odyssey.server.maps.Maps.GameMap m, Player p) {
+        try {
+            int r = Math.min(p.getSettings().viewDistance(), net.minestom.server.ServerFlag.CHUNK_VIEW_DISTANCE) + 1;
+            var sp = m.spawn();
+            int cx = sp.blockX() >> 4, cz = sp.blockZ() >> 4;
+            for (int x = cx - r; x <= cx + r; x++)
+                for (int z = cz - r; z <= cz + r; z++)
+                    if (!m.instance.isChunkLoaded(x, z)) m.instance.loadOptionalChunk(x, z);
+        } catch (RuntimeException ex) {
+            LOG.warn("предзагрузка столбцов для {}: {}", p.getUsername(), ex.toString());
+        }
     }
 
     private final java.util.concurrent.atomic.AtomicBoolean stopping = new java.util.concurrent.atomic.AtomicBoolean();

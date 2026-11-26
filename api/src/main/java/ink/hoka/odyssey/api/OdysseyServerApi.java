@@ -31,6 +31,18 @@ public interface OdysseyServerApi {
     /** Имя карты, если мир — карта из maps/ (иначе пусто). */
     java.util.Optional<String> mapName(net.minestom.server.instance.Instance instance);
 
+    /**
+     * Версия ядра мода Hoka Odyssey у игрока из рукопожатия на этапе входа (configuration, hoka_odyssey:hi) — известна
+     * ещё до появления в мире. Пусто — мода нет, ядро старше 0.29 или ядро сервера старое.
+     */
+    default java.util.Optional<String> clientCore(net.minestom.server.entity.Player player) { return java.util.Optional.empty(); }
+
+    /**
+     * Отметка этапа входа игрока (например «модули», «axiom») для строки «вход ник: авторизация→мир …» в логе ядра.
+     * После того как строка напечатана, отметки не учитываются.
+     */
+    default void joinStage(net.minestom.server.entity.Player player, String stage) {}
+
     /** id зарегистрированных генераторов планет (встроенные flat, void и модулей). */
     default java.util.SortedSet<String> generatorIds() { return new java.util.TreeSet<>(); }
 

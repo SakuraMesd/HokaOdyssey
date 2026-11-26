@@ -66,6 +66,10 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
     private volatile Map<String, byte[]> fileObjects = Map.of();
     private volatile byte[] filesPacket;
     private final Map<UUID, Set<String>> ready = new ConcurrentHashMap<>();     // игрок (с модом) → загруженные модули
+    // вход без лишнего обмена: канал объявлен; список отправлен сам (ядро известно по рукопожатию); клиент ответил NEED/READY
+    private final Set<UUID> announced = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> pushed = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> answered = ConcurrentHashMap.newKeySet();
     private final Map<String, List<BiConsumer<Player, byte[]>>> handlers = new ConcurrentHashMap<>();
     private final Map<String, List<Consumer<Player>>> readyHandlers = new ConcurrentHashMap<>();
     private final Map<Integer, BiConsumer<Player, byte[]>> coreHandlers = new ConcurrentHashMap<>();
@@ -79,24 +83,45 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
         rescan();
         services().register(ClientModsApi.class, this);
         rescanFiles();
-        // объявить канал ядра: мод видит его и здоровается (так ведёт себя и Paper с плагинами)
+        // объявить канал ядра: мод видит его и здоровается (так ведёт себя и Paper с плагинами). Раньше — по
+        // PlayerSpawnEvent, т.е. ПОСЛЕ первой пачки столбцов; теперь при входе в мир (AddEntityToInstanceEvent идёт в
+        // Entity.setInstance до sendPendingChunks). Если ядро мода уже известно по рукопожатию на этапе входа — список
+        // модулей и файлов уходит сразу же, не дожидаясь HELLO (минус обмен с клиентом: ~1 RTT + очередь пакетов клиента)
+        events().addListener(net.minestom.server.event.instance.AddEntityToInstanceEvent.class, e -> {
+            if (!(e.getEntity() instanceof Player p) || !announced.add(p.getUuid())) return;
+            p.sendPluginMessage("minecraft:register", (CH_C2S + "\0" + CH_S2C).getBytes(StandardCharsets.UTF_8));
+            server().clientCore(p).ifPresent(ver -> push(p, ver));
+        });
+        // модели — после появления (сущности-носители клиенту уже отправлены)
         events().addListener(PlayerSpawnEvent.class, e -> {
-            if (e.isFirstSpawn()) e.getPlayer().sendPluginMessage("minecraft:register", (CH_C2S + "\0" + CH_S2C).getBytes(StandardCharsets.UTF_8));
+            if (e.isFirstSpawn() && pushed.contains(e.getPlayer().getUuid()))
+                for (var m : models.entrySet()) sendModel(e.getPlayer(), m.getKey(), m.getValue());
         });
         events().addListener(PlayerPluginMessageEvent.class, e -> {
             if (CH_C2S.equals(e.getIdentifier())) onPacket(e.getPlayer(), e.getMessage());
         });
-        events().addListener(PlayerDisconnectEvent.class, e -> ready.remove(e.getPlayer().getUuid()));
+        events().addListener(PlayerDisconnectEvent.class, e -> {
+            UUID u = e.getPlayer().getUuid();
+            ready.remove(u);
+            announced.remove(u);
+            pushed.remove(u);
+            answered.remove(u);
+        });
         registerCommand(new HoClientCommand());
-        // модуль перезагружен на живом сервере — переслать список тем, кто с модом
-        for (Player p : MinecraftServer.getConnectionManager().getOnlinePlayers())
+        // модуль перезагружен на живом сервере — переслать список тем, кто с модом (они поздороваются заново)
+        for (Player p : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
+            announced.add(p.getUuid());
             p.sendPluginMessage("minecraft:register", (CH_C2S + "\0" + CH_S2C).getBytes(StandardCharsets.UTF_8));
+        }
     }
 
     @Override
     protected void onDisable() {
         services().unregister(ClientModsApi.class);
         ready.clear();
+        announced.clear();
+        pushed.clear();
+        answered.clear();
         for (var e : testCarriers) e.remove();
         testCarriers.clear();
         models.clear();
@@ -320,18 +345,28 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
                 case 1 -> {                                                     // HELLO
                     int proto = in.readInt();
                     String ver = in.readUTF();
+                    if (pushed.contains(p.getUuid())) {
+                        // список уже ушёл при входе (ядро 0.57 и старше всё равно здороваются). Не слать заново — иначе
+                        // клиент второй раз попросит то, что ещё качается. Запасной путь: клиент так и не ответил на
+                        // присланный список (ни NEED, ни READY) — переслать через 2 с, как раньше по HELLO
+                        logger().info("{}: мод Hoka Odyssey {} (протокол {}), список модулей ушёл при входе", p.getUsername(), ver, proto);
+                        if (!answered.contains(p.getUuid())) scheduler().later(() -> {
+                            if (p.isOnline() && pushed.contains(p.getUuid()) && !answered.contains(p.getUuid())) {
+                                logger().warn("{}: на список модулей ответа нет — шлю заново", p.getUsername());
+                                sendLists(p);                           // в нём сброс моделей — разослать их заново
+                                for (var m : models.entrySet()) sendModel(p, m.getKey(), m.getValue());
+                            }
+                        }, 40);
+                        return;
+                    }
                     ready.put(p.getUuid(), ConcurrentHashMap.newKeySet());
                     logger().info("{}: мод Hoka Odyssey {} (протокол {})", p.getUsername(), ver, proto);
-                    Jar core = coreJar;
-                    if (core != null && compareVersions(ver, core.version()) < 0)   // ядро у игрока старше — скачается само
-                        p.sendMessage(Component.text("Мод Hoka Odyssey обновляется до " + core.version()
-                                + " — перезапустите игру, когда скачается (без перезапуска часть нового не работает).", NamedTextColor.YELLOW));
-                    if (manifestPacket != null) p.sendPluginMessage(CH_S2C, manifestPacket);
-                    if (filesPacket != null) p.sendPluginMessage(CH_S2C, filesPacket);
-                    p.sendPluginMessage(CH_S2C, packet(6, out -> out.writeByte(4)));
+                    warnOldCore(p, ver);
+                    sendLists(p);
                     for (var e : models.entrySet()) sendModel(p, e.getKey(), e.getValue());
                 }
                 case 2 -> {                                                     // NEED
+                    answered.add(p.getUuid());
                     int n = Math.min(in.readInt(), 100000);
                     List<String> shas = new ArrayList<>();
                     for (int i = 0; i < n; i++) shas.add(in.readUTF());
@@ -341,9 +376,10 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
                     int n = Math.min(in.readInt(), 256);
                     Set<String> now = ConcurrentHashMap.newKeySet();
                     for (int i = 0; i < n; i++) now.add(in.readUTF());
-                    Set<String> before = ready.getOrDefault(p.getUuid(), Set.of());
+                    answered.add(p.getUuid());
                     ready.put(p.getUuid(), now);
                     logger().info("{}: клиентские модули загружены: {}", p.getUsername(), now);
+                    server().joinStage(p, "модули");
                     for (String id : now) {
                         // и обновлённый модуль (тот же id) — тоже: у него новое состояние, ему нужно всё заново
                         for (Consumer<Player> h : readyHandlers.getOrDefault(id, List.of())) safe(id, () -> h.accept(p));
@@ -367,6 +403,34 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
         } catch (Exception e) {
             logger().warn("{}: пакет мода не разобран: {}", p.getUsername(), e.toString());
         }
+    }
+
+    /** Список модулей, файлов и сброс моделей — ответ на HELLO (или сразу при входе, см. {@link #push}). */
+    private void sendLists(Player p) {
+        if (manifestPacket != null) p.sendPluginMessage(CH_S2C, manifestPacket);
+        if (filesPacket != null) p.sendPluginMessage(CH_S2C, filesPacket);
+        p.sendPluginMessage(CH_S2C, packet(6, out -> out.writeByte(4)));
+    }
+
+    /** Ядро у игрока старше раздаваемого — скачается само; предупредить. */
+    private void warnOldCore(Player p, String ver) {
+        Jar core = coreJar;
+        if (core != null && compareVersions(ver, core.version()) < 0)
+            p.sendMessage(Component.text("Мод Hoka Odyssey обновляется до " + core.version()
+                    + " — перезапустите игру, когда скачается (без перезапуска часть нового не работает).", NamedTextColor.YELLOW));
+    }
+
+    /**
+     * Вход игрока, чьё ядро ответило на рукопожатие (hoka_odyssey:hi, ядро 0.29+): всё, что раньше ждало HELLO, — сразу,
+     * следом за minecraft:register (клиент разбирает пакеты по порядку — к приходу списка канал ему уже объявлен).
+     * Модели — по PlayerSpawnEvent.
+     */
+    private void push(Player p, String ver) {
+        if (!pushed.add(p.getUuid())) return;
+        ready.put(p.getUuid(), ConcurrentHashMap.newKeySet());
+        logger().info("{}: мод Hoka Odyssey {} (из рукопожатия) — список модулей сразу", p.getUsername(), ver);
+        warnOldCore(p, ver);
+        sendLists(p);
     }
 
     private void sendJars(Player p, List<String> shas) {

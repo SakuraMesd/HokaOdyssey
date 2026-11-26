@@ -21,6 +21,9 @@ import java.util.concurrent.TimeUnit;
  * 0.29+ отвечает {@code hoka_odyssey:hi} (строка версия ядра, bool Sodium, строка версия Sodium). Старое ядро молчит.
  * Ждём ответ до {@link #WAIT_MS} мс прямо в AsyncPlayerConfigurationEvent (событие асинхронное) — потом решение о
  * допуске на кубовые карты (этап 3). Пока только запоминаем и пишем в лог.
+ * <p>Клиент без мода не ответит никогда — раньше он ждал все 2 с. Теперь ждём не дольше {@link #AFTER_PACKS_MS} после
+ * ответа на SelectKnownPacks: Minestom шлёт его ДО нашего сигнала, клиент отвечает на оба в одном проходе (порядок
+ * пакетов), а сервер разбирает пакеты configuration в одном тике — hi с модом приходит вместе с ответом о паках.</p>
  */
 public final class Handshake {
 
@@ -28,6 +31,8 @@ public final class Handshake {
 
     private static final Logger LOG = LoggerFactory.getLogger("cubes");
     static final long WAIT_MS = 2000;
+    /** Сколько ещё ждать hi после ответа клиента о паках (-Dhoka.handshake.after-packs-ms, 0 — ждать все WAIT_MS). */
+    static final long AFTER_PACKS_MS = Long.getLong("hoka.handshake.after-packs-ms", 250);
     /** С какой версии ядро само считает свет (небо и блоки) в своём окне: сервер свет не шлёт (CubeStreamer.clientLight). */
     public static final int[] CLIENT_LIGHT_CORE = {0, 57, 0};
 
@@ -38,6 +43,8 @@ public final class Handshake {
 
     private static final Map<UUID, CompletableFuture<Hi>> PENDING = new ConcurrentHashMap<>();
     private static final Map<UUID, Hi> HI = new ConcurrentHashMap<>();
+    /** Клиент ответил на SelectKnownPacks (этого прохода configuration). */
+    private static final Map<UUID, CompletableFuture<Void>> PACKS = new ConcurrentHashMap<>();
 
     public static Hi of(Player p) { return HI.getOrDefault(p.getUuid(), new Hi(null, false, "", -1)); }
 
@@ -68,6 +75,12 @@ public final class Handshake {
     }
 
     public static void register() {
+        // ответ о паках: как у Minestom (LoginListener.selectKnownPacks) + отметка для раннего конца ожидания hi
+        MinecraftServer.getPacketListenerManager().setConfigurationListener(
+                net.minestom.server.network.packet.client.configuration.ClientSelectKnownPacksPacket.class, (packet, player) -> {
+                    net.minestom.server.listener.preplay.LoginListener.selectKnownPacks(packet, player);
+                    PACKS.computeIfAbsent(player.getUuid(), u -> new CompletableFuture<>()).complete(null);
+                });
         var ev = MinecraftServer.getGlobalEventHandler();
         ev.addListener(PlayerPluginMessageEvent.class, e -> {
             if (!e.getIdentifier().equals("hoka_odyssey:hi")) return;
@@ -78,13 +91,15 @@ public final class Handshake {
                 boolean sodium = b.read(NetworkBuffer.BOOLEAN);
                 String sv = b.read(NetworkBuffer.STRING);
                 Hi hi = new Hi(core, sodium, sv, 0);
+                // запомнить всегда: ожидание могло только что кончиться (окно после паков) — тогда будущее уже никто не
+                // прочтёт, а итог onConfiguration не должен затереть ответ (см. HI.merge там)
+                HI.put(e.getPlayer().getUuid(), hi);
                 if (f != null) f.complete(hi);
-                else HI.put(e.getPlayer().getUuid(), hi);                 // пришло после ожидания — всё равно запомним
             } catch (Exception ex) {
                 LOG.warn("{}: битый hoka_odyssey:hi ({})", e.getPlayer().getUsername(), ex.toString());
             }
         });
-        ev.addListener(PlayerDisconnectEvent.class, e -> { HI.remove(e.getPlayer().getUuid()); PENDING.remove(e.getPlayer().getUuid()); });
+        ev.addListener(PlayerDisconnectEvent.class, e -> { HI.remove(e.getPlayer().getUuid()); PENDING.remove(e.getPlayer().getUuid()); PACKS.remove(e.getPlayer().getUuid()); });
     }
 
     /** Вызывается из AsyncPlayerConfigurationEvent: сигнал «высокий мир» и ожидание ответа ядра. */
@@ -94,18 +109,28 @@ public final class Handshake {
         PENDING.put(p.getUuid(), f);
         long t0 = System.nanoTime();
         p.sendPacket(new PluginMessagePacket("hoka_odyssey:tall", new byte[0]));
+        // ответ о паках мог прийти раньше этого места (локальный вход) — будущее общее
+        var packs = PACKS.computeIfAbsent(p.getUuid(), u -> new CompletableFuture<>());
+        CompletableFuture<?> stop = AFTER_PACKS_MS <= 0 ? f
+                : CompletableFuture.anyOf(f, packs.thenCompose(v -> CompletableFuture.runAsync(() -> {},
+                        CompletableFuture.delayedExecutor(AFTER_PACKS_MS, TimeUnit.MILLISECONDS))));
         Hi hi;
         try {
-            Hi got = f.get(WAIT_MS, TimeUnit.MILLISECONDS);
-            hi = new Hi(got.core(), got.sodium(), got.sodiumVersion(), (System.nanoTime() - t0) / 1_000_000);
-        } catch (Exception timeout) {
+            try { stop.get(WAIT_MS, TimeUnit.MILLISECONDS); } catch (java.util.concurrent.TimeoutException ignored) { }
+            Hi got = f.getNow(null);
+            hi = got != null ? new Hi(got.core(), got.sodium(), got.sodiumVersion(), (System.nanoTime() - t0) / 1_000_000)
+                    : HI.getOrDefault(p.getUuid(), new Hi(null, false, "", -1));
+        } catch (Exception e2) {
             hi = HI.getOrDefault(p.getUuid(), new Hi(null, false, "", -1));
         } finally {
             PENDING.remove(p.getUuid());
+            PACKS.remove(p.getUuid());
         }
-        HI.put(p.getUuid(), hi);
+        long waited = (System.nanoTime() - t0) / 1_000_000;
+        // ответ, пришедший сразу после конца ожидания, не затирать «ответа нет»
+        hi = HI.merge(p.getUuid(), hi, (old, cur) -> cur.known() || !old.known() ? cur : old);
         if (hi.known()) LOG.info("рукопожатие {}: ядро {}, Sodium {}, ответ за {} мс", p.getUsername(), hi.core(),
                 hi.sodium() ? hi.sodiumVersion() : "нет", hi.ms());
-        else LOG.info("рукопожатие {}: ответа нет за {} мс (ядро старше 0.29 или без мода)", p.getUsername(), WAIT_MS);
+        else LOG.info("рукопожатие {}: ответа нет за {} мс (ядро старше 0.29 или без мода)", p.getUsername(), waited);
     }
 }

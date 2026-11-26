@@ -28,7 +28,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * Axiom — серверная часть клиентского редактора мира Axiom 6.1.x (MC 1.21.11) по протоколу AxiomPaperPlugin
  * (ветка 1.21.11, MIT — LICENSE-axiom-paper.txt). Включается только операторам.
  * <p>
- * Рукопожатие: раз в секунду оператору без Axiom — {@code axiom:hello(long id)}; клиент отвечает hello (api 10,
+ * Рукопожатие: при появлении в мире (OP выдали позже — на ежесекундной проверке) оператору без Axiom — {@code axiom:hello(long id)}; клиент отвечает hello (api 10,
  * версия данных, протокол, id) → {@code axiom:enable} + restrictions + бюджет секций + свойства мира (пусто).
  * Права пропали — {@code enable(false)}. Крупные пакеты клиент шлёт через {@code axiom:tunnel} (куски + zstd).
  * <p>
@@ -73,8 +73,11 @@ public final class AxiomModule extends OdysseyModule {
         events().addListener(PlayerSpawnEvent.class, e -> {
             Player p = e.getPlayer();
             Session s = session(p);
-            if (e.isFirstSpawn() || !s.registered) register(p, s);
-            else if (s.active) {
+            if (e.isFirstSpawn() || !s.registered) {
+                register(p, s);
+                // hello — сразу, а не на ближайшей ежесекундной проверке (вход ждал её до 1 с)
+                if (e.isFirstSpawn()) checkPlayer(p);
+            } else if (s.active) {
                 p.sendPluginMessage(WORLD_PROPS, new byte[]{0});        // новый мир: свойства мира заново (у нас пусто)
                 s.restrictionsKey = null;                               // рамки — по новому миру
             }
@@ -234,6 +237,7 @@ public final class AxiomModule extends OdysseyModule {
         sendRestrictions(p, s);
         p.sendPluginMessage(WORLD_PROPS, new byte[]{0});
         logger().info("Axiom включён: {}", p.getUsername());
+        server().joinStage(p, "axiom");
     }
 
     /** restrictions: разрешения, дальность «бесконечной» руки, рамки зон правки (наша упаковка позиций). */
