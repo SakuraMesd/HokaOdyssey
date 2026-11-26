@@ -39,6 +39,8 @@ public final class Handshake {
     public static final int[] CLIENT_GEN_CORE = {0, 59, 0};
     /** Ядро 0.60: объекты генератора (пакет .hopk, хвост op 20, API 2). Старее — карты с объектами идут старым путём op 2. */
     public static final int[] OBJECTS_CORE = {0, 60, 0};
+    /** Ядро 0.63.1: просит заново столбцы, которых у него нет, а сервер считает отправленными (wc op 10, CubeStreamer). */
+    public static final int[] RESEND_CORE = {0, 63, 1};
 
     /** Что сообщил клиент. core = null — ответа не было (ядро старше 0.29 или без мода). */
     public record Hi(String core, boolean sodium, String sodiumVersion, long ms) {

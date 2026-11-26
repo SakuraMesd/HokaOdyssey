@@ -288,7 +288,9 @@ public final class ClientGen {
         labels++;
         GenWire.Def d = def;
         GenPool.Job j = GenPool.job();
-        if (d == null || slot != d.slot() || j == null || j.slot() != slot) { CubeReceiver.dropped++; return; }
+        // генерация выключена / слот сменился: сервер сам перешлёт кубы op 2 (genOff) — не потеря
+        if (d == null || slot != d.slot() || j == null || j.slot() != slot) { CubeReceiver.late++; return; }
+        CubeCache.unwait(pos, CubeCache.WANT_BLOCKS);                     // 0.63.1: прежний WANT блоков устарел (повтор = ложное расхождение)
         if (uni >= 0) {                                                // 0.61: однородный — сразу, без пула и памяти
             LevelChunkSection sec = GenPool.uniform(j, level.palettedContainerFactory(), uni, uniBiome);
             if (sec != null) {
@@ -321,7 +323,7 @@ public final class ClientGen {
             if (mismatches++ < 10) LOG.warn("генерация на клиенте: куб {} не сходится с сервером ({} ≠ {}) — прошу блоки",
                     SectionPos.of(pos), Long.toHexString(hash), Long.toHexString(expect));
             GenMemo.remove(pos);
-            CubeCache.want(pos, CubeCache.WANT_BLOCKS);
+            CubeCache.wantMismatch(pos);                                   // 0.63.1: реальное расхождение (без бита NOGEN)
             return;
         }
         afterPlace(level, pos);

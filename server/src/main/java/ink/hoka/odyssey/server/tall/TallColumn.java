@@ -97,7 +97,7 @@ public sealed interface TallColumn permits TallChunk, CubeColumn {
             int cy = i + min;
             if (!g.hasBlocks(chunkX, cy, chunkZ)) continue;
             CubeGen.Cube cube = CubeGen.generate(g, chunkX, cy, chunkZ);
-            if (cube.empty()) continue;
+            if (cube.blank()) continue;                                    // воздух со своими биомами — секцией (как у клиента)
             putSection(i, cube.section());
             for (var e : cube.specials().int2ObjectEntrySet()) {          // блоки с данными — обычным setBlock (Y ключа — в кубе)
                 int k = e.getIntKey();

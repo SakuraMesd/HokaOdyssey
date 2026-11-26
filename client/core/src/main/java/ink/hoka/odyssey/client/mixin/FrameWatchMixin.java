@@ -17,6 +17,7 @@ public abstract class FrameWatchMixin {
         ink.hoka.odyssey.client.LocalLight.frame();                    // 0.57: свет движка клиента (основное — перед runLightUpdates)
         ink.hoka.odyssey.client.LagReport.frame();                     // 0.57: задержка клиента → серверу (op 7)
         ink.hoka.odyssey.client.CubeCache.frame();                     // 0.51: кэш кубов — смена мира, WANT, EVICT
+        ink.hoka.odyssey.client.ColumnHeal.frame();                    // 0.63.1: потерянные столбцы — попросить заново
         ink.hoka.odyssey.client.SectionDirty.flush();                  // запасной сброс пометок (без Sodium / до отрисовки)
     }
 }

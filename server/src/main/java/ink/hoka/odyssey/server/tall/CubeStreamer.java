@@ -157,6 +157,11 @@ public final class CubeStreamer {
         final java.util.concurrent.ConcurrentLinkedQueue<Long> heightsQ = new java.util.concurrent.ConcurrentLinkedQueue<>();
         /** 0.59: WANT клиента по кубам-меткам (хэш op 21 не сошёлся / не сгенерировал) — правду op 2 (тик). */
         final java.util.concurrent.ConcurrentLinkedQueue<Long> genWants = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        /** 0.63.1: WANT клиента по метке с битом 4 — не сгенерировал (ошибка, смена фабрики палитр): правду op 2, это не расхождение. */
+        final java.util.concurrent.ConcurrentLinkedQueue<Long> genFails = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        /** 0.63.1: столбцы, которых у клиента нет (wc op 10) — переотправить (тик); когда скелет столбца ушёл (мс). */
+        final java.util.concurrent.ConcurrentLinkedQueue<Long> resend = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        final Map<Long, Long> loadedAt = new ConcurrentHashMap<>();
     }
 
     private static final Map<UUID, State> STATES = new ConcurrentHashMap<>();
@@ -188,6 +193,7 @@ public final class CubeStreamer {
                 // Пересылку от отмены действия (refresh) перехватывает sendChunk столбца → resync одного куба.
                 BitSet mask = new BitSet();
                 BitSet old = st.sent.put(key(e.getChunkX(), e.getChunkZ()), mask);
+                st.loadedAt.put(key(e.getChunkX(), e.getChunkZ()), System.currentTimeMillis());   // 0.63.1: в пути — не пересылать
                 st.floors.remove(key(e.getChunkX(), e.getChunkZ()));       // op 16 — заново после света столбца
                 if (old != null) {
                     cacheDrop(p, tc, old);                                  // повторный скелет: старые кубы клиент унёс в кэш
@@ -206,6 +212,7 @@ public final class CubeStreamer {
             if (st == null) return;
             BitSet old = st.sent.remove(key(e.getChunkX(), e.getChunkZ()));
             st.floors.remove(key(e.getChunkX(), e.getChunkZ()));           // клиент забыл столбец (Forget) — и его пол
+            st.loadedAt.remove(key(e.getChunkX(), e.getChunkZ()));
             // кэш 0.51: клиент забывает столбец и уносит его кубы в кэш — запомнить их версии
             if (old != null && st.instance != null && st.instance.getChunk(e.getChunkX(), e.getChunkZ()) instanceof TallColumn tc)
                 cacheDrop(e.getPlayer(), tc, old);
@@ -298,6 +305,16 @@ public final class CubeStreamer {
                     else ClientGen.onSample(p, ink.hoka.odyssey.gen.GenWire.decodeSample(m));
                     return;
                 }
+                if (op == 10) {                                                // 0.63.1: RESEND_COLUMNS — столбцов у клиента нет
+                    if (!Handshake.coreAtLeast(p, Handshake.RESEND_CORE)) return;
+                    State st = STATES.get(p.getUuid());
+                    int n = Math.min(256, b.read(NetworkBuffer.VAR_INT));
+                    for (int k = 0; k < n; k++) {
+                        int cx = b.read(NetworkBuffer.INT), cz = b.read(NetworkBuffer.INT);
+                        if (st != null && st.resend.size() < 4096) st.resend.add(key(cx, cz));
+                    }
+                    return;
+                }
                 if (op != 2) return;                                           // незнакомый op — пропуск
                 int v = b.read(NetworkBuffer.VAR_INT);
                 REQUESTED.put(p.getUuid(), Math.max(4, Math.min(64, v)));
@@ -312,7 +329,7 @@ public final class CubeStreamer {
 
     private static State state(Player p) {
         State st = STATES.computeIfAbsent(p.getUuid(), u -> new State());
-        if (st.instance != p.getInstance()) { st.sent.clear(); st.floors.clear(); st.heightsQ.clear(); st.pendAt = st.pendN = 0; st.sy = Integer.MIN_VALUE; st.wa = st.wb = Integer.MIN_VALUE; st.instance = p.getInstance(); }
+        if (st.instance != p.getInstance()) { st.sent.clear(); st.floors.clear(); st.heightsQ.clear(); st.loadedAt.clear(); st.resend.clear(); st.pendAt = st.pendN = 0; st.sy = Integer.MIN_VALUE; st.wa = st.wb = Integer.MIN_VALUE; st.instance = p.getInstance(); }
         return st;
     }
 
@@ -332,6 +349,7 @@ public final class CubeStreamer {
             try {
                 wants(p, st);                                               // кэш 0.51: промахи клиента — кубы/свет целиком
                 genWants(p, st);                                            // 0.59: куб-метка не сошёлся у клиента — правду op 2
+                resendColumns(p, st, inst);                                 // 0.63.1: столбцы, потерянные клиентом, — заново
                 if (!st.heightsQ.isEmpty()) {                               // op 17 пришедших скелетов
                     List<int[]> hs = new ArrayList<>();
                     for (Long k; (k = st.heightsQ.poll()) != null; )      // высоты — на сейчас (не старее op 17 из drainHeights)
@@ -773,6 +791,61 @@ public final class CubeStreamer {
         }
     }
 
+    /** Отладка (0.63.1): просьб клиента о столбцах; переотправлено; уже в очереди Minestom / в пути / вне обзора. */
+    static volatile long resendAsked, resendSent, resendQueued, resendFresh, resendOut;
+
+    /**
+     * 0.63.1, тик: клиент сообщил (wc op 10), что столбца у него нет. Сервер же считал его отправленным (sent) — кубы
+     * «доставлены», heal досылает только незагруженное у сервера, — и столбец оставался дырой навсегда (в него и не
+     * войти: ваниль не пускает в незагруженный столбец). Здесь: вне обзора — просто забыть (sent); скелет ушёл меньше
+     * 2 с назад (в пути) или столбец ещё в очереди Minestom — ждать; иначе убрать из sent и поставить в очередь отправки
+     * Minestom заново: скелет → PlayerChunkLoadEvent → новая маска → окно кубов целиком.
+     */
+    private static void resendColumns(Player p, State st, Instance inst) {
+        if (st.resend.isEmpty()) return;
+        long now = System.currentTimeMillis();
+        java.util.Set<Long> seen = new java.util.HashSet<>();
+        int n = 0;
+        for (Long k; n < 256 && (k = st.resend.poll()) != null; n++) {
+            if (!seen.add(k)) continue;
+            resendAsked++;
+            int cx = (int) (k >> 32), cz = (int) (long) k;
+            if (!inView(p, cx, cz)) {                                       // клиенту он и не нужен
+                if (st.sent.remove(k) != null) { st.floors.remove(k); st.loadedAt.remove(k); }
+                resendOut++;
+                continue;
+            }
+            Long at = st.loadedAt.get(k);
+            if (at != null && now - at < 2000) { resendFresh++; continue; }
+            if (inMinestomQueue(p, k)) { resendQueued++; continue; }
+            if (st.sent.remove(k) != null) st.floors.remove(k);
+            st.loadedAt.remove(k);
+            Chunk c = inst.getChunk(cx, cz);
+            if (c != null && c.isLoaded()) p.sendChunk(c);                 // Player.sendChunk — в очередь (не resync столбца)
+            else inst.loadOptionalChunk(cx, cz).thenAccept(ch -> { if (ch != null && ch.isLoaded() && p.getInstance() == inst && inView(p, cx, cz)) p.sendChunk(ch); });
+            resendSent++;
+        }
+    }
+
+    /** Столбец k стоит в очереди отправки Minestom (Player.chunkQueue). Нет доступа — false. */
+    private static boolean inMinestomQueue(Player p, long k) {
+        if (CHUNK_QUEUE == null || CHUNK_QUEUE_LOCK == null || PQ_ARRAY == null || PQ_SIZE == null || queueBroken) return false;
+        try {
+            if (!(CHUNK_QUEUE.get(p) instanceof it.unimi.dsi.fastutil.longs.LongArrayPriorityQueue aq)) return false;
+            long idx = net.minestom.server.coordinate.CoordConversion.chunkIndex((int) (k >> 32), (int) k);
+            var lock = (java.util.concurrent.locks.ReentrantLock) CHUNK_QUEUE_LOCK.get(p);
+            lock.lock();
+            try {
+                long[] arr = (long[]) PQ_ARRAY.get(aq);
+                int size = Math.min((int) PQ_SIZE.get(aq), arr.length);
+                for (int i = 0; i < size; i++) if (arr[i] == idx) return true;
+            } finally { lock.unlock(); }
+        } catch (RuntimeException ex) {
+            return false;
+        }
+        return false;
+    }
+
     /** Отладка: сколько раз подстраховка нашла незапрошенные кубы окна. */
     static volatile long healed;
 
@@ -1189,7 +1262,12 @@ public final class CubeStreamer {
                     }
                     continue;
                 }
-            } else if (mask.get(GENB + i)) mask.clear(GENB + i);           // тронут / выключено — дальше по-старому
+            } else if (mask.get(GENB + i)) {                               // тронут / выключено — дальше по-старому (op 2)
+                mask.clear(GENB + i);
+                mask.clear(LIT + i);
+                mask.clear(SECR + i);
+                mask.clear(GENR + i);
+            }
             if (!c.ready(i)) { c.request(i, prio(p, cx, i + min, cz)); continue; }
             rdy.set(i);
             if (!mask.get(i) && secs.get(i).blockPalette().count() > 0) add.add(i);
@@ -1881,7 +1959,10 @@ public final class CubeStreamer {
                     long pos = b.read(NetworkBuffer.LONG);
                     int what = b.read(NetworkBuffer.BYTE);
                     if (m != null && m.wants.size() < 65536) m.wants.add(new long[]{pos, what});
-                    if (st != null && (what & 1) != 0 && st.genWants.size() < 4096) st.genWants.add(pos);
+                    if (st != null && (what & 1) != 0) {
+                        if ((what & WANT_NOGEN) != 0) { if (st.genFails.size() < 4096) st.genFails.add(pos); }   // 0.63.1: не расхождение
+                        else if (st.genWants.size() < 4096) st.genWants.add(pos);
+                    }
                 }
             }
             case 4 -> {                                                     // HAVE
@@ -2156,8 +2237,25 @@ public final class CubeStreamer {
         }
     }
 
-    /** Тик: WANT клиента по кубам-меткам — хэш op 21 не сошёлся (или не сгенерировал): правду op 2 и расхождение. */
+    /** Бит WANT (ядро 0.63.1): куб-метку клиент не сгенерировал (ошибка, смена фабрики палитр) — не расхождение хэша. */
+    static final int WANT_NOGEN = 4;
+    /** Отладка: WANT по меткам без расхождения (клиент не сгенерировал). */
+    static volatile long genFailWants;
+
+    /**
+     * Тик: WANT клиента по кубам-меткам — хэш op 21 не сошёлся: правду op 2 и расхождение. С битом WANT_NOGEN (клиент
+     * не сгенерировал) — только правду: расхождением считается лишь реальное несовпадение хэша.
+     */
     private static void genWants(Player p, State st) {
+        for (int n = 0; n < 512 && !st.genFails.isEmpty(); n++) {
+            Long pos = st.genFails.poll();
+            if (pos == null) break;
+            BitSet mask = st.sent.get(key(posX(pos), posZ(pos)));
+            int i = posY(pos) - (TallWorld.MIN_Y >> 4);
+            if (mask == null || i < 0 || i >= LIT || !mask.get(GENB + i)) continue;
+            forceReal(p, pos);
+            genFailWants++;
+        }
         if (st.genWants.isEmpty()) return;
         int n = 0;
         for (Long pos; n < 512 && (pos = st.genWants.poll()) != null; n++) {
@@ -2170,20 +2268,31 @@ public final class CubeStreamer {
         }
     }
 
-    /** Генерация игроку выключена (op 20 slot 0): снять метки — heal/update перешлют окно op 2 (LIT снят). */
+    /**
+     * Генерация игроку выключена (op 20 slot 0, тик): метки в очереди клиента он отбросит, начатые — бросит. Всё, что
+     * ушло меткой (GENB), по всему окну и полосе — снова не отправлено (LIT снят); проход сдвига (plan, ближние первыми)
+     * прогонит update по каждому столбцу: в памяти — op 2 сразу, нет — запрос, дошлёт drainReady. Раньше ждали heal
+     * (раз в секунду и не во время сдвига).
+     */
     static void genOff(Player p) {
         State st = STATES.get(p.getUuid());
         if (st == null) return;
+        int n = 0;
         synchronized (st) {
             for (BitSet mask : st.sent.values()) {
-                for (int b = mask.nextSetBit(GENB); b >= 0 && b < GENB + LIT; b = mask.nextSetBit(b + 1)) mask.clear(LIT + (b - GENB));
+                for (int b = mask.nextSetBit(GENB); b >= 0 && b < GENB + LIT; b = mask.nextSetBit(b + 1)) { mask.clear(LIT + (b - GENB)); n++; }
                 mask.clear(GENB, GENB + LIT);
                 mask.clear(SECR, SECR + LIT);
                 mask.clear(GENR, GENR + LIT);
             }
+            if (st.sy != Integer.MIN_VALUE && st.instance == p.getInstance()) plan(p, st);   // все столбцы — в очередь сдвига
         }
-        st.heal = 19;                                                       // полная подстраховка — в следующий тик
+        genOffResent += n;
+        st.heal = 19;                                                       // и полная подстраховка после прохода
     }
+
+    /** Отладка: меток, снятых при выключении генерации игроку (перешлются op 2). */
+    static volatile long genOffResent;
 
     /** До n кубов-меток игрока (для op 23), ближние столбцы первыми. */
     static long[] genPositions(Player p, int n) {
@@ -2275,6 +2384,7 @@ public final class CubeStreamer {
         return "кубов отправлено " + sentCubes + ", выгружено " + unloadedCubes + ", игроков на кубовых картах " + STATES.size()
                 + ", свет при правках: " + (lightBytes / 1024) + " КБ всего; " + LightOp.stats()
                 + "; сбоев отправки " + sendFailures + ", подстраховка дослала столбцов " + healResent + ", скелетов вне обзора " + staleLoads
+                + "; клиент просил столбцы заново " + resendAsked + " (переслано " + resendSent + ", в очереди " + resendQueued + ", в пути " + resendFresh + ", вне обзора " + resendOut + ")"
                 + "; очередь Minestom: убрано вне обзора " + queueStale + ", повторов " + queueDup + (queueBroken || CHUNK_QUEUE == null || VIEW_CENTER == null ? " (чистка ВЫКЛ)" : "")
                 + "; вперёд по ходу тиков " + aheadTicks + (headingBroken || PQ_CMP == null ? " (ВЫКЛ)" : "")
                 + "; пустых без света op 11 не слано " + lightSkipped
@@ -2287,6 +2397,6 @@ public final class CubeStreamer {
                 + "; кубов загружено " + CubeStore.loads.get() + ", в очереди " + CubeStore.queued()
                 + ", ошибок чтения " + CubeStore.loadErrors.get() + ", запись в незагруженный " + CubeStore.violations.get()
                 + "; " + CubeCacheModel.stats()
-                + "; " + ClientGen.stats() + ", op 2 после первой правки " + genTouched + ", правдой по расхождению " + genForced;
+                + "; " + ClientGen.stats() + ", op 2 после первой правки " + genTouched + ", правдой по расхождению " + genForced + ", меток переслано при выключении " + genOffResent + ", не сгенерировал клиент " + genFailWants;
     }
 }

@@ -40,6 +40,7 @@ public abstract class SparseLevelChunkMixin {
         hoka$readSparse = TallWorld.net;
         if (!hoka$readSparse) return;
         LevelChunk self = (LevelChunk) (Object) this;
+        if (net.minecraft.client.Minecraft.getInstance().isSameThread()) ink.hoka.odyssey.client.ColumnHeal.arrived(self.getPos().x, self.getPos().z);   // 0.63.1
         // ждущие кубы старого столбца — устарели (0.57: пакет из очереди CubeQueue — уже при постановке)
         if (!ink.hoka.odyssey.client.CubeQueue.REPLAY) ink.hoka.odyssey.client.CubeQueue.columnChanged(self.getPos().x, self.getPos().z);
         var f = self.getLevel().palettedContainerFactory();

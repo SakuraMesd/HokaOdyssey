@@ -82,6 +82,8 @@ public final class CubeCache {
     public static long hits, missNone, missHash, lightHits, lightMiss, wants, evicted, captured, refs, lightRefs;
 
     static final int WANT_BLOCKS = 1, WANT_LIGHT = 2;
+    /** 0.63.1: к WANT_BLOCKS по кубу-метке — «не сгенерировал» (ошибка, смена фабрики палитр), не расхождение хэша. */
+    static final int WANT_NOGEN = 4;
     static final int OP_WANT = 3, OP_HAVE = 4, OP_EVICT = 5, OP_REPORT = 6;
     /** Предел C2S-пакета (ServerboundCustomPayload ≤ 32767). */
     private static final int MAX_C2S = 30_000;
@@ -411,11 +413,20 @@ public final class CubeCache {
         if ((w.what & what) != what) { w.what |= what; w.sentAt = 0; w.tries = 0; }
     }
 
+    /** 0.63.1: куб-метка не сошёлся по хэшу — WANT блоков без «не сгенерировал» (сервер посчитает расхождение). */
+    static void wantMismatch(long pos) {
+        Want w = WAITING.get(pos);
+        if (w == null) WAITING.put(pos, w = new Want());
+        int nw = (w.what | WANT_BLOCKS) & ~WANT_NOGEN;
+        if (nw != w.what) { w.what = nw; w.sentAt = 0; w.tries = 0; }
+    }
+
     static void unwait(long pos, int what) {
         if (WAITING.isEmpty()) return;
         Want w = WAITING.get(pos);
         if (w == null) return;
         w.what &= ~what;
+        if ((w.what & WANT_BLOCKS) == 0) w.what &= ~WANT_NOGEN;           // 0.63.1: бит — только при WANT блоков
         if (w.what == 0) WAITING.remove(pos);
     }
 

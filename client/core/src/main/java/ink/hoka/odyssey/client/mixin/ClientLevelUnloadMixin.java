@@ -15,6 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class ClientLevelUnloadMixin {
     @Inject(method = "unload", at = @At("HEAD"))
     private void hoka$cache(LevelChunk chunk, CallbackInfo ci) {
+        ink.hoka.odyssey.client.ColumnHeal.forgot(chunk.getPos().x, chunk.getPos().z);   // 0.63.1
         try { ink.hoka.odyssey.client.CubeCache.captureColumn((ClientLevel) (Object) this, chunk); }
         catch (RuntimeException e) { org.slf4j.LoggerFactory.getLogger("HokaOdyssey").warn("кэш кубов: столбец не унесён ({})", e.toString()); }
     }

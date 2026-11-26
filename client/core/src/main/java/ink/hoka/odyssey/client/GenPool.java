@@ -429,11 +429,11 @@ public final class GenPool {
         if (t.level != level || t.job != job) { dropped++; return; }
         if (r.err != null || r.sec == null) {
             if (errors++ < 5) HokaOdysseyClient.LOG.warn("генерация куба {} упала — прошу у сервера", SectionPos.of(t.pos), r.err);
-            CubeCache.want(t.pos, CubeCache.WANT_BLOCKS);
+            CubeCache.want(t.pos, CubeCache.WANT_BLOCKS | CubeCache.WANT_NOGEN);   // 0.63.1: сбой — не расхождение
             ClientGen.failed();
             return;
         }
-        if (t.f != level.palettedContainerFactory()) { dropped++; CubeCache.want(t.pos, CubeCache.WANT_BLOCKS); return; }
+        if (t.f != level.palettedContainerFactory()) { dropped++; CubeCache.want(t.pos, CubeCache.WANT_BLOCKS | CubeCache.WANT_NOGEN); return; }
         generated++;
         genNs += r.ns;
         long t0 = System.nanoTime();

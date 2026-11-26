@@ -25,6 +25,7 @@ public abstract class IgnoredChunkLogMixin {
     private void hoka$quiet(Logger log, String msg, Object a, Object b, Operation<Void> op) {
         if (!TallWorld.net) { op.call(log, msg, a, b); return; }
         hoka$ignored++;
+        if (a instanceof Integer ix && b instanceof Integer iz) ink.hoka.odyssey.client.ColumnHeal.forgot(ix, iz);   // 0.63.1: вне обзора — не потеря
         if (a instanceof Integer x) hoka$lastX = x;
         if (b instanceof Integer z) hoka$lastZ = z;
         long now = System.currentTimeMillis();

@@ -259,7 +259,7 @@ public final class CubeRegionLoader implements ChunkLoader {
             data.put(CoordConversion.chunkBlockIndex(CoordConversion.chunkBlockIndexGetX(k) & 15, (cy << 4) + CoordConversion.chunkBlockIndexGetY(k),
                     CoordConversion.chunkBlockIndexGetZ(k) & 15), e.getValue());
         }
-        return new Loaded(cube.empty() ? null : cube.section(), data, !g.deterministic() && !cube.empty());
+        return new Loaded(cube.blank() ? null : cube.section(), data, !g.deterministic() && !cube.empty());   // воздух со своими биомами — секцией
     }
 
     @Override public boolean supportsParallelLoading() { return true; }

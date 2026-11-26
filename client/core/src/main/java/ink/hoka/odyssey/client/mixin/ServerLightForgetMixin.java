@@ -21,6 +21,7 @@ public abstract class ServerLightForgetMixin {
     private void hoka$fastForget(ClientboundForgetLevelChunkPacket p, CallbackInfo ci) {
         if (!ink.hoka.odyssey.client.CubeQueue.REPLAY) ink.hoka.odyssey.client.CubeQueue.columnChanged(p.pos().x, p.pos().z);   // 0.57: отложенный — уже при постановке
         ink.hoka.odyssey.client.LocalLight.columnGone(level, p.pos().x, p.pos().z);
+        ink.hoka.odyssey.client.ColumnHeal.forgot(p.pos().x, p.pos().z);   // 0.63.1: кубы следом — поздние, не потеря
         if (!ink.hoka.odyssey.client.TallLight.forget(level, p.pos())) return;
         hoka$after(p);
         ci.cancel();

@@ -58,6 +58,16 @@ public interface CubeGen {
     /** Результат генерации куба: секция и блоки с данными/обработчиком (их ставить своим setBlock). */
     record Cube(Section section, Int2ObjectMap<Block> specials) {
         public boolean empty() { return section.blockPalette().count() == 0 && specials.isEmpty(); }
+
+        /**
+         * Пуст целиком, и биомы — как у общей пустой секции: можно не хранить. Воздух со своими биомами (vale над
+         * рельефом) — хранить: иначе в памяти биом 0, хэш op 21 ≠ генерации клиента (расхождение 26ноя).
+         */
+        public boolean blank() {
+            if (!empty()) return false;
+            int b = section.biomePalette().singleValue();
+            return b >= 0 && b == TallSections.EMPTY.biomePalette().singleValue();
+        }
     }
 
     /** Сгенерировать куб в новую секцию (форки запрещены — бросят исключение). */

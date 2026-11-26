@@ -33,6 +33,8 @@ public final class CubeReceiver {
 
     private static final Logger LOG = LoggerFactory.getLogger("HokaOdyssey");
     public static long received, unloaded, dropped, fromCache;
+    /** 0.63.1: кубы для недавно забытого столбца / вне высоты мира / метки при выключенной генерации — норма, не дыра. */
+    public static long late;
     /** Незнакомые коды операций — в лог по одному разу. */
     private static final java.util.Set<Integer> UNKNOWN = java.util.concurrent.ConcurrentHashMap.newKeySet();
     /** Окно загруженных кубов по Y (секции) от сервера; мир, к которому оно относится (другой мир — окна нет). */
@@ -303,14 +305,21 @@ public final class CubeReceiver {
                 : (LevelChunk) level.getChunkSource().getChunk(x, z, ChunkStatus.FULL, false);
         int idx = level.getSectionIndexFromSectionY(y);
         boolean ok = c != null && idx >= 0 && idx < c.getSections().length;
+        if (!ok) {                                                      // 0.63.1: столбца нет — потеря (сервер перешлёт) или поздний
+            if (c == null) ColumnHeal.lost(level, x, z); else late++;
+            if (p.op == 21) return;
+            if (p.op == 2) { CubeCache.gotBlocks(p.ns, pos); ClientGen.serverCube(pos, false); return; }
+            if (p.op == 4) { CubeCache.unwaitAll(pos); ClientGen.serverCube(pos, true); return; }
+            ClientGen.serverCube(pos, false);
+            return;
+        }
         if (p.op == 21) {                                               // 0.59: метка — генерируем сами
-            if (!ok || YardColumns.isYard(x)) { dropped++; return; }
+            if (YardColumns.isYard(x)) { late++; return; }
             ClientGen.label(level, pos, p.a, p.hash[i], p.uni[2 * i], p.uni[2 * i + 1], p.ns);
             return;
         }
         ClientGen.serverCube(pos, p.op == 4);                           // 0.59: сервер прислал правду — генерация не нужна
         if (p.op == 13) {                                               // 0.51: куб из кэша
-            if (!ok) { dropped++; return; }
             LevelChunkSection sec = CubeCache.takeBlocks(p.ns, pos, p.hash[i], level.palettedContainerFactory());
             if (sec == null) return;                                    // промах: секция как есть, WANT ушёл (CubeCache)
             removeBlockEntities(c, y);
@@ -322,24 +331,20 @@ public final class CubeReceiver {
             fromCache++;
             return;
         }
-        if (ok) removeBlockEntities(c, y);
+        removeBlockEntities(c, y);
         if (p.op == 2) {
             CubeCache.gotBlocks(p.ns, pos);
-            if (ok) {
-                put(level, c, idx, x, y, z, p.secs[i]);
-                BE[] be = p.bes[i];
-                if (be != null) for (BE e : be)
-                    loadBlockEntity(level, c, new net.minecraft.core.BlockPos((x << 4) + (e.xz() >> 4), e.y(), (z << 4) + (e.xz() & 15)), e.type(), e.tag());
-                received++;
-            } else dropped++;
+            put(level, c, idx, x, y, z, p.secs[i]);
+            BE[] be = p.bes[i];
+            if (be != null) for (BE e : be)
+                loadBlockEntity(level, c, new net.minecraft.core.BlockPos((x << 4) + (e.xz() >> 4), e.y(), (z << 4) + (e.xz() & 15)), e.type(), e.tag());
+            received++;
         } else {
             CubeCache.unwaitAll(pos);
-            if (ok) {
-                LevelChunkSection old = c.getSections()[idx];
-                CubeCache.captureCube(level, c, x, y, z, old);          // 0.51: куб и его свет — в кэш
-                put(level, c, idx, x, y, z, SparseSections.fallback(level.palettedContainerFactory()), true);
-                unloaded++;
-            } else dropped++;
+            LevelChunkSection old = c.getSections()[idx];
+            CubeCache.captureCube(level, c, x, y, z, old);              // 0.51: куб и его свет — в кэш
+            put(level, c, idx, x, y, z, SparseSections.fallback(level.palettedContainerFactory()), true);
+            unloaded++;
         }
     }
 
@@ -351,7 +356,8 @@ public final class CubeReceiver {
         int x = SectionPos.x(pos), y = SectionPos.y(pos), z = SectionPos.z(pos);
         LevelChunk c = (LevelChunk) level.getChunkSource().getChunk(x, z, ChunkStatus.FULL, false);
         int idx = level.getSectionIndexFromSectionY(y);
-        if (c == null || idx < 0 || idx >= c.getSections().length) { dropped++; return false; }
+        if (c == null) { ColumnHeal.lost(level, x, z); return false; }   // 0.63.1: потеря — столбец попросим заново
+        if (idx < 0 || idx >= c.getSections().length) { late++; return false; }
         serverLight(level);
         removeBlockEntities(c, y);
         CubeCache.unwaitAll(pos);
@@ -439,6 +445,7 @@ public final class CubeReceiver {
     }
 
     public static String stats() {
-        return "кубов принято " + received + " (из кэша " + fromCache + "), выгружено " + unloaded + (dropped > 0 ? ", отброшено " + dropped : "") + ", " + CubeQueue.stats();
+        return "кубов принято " + received + " (из кэша " + fromCache + "), выгружено " + unloaded + (dropped > 0 ? ", отброшено " + dropped : "") + (late > 0 ? ", поздних " + late : "")
+                + ", " + ColumnHeal.stats() + ", " + CubeQueue.stats();
     }
 }
