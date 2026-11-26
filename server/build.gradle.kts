@@ -28,5 +28,8 @@ tasks.test {
     // 0.59: тесты переносимого генератора — настоящий jar noise-test и эталон для сверки с клиентом (gen-golden/)
     dependsOn(":generators:noise-test:jar")
     systemProperty("hoka.test.noise-jar", project(":generators:noise-test").layout.buildDirectory.file("libs/noise-test.jar").get().asFile.absolutePath)
+    // 0.60: генератор planet (объекты) — настоящий jar
+    dependsOn(":generators:planet:jar")
+    systemProperty("hoka.test.planet-jar", project(":generators:planet").layout.buildDirectory.file("libs/planet.jar").get().asFile.absolutePath)
     systemProperty("hoka.test.golden-dir", rootProject.layout.projectDirectory.dir("gen-golden").asFile.absolutePath)
 }

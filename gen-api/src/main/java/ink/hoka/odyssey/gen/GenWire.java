@@ -15,6 +15,8 @@ import java.util.List;
  *                  long seed; string optionsJson (generator_options, ключи по алфавиту); int minY, maxY, size
  *                  (границы карты = GenContext.bounds(), НЕ обрезанные по миру);
  *                  int statesCount; long statesDigest; long biomesDigest; long fingerprint; byte flags (bit0 — секреты есть)
+ *                  [0.60, хвост — только если есть объекты: string objectsPath ("genobj/&lt;sha16&gt;.hopk"); string objectsSha256;
+ *                  long objectsHash] — старый декодер хвост не читает, новый без хвоста даёт пустые поля
  * S2C 21 GEN_CUBES varint slot; varint nCol; на столбец: int cx, int cz, int sy0, varint len, ⌈len/8⌉ Б маска
  *                  (бит j — куб sy0+j сгенерировать; младший бит байта — меньший j); varint k; k × (varint j,
  *                  byte f: f&amp;1 → long visHash (сверить после генерации), f&amp;2 → varint state, varint biome (однородный —
@@ -46,23 +48,52 @@ public final class GenWire {
     // ───────────── op 20 ─────────────
 
     public record Def(int slot, String id, int version, String filePath, String sha256, long seed, String optionsJson,
-                      int minY, int maxY, int size, int statesCount, long statesDigest, long biomesDigest, long fingerprint, int flags) {
+                      int minY, int maxY, int size, int statesCount, long statesDigest, long biomesDigest, long fingerprint, int flags,
+                      String objectsPath, String objectsSha256, long objectsHash) {
+        public Def {
+            if (objectsPath == null) objectsPath = "";
+            if (objectsSha256 == null) objectsSha256 = "";
+        }
+        /** Без объектов (как до 0.60). */
+        public Def(int slot, String id, int version, String filePath, String sha256, long seed, String optionsJson,
+                   int minY, int maxY, int size, int statesCount, long statesDigest, long biomesDigest, long fingerprint, int flags) {
+            this(slot, id, version, filePath, sha256, seed, optionsJson, minY, maxY, size, statesCount, statesDigest, biomesDigest, fingerprint, flags, "", "", 0);
+        }
         public static Def off() { return new Def(0, "", 0, "", "", 0, "{}", 0, 0, 0, 0, 0, 0, 0, 0); }
         public boolean secrets() { return (flags & 1) != 0; }
+        /** Есть пакет объектов (нужно ядро 0.60). */
+        public boolean hasObjects() { return objectsHash != 0; }
     }
 
-    public static byte[] encodeDef(Def d) {
+    /** op 20; хвост объектов — только если они есть. */
+    public static byte[] encodeDef(Def d) { return encodeDef(d, d.hasObjects()); }
+
+    /** op 20; ext — писать хвост объектов (клиент 0.60+). */
+    public static byte[] encodeDef(Def d, boolean ext) {
         Out o = new Out();
         o.b(OP_DEF).vi(d.slot()).str(d.id()).vi(d.version()).str(d.filePath()).str(d.sha256()).l(d.seed()).str(d.optionsJson())
                 .i(d.minY()).i(d.maxY()).i(d.size()).i(d.statesCount()).l(d.statesDigest()).l(d.biomesDigest()).l(d.fingerprint()).b(d.flags());
+        if (ext) o.str(d.objectsPath()).str(d.objectsSha256()).l(d.objectsHash());
         return o.bytes();
     }
 
-    /** Разбор op 20 (с байтом op). */
+    /** Разбор op 20 (с байтом op); хвост объектов — если есть. */
     public static Def decodeDef(byte[] m) {
         In in = new In(m);
         expect(in, OP_DEF);
-        return new Def(in.vi(), in.str(), in.vi(), in.str(), in.str(), in.l(), in.str(), in.i(), in.i(), in.i(), in.i(), in.l(), in.l(), in.l(), in.b() & 0xFF);
+        int slot = in.vi();
+        String id = in.str();
+        int ver = in.vi();
+        String fp = in.str(), sha = in.str();
+        long seed = in.l();
+        String opts = in.str();
+        int minY = in.i(), maxY = in.i(), size = in.i(), sc = in.i();
+        long sd = in.l(), bd = in.l(), f = in.l();
+        int flags = in.b() & 0xFF;
+        String op = "", os = "";
+        long oh = 0;
+        if (in.remaining() > 0) { op = in.str(); os = in.str(); oh = in.l(); }
+        return new Def(slot, id, ver, fp, sha, seed, opts, minY, maxY, size, sc, sd, bd, f, flags, op, os, oh);
     }
 
     // ───────────── op 21 ─────────────

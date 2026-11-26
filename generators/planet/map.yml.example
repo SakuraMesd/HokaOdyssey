@@ -1,0 +1,12 @@
+# Шаблон карты-планеты: скопировать в maps/<имя>/map.yml (ключи tall/store/cubes — как у кубовых карт /homap)
+tall: true
+store: cubes
+cubes: true
+generator: planet
+gen_min_y: -500
+gen_max_y: 2000
+objects: [trees]            # категории из objects/ ("*" — все); нет ключа — все
+generator_options:
+  sea_level: 300
+  features:
+    - {category: trees, cell: 12, density: 0.35, margin: 2}

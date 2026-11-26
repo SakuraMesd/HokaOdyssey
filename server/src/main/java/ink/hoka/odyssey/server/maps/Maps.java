@@ -142,6 +142,8 @@ public final class Maps {
                 LOG.error("карта «{}» не загружена: генератор «{}» только что выгружен/заменён", name, rg.gen().id());
                 return null;
             }
+            // пакет объектов карты — клиентам файлом clientmods (пока карта загружена)
+            ink.hoka.odyssey.server.objects.ObjectPacks.acquire("карта " + name, rg.gen().objects);
         }
         if (meta.getBoolean("tall", false) && ink.hoka.odyssey.server.tall.TallWorld.key(name) != null) {
             // высокий мир: Anvil не держит такую высоту — своё хранение (maps/<карта>/tall/), свет — свой (TallChunk)
@@ -195,6 +197,7 @@ public final class Maps {
         if (m.instance.getChunkLoader() instanceof ink.hoka.odyssey.server.tall.CubeRegionLoader l) l.close();
         ink.hoka.odyssey.server.tall.Cubes.forget(m.instance);                // закрепления кубов выгруженной карты
         ink.hoka.odyssey.server.tall.gen.GeneratorRegistry.release("загружена карта " + m.name);   // модуль-генератор можно перезагружать
+        ink.hoka.odyssey.server.objects.ObjectPacks.release("карта " + m.name);
     }
 
     /** Генератор загруженной карты (для pregen/gentest/size) или null. */

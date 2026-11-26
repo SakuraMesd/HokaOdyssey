@@ -5,6 +5,7 @@ import ink.hoka.odyssey.gen.GenBounds;
 import ink.hoka.odyssey.gen.GenClassLoader;
 import ink.hoka.odyssey.gen.GenContext;
 import ink.hoka.odyssey.gen.GenFingerprint;
+import ink.hoka.odyssey.gen.GenObjects;
 import ink.hoka.odyssey.gen.GenHash;
 import ink.hoka.odyssey.gen.GenJson;
 import ink.hoka.odyssey.gen.GenProvider;
@@ -61,7 +62,11 @@ public final class ClientGen {
     public static long labels, memoHits, mismatches, samplesSent, checks, checkBad, secretsApplied;
     private static int failures;
 
-    private static String key(GenWire.Def d) { return d.id() + "@" + d.version() + "/" + d.sha256() + "/" + d.seed() + "/" + d.optionsJson() + "/" + d.minY() + ".." + d.maxY() + "/" + d.size(); }
+    /** Ключ генератора — как у сервера (ClientGen.key): 0.60 — с пакетом объектов (сменился — кэш GenMemo сбрасывается). */
+    private static String key(GenWire.Def d) {
+        return d.id() + "@" + d.version() + "/" + d.sha256() + "/" + d.seed() + "/" + d.optionsJson() + "/" + d.minY() + ".." + d.maxY() + "/" + d.size()
+                + (d.hasObjects() ? "/obj:" + d.objectsSha256() : "");
+    }
 
     // ───────────── op 20 ─────────────
 
@@ -120,16 +125,29 @@ public final class ClientGen {
             jar = FileStore.get(d.filePath()).orElse(null);
             if (jar == null) return;
         }
+        byte[] pack = null;
+        if (d.hasObjects()) {                                                 // 0.60: пакет объектов карты — файлом clientmods, как jar
+            String sha = FileStore.sha(d.objectsPath());
+            if (sha == null || !sha.equalsIgnoreCase(d.objectsSha256())) {
+                if (status != GenWire.ST_NO_JAR && System.currentTimeMillis() - defAt > 30_000) {
+                    LOG.warn("генерация на клиенте: нет пакета объектов {} за 30 с", d.objectsPath());
+                    send(d.slot(), GenWire.ST_NO_JAR);
+                }
+                return;
+            }
+            pack = FileStore.get(d.objectsPath()).orElse(null);
+            if (pack == null) return;
+        }
         var conn = Minecraft.getInstance().getConnection();
         if (conn == null) return;
         var access = conn.registryAccess();
         loading = true;
-        final byte[] fjar = jar;
+        final byte[] fjar = jar, fpack = pack;
         Thread t = new Thread(() -> {
             int st;
             Loaded l = null;
             try {
-                l = load(d, fjar, access);
+                l = load(d, fjar, fpack, access);
                 st = l == null ? GenWire.ST_IDS : GenWire.ST_OK;
             } catch (FingerprintMismatch e) {
                 st = GenWire.ST_FINGERPRINT;
@@ -158,7 +176,7 @@ public final class ClientGen {
     }
 
     /** Фон: провайдер (jar или встроенный) → сверка номеров → генератор → отпечаток. null — номера не сходятся. */
-    private static Loaded load(GenWire.Def d, byte[] jar, net.minecraft.core.RegistryAccess access) throws Exception {
+    private static Loaded load(GenWire.Def d, byte[] jar, byte[] pack, net.minecraft.core.RegistryAccess access) throws Exception {
         GenProvider p;
         if (jar == null) {
             p = BuiltinGens.get(d.filePath().substring(BuiltinGens.PREFIX.length()));
@@ -181,8 +199,15 @@ public final class ClientGen {
         if (GenHash.strings(ids.biomeNames()) != d.biomesDigest()) { LOG.error("генерация на клиенте: номера биомов расходятся с сервером"); return null; }
         Map<String, Object> opts = d.optionsJson() == null || d.optionsJson().isBlank() ? Map.of() : GenJson.parseObject(d.optionsJson());
         GenBounds bounds = new GenBounds(d.minY(), d.maxY(), d.size());
-        PlanetGenerator g = p.create(GenContext.of(d.id(), d.seed(), bounds, opts, ids, false, null));
-        long fp = GenFingerprint.of(g, bounds, d.seed());
+        GenObjects objects = GenObjects.EMPTY;
+        if (d.hasObjects()) {
+            if (!GenClassLoader.sha256(pack).equalsIgnoreCase(d.objectsSha256())) throw new SecurityException("sha пакета объектов не сходится");
+            objects = GenObjects.readPack(pack);
+            if (objects.hash() != d.objectsHash())
+                throw new IllegalStateException("хэш пакета объектов " + Long.toHexString(objects.hash()) + " ≠ " + Long.toHexString(d.objectsHash()));
+        }
+        PlanetGenerator g = p.create(GenContext.of(d.id(), d.seed(), bounds, opts, ids, false, null, objects));
+        long fp = GenFingerprint.of(g, bounds, d.seed(), d.objectsHash());
         if (d.fingerprint() != 0 && fp != d.fingerprint()) { try { g.close(); } catch (Throwable ignored) {} throw new FingerprintMismatch(fp); }
         LOG.info("генерация на клиенте: {}@{} готов (состояний {}, биомов {}, отпечаток {})", d.id(), d.version(), d.statesCount(),
                 ids.biomeNames().size(), Long.toHexString(fp));

@@ -1,0 +1,14 @@
+// Переносимый генератор планеты «planet» v1 (сервер + клиент): только gen-api, StrictMath. jar → run/generators/.
+// Рельеф пока заглушка (плоская трава на уровне моря) + расстановка объектов из objects/ (FeatureGrid).
+dependencies { compileOnly(project(":gen-api")) }
+
+tasks.withType<JavaCompile> { options.release.set(21) }      // клиент — Java 21
+tasks.jar { archiveFileName.set("planet.jar") }
+
+val deployGenerator by tasks.registering(Copy::class) {
+    group = "odyssey"
+    description = "Положить jar генератора в run/generators/"
+    from(tasks.jar)
+    into(rootProject.layout.projectDirectory.dir("run/generators"))
+}
+tasks.build { dependsOn(deployGenerator) }

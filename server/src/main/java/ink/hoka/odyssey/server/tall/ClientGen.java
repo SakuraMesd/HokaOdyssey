@@ -78,6 +78,7 @@ public final class ClientGen {
         if (g == null || !g.portable()) return null;
         PortableProvider pp = g.portableProvider();
         if (pp == null || (pp.jar != null && !PortableGens.canPublish())) return null;
+        if (!g.objects.isEmpty() && (!PortableGens.canPublish() || !ink.hoka.odyssey.server.objects.ObjectPacks.published(g.objects))) return null;
         return g;
     }
 
@@ -95,6 +96,7 @@ public final class ClientGen {
         if (!coreOk(p)) return;
         P s = STATES.computeIfAbsent(p.getUuid(), u -> new P());
         ModuleCubeGen g = s.adminOff ? null : portableGen(inst);
+        if (g != null && needsObjectsCore(g) && !Handshake.coreAtLeast(p, Handshake.OBJECTS_CORE)) g = null;   // ядро < 0.60 — op 2
         s.inst = inst;
         s.status = PENDING;
         if (g == null) {
@@ -114,9 +116,16 @@ public final class ClientGen {
         if (k.equals(s.okKey)) s.status = OK;
     }
 
-    /** Ключ генератора op 20 — как у клиента (ClientGen.key): id, версия, sha, сид, настройки, границы. */
+    /** Генератору нужно ядро 0.60 (объекты или API 2). */
+    static boolean needsObjectsCore(ModuleCubeGen g) {
+        PortableProvider pp = g.portableProvider();
+        return g.objects.hash() != 0 || (pp != null && pp.apiLevel >= 2);
+    }
+
+    /** Ключ генератора op 20 — как у клиента (ClientGen.key): id, версия, sha, сид, настройки, границы, пакет объектов. */
     static String key(GenWire.Def d) {
-        return d.id() + "@" + d.version() + "/" + d.sha256() + "/" + d.seed() + "/" + d.optionsJson() + "/" + d.minY() + ".." + d.maxY() + "/" + d.size();
+        return d.id() + "@" + d.version() + "/" + d.sha256() + "/" + d.seed() + "/" + d.optionsJson() + "/" + d.minY() + ".." + d.maxY() + "/" + d.size()
+                + (d.hasObjects() ? "/obj:" + d.objectsSha256() : "");
     }
 
     /** op 20 для генератора g. */
@@ -125,9 +134,11 @@ public final class ClientGen {
         GenIdTable ids = MinestomGenIds.get();
         var b = g.bounds();
         String opts = GenJson.write(g.settings.options());
+        var obj = g.objects;
         return new GenWire.Def(slot, pp.id(), pp.version(), pp.filePath, pp.sha256, g.settings.seed(), opts,
                 b.minY(), b.maxY(), b.size(), ids.statesCount(), ids.statesDigest(), ids.biomesDigest(), g.genFingerprint(),
-                g.secretsEnabled() ? 1 : 0);
+                g.secretsEnabled() ? 1 : 0, obj.isEmpty() ? "" : ink.hoka.odyssey.server.objects.ObjectPacks.path(obj),
+                obj.packSha256(), obj.hash());
     }
 
     /** C2S op 8 GEN_STATUS. */

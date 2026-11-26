@@ -35,7 +35,7 @@ public final class PortableGens {
     }
 
     /** Состав jar сменился — clientmods пересобирает и рассылает подписанный список файлов. */
-    static void filesChanged() {
+    public static void filesChanged() {
         try { sink.get().ifPresent(ink.hoka.odyssey.api.GenFilesSink::generatorFilesChanged); }
         catch (RuntimeException e) { LOG.warn("раздача jar генераторов: {}", e.toString()); }
     }
@@ -44,6 +44,7 @@ public final class PortableGens {
     public static Map<String, byte[]> files() {
         Map<String, byte[]> r = new TreeMap<>();
         for (PortableProvider p : GeneratorRegistry.portableJars()) r.put(p.filePath, p.jar);
+        r.putAll(ink.hoka.odyssey.server.objects.ObjectPacks.files());       // пакеты объектов загруженных карт
         return r;
     }
 
@@ -65,7 +66,7 @@ public final class PortableGens {
     /** Загрузить jar и зарегистрировать генератор (владелец owner). Исключение — jar плохой или id занят. */
     public static PortableProvider register(String owner, byte[] jar) throws Exception {
         GenClassLoader.Loaded l = load(jar);
-        PortableProvider p = new PortableProvider(l.provider(), l.sha256(), jar);
+        PortableProvider p = new PortableProvider(l.provider(), l.sha256(), jar, l.manifest());
         GeneratorRegistry.register(owner, p);
         return p;
     }

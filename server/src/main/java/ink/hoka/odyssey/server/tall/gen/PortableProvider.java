@@ -19,9 +19,16 @@ public final class PortableProvider implements GeneratorProvider {
     public final String sha256;
     /** Байты jar (null у встроенного). */
     public final byte[] jar;
+    /** hoka-gen.json: уровень API (1 — до объектов) и «нужны объекты» (нет ключа objects: в map.yml — все категории). */
+    public final int apiLevel;
+    public final boolean wantsObjects;
 
-    public PortableProvider(GenProvider gen, String sha256, byte[] jar) {
+    public PortableProvider(GenProvider gen, String sha256, byte[] jar) { this(gen, sha256, jar, null); }
+
+    public PortableProvider(GenProvider gen, String sha256, byte[] jar, GenManifest manifest) {
         this.gen = gen;
+        this.apiLevel = manifest == null ? 1 : manifest.api();
+        this.wantsObjects = manifest != null && manifest.objects();
         this.jar = jar;
         this.sha256 = jar == null ? "" : sha256;
         this.filePath = jar == null ? BuiltinGens.PREFIX + gen.id() : "gen/" + gen.id() + "@" + gen.version() + "-" + sha256.substring(0, 8) + ".jar";
@@ -42,8 +49,11 @@ public final class PortableProvider implements GeneratorProvider {
     @Override public PortableWorldGen create(GenSettings s) { return create(s, null); }
 
     /** Генератор карты на сервере: секреты пишутся от secretSeed (null — секретов нет). */
-    public PortableWorldGen create(GenSettings s, Long secretSeed) {
-        GenContext ctx = context(s, MinestomGenIds.get(), true, secretSeed);
+    public PortableWorldGen create(GenSettings s, Long secretSeed) { return create(s, secretSeed, GenObjects.EMPTY); }
+
+    /** С библиотекой объектов карты (пакет-снимок; тот же уходит клиенту). */
+    public PortableWorldGen create(GenSettings s, Long secretSeed, GenObjects objects) {
+        GenContext ctx = context(s, MinestomGenIds.get(), true, secretSeed, objects);
         return new PortableWorldGen(gen.create(ctx), ctx);
     }
 
@@ -52,8 +62,12 @@ public final class PortableProvider implements GeneratorProvider {
      * совпасть), границы — настройки карты.
      */
     public static GenContext context(GenSettings s, GenIds ids, boolean server, Long secretSeed) {
+        return context(s, ids, server, secretSeed, GenObjects.EMPTY);
+    }
+
+    public static GenContext context(GenSettings s, GenIds ids, boolean server, Long secretSeed, GenObjects objects) {
         var o = GenJson.parseObject(GenJson.write(s.options()));
         Bounds b = s.bounds();
-        return GenContext.of(s.map(), s.seed(), new GenBounds(b.minY(), b.maxY(), b.size()), o, ids, server, secretSeed);
+        return GenContext.of(s.map(), s.seed(), new GenBounds(b.minY(), b.maxY(), b.size()), o, ids, server, secretSeed, objects);
     }
 }

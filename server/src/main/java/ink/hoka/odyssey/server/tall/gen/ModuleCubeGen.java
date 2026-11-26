@@ -31,6 +31,8 @@ public final class ModuleCubeGen implements CubeGen {
     public final ink.hoka.odyssey.gen.PlanetGenerator pg;
     /** Сид секретов (map.yml secret_seed) — только переносимому; null — секретов нет. */
     private final Long secretSeed;
+    /** Библиотека объектов карты (снимок при загрузке; хэш — в отпечатках). */
+    public final ink.hoka.odyssey.gen.GenObjects objects;
     public final GenSettings settings;
     private final String tag;
     private final boolean det;
@@ -41,10 +43,16 @@ public final class ModuleCubeGen implements CubeGen {
     public ModuleCubeGen(GeneratorProvider provider, GenSettings settings) { this(provider, settings, null); }
 
     public ModuleCubeGen(GeneratorProvider provider, GenSettings settings, Long secretSeed) {
+        this(provider, settings, secretSeed, null);
+    }
+
+    /** objects — пакет-снимок объектов карты (null/EMPTY — без объектов; только переносимому). */
+    public ModuleCubeGen(GeneratorProvider provider, GenSettings settings, Long secretSeed, ink.hoka.odyssey.gen.GenObjects objects) {
         this.provider = provider;
         this.settings = settings;
         this.secretSeed = secretSeed;
-        this.w = provider instanceof PortableProvider pp ? pp.create(settings, secretSeed) : provider.create(settings);
+        this.objects = objects == null || !(provider instanceof PortableProvider) ? ink.hoka.odyssey.gen.GenObjects.EMPTY : objects;
+        this.w = provider instanceof PortableProvider pp ? pp.create(settings, secretSeed, this.objects) : provider.create(settings);
         this.pg = w instanceof PortableWorldGen p ? p.pg : null;
         this.tag = provider.id() + "@" + provider.version();
         this.det = provider.deterministic();
@@ -174,7 +182,8 @@ public final class ModuleCubeGen implements CubeGen {
         Long f = genFingerprint;
         if (f != null) return f;
         Bounds b = settings.bounds();
-        long v = ink.hoka.odyssey.gen.GenFingerprint.of(pg, new ink.hoka.odyssey.gen.GenBounds(b.minY(), b.maxY(), b.size()), settings.seed());
+        long v = ink.hoka.odyssey.gen.GenFingerprint.of(pg, new ink.hoka.odyssey.gen.GenBounds(b.minY(), b.maxY(), b.size()), settings.seed(),
+                objects.hash());
         genFingerprint = v;
         return v;
     }
@@ -337,6 +346,8 @@ public final class ModuleCubeGen implements CubeGen {
             int cx = Math.floorMod(k * 37, 2 * half) - half, cz = Math.floorMod(k * 61 + 7, 2 * half) - half;
             h = 31 * h + hash(rawCube(cx, cy, cz));
         }
+        long oh = objects.hash();                                             // объекты сменились — индекс pregen другой
+        if (oh != 0) h = 31 * h + (int) (oh ^ (oh >>> 32));
         fingerprint = h;
         return h;
     }

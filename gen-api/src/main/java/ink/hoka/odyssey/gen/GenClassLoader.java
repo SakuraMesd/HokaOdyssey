@@ -88,6 +88,8 @@ public final class GenClassLoader extends ClassLoader {
         byte[] mf = l.resources.get(GenManifest.FILE);
         if (mf == null) throw new IOException("в jar нет " + GenManifest.FILE);
         GenManifest m = GenManifest.parse(mf);
+        if (m.api() > GenApi.LEVEL)
+            throw new IOException("генератор " + m.tag() + " требует API " + m.api() + ", а здесь " + GenApi.LEVEL + " — нужно ядро новее");
         List<String> bad = GenBytecodeCheck.check(l.classes);
         if (!bad.isEmpty()) throw new IOException("генератор " + m.tag() + " недетерминирован или ссылается на чужие классы: "
                 + String.join("; ", bad.subList(0, Math.min(8, bad.size()))) + (bad.size() > 8 ? " … (" + bad.size() + ")" : ""));

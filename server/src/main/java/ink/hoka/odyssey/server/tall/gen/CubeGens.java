@@ -22,6 +22,9 @@ import java.util.Map;
  * gen_min_y / gen_max_y / gen_size — переопределяют Bounds провайдера
  * generator_options: {…}       — генератору как есть
  * generator_seen: &lt;id&gt;@&lt;ver&gt;  — пишет ядро; нет — старая карта: всегда flat (как было)
+ * objects: [trees, bushes]     — категории objects/ для генератора ("*" — все); нет ключа — все, если генератор просит
+ *                               (hoka-gen.json objects: true), иначе ни одной. Пакет — снимок при загрузке карты
+ * objects_seen: &lt;hash16&gt;      — пишет ядро (смена объектов — в лог)
  * secret_seed: &lt;long&gt;        — сид секретов переносимого генератора (руды, тайники): клиентам НЕ уходит. Нет — ядро
  *                               создаёт случайный и сохраняет (единственная запись resolve)
  * </pre>
@@ -64,14 +67,17 @@ public final class CubeGens {
         GenSettings s = new GenSettings(map, meta.getLong("seed", 0L), b, options);
         ModuleCubeGen g;
         Long secret = null;
-        if (e.provider() instanceof PortableProvider) {
+        ink.hoka.odyssey.gen.GenObjects objects = ink.hoka.odyssey.gen.GenObjects.EMPTY;
+        if (e.provider() instanceof PortableProvider pp) {
+            try { objects = ink.hoka.odyssey.server.objects.ObjectPacks.forMap(meta.get("objects"), pp.wantsObjects); }
+            catch (RuntimeException ex) { return new Resolved(null, "объекты карты (objects:): " + ex.getMessage(), legacy, want); }
             if (!meta.contains("secret_seed")) {                              // секреты — от своего сида, не от seed (seed знает клиент)
                 meta.set("secret_seed", new java.security.SecureRandom().nextLong());
                 try { meta.save(); } catch (RuntimeException ex) { LOG.warn("карта «{}»: secret_seed не сохранён: {}", map, ex.toString()); }
             }
             secret = meta.getLong("secret_seed", 0L);
         }
-        try { g = new ModuleCubeGen(e.provider(), s, secret); }
+        try { g = new ModuleCubeGen(e.provider(), s, secret, objects); }
         catch (Throwable t) { return new Resolved(null, "генератор «" + id + "» не создался: " + t, legacy, want); }
         return new Resolved(g.withIndex(dir.resolve("genidx")), null, legacy, want);
     }
@@ -104,9 +110,15 @@ public final class CubeGens {
             LOG.warn("карта «{}»: генератор {} → {}: правки игроков на диске остаются, нетронутое сгенерируется новой версией, "
                     + "индекс pregen старой версии не используется (нужен /hocubes pregen)", map, seen, tag);
         }
-        if (!tag.equals(seen)) {
-            meta.set("generator_seen", tag);
-            meta.save();
-        }
+        String objSeen = meta.getString("objects_seen", null);
+        long oh = r.gen().objects.hash();
+        String obj = oh == 0 ? null : String.format("%016x", oh);
+        if (objSeen != null && !objSeen.equals(String.valueOf(obj)) && !r.legacy())
+            LOG.warn("карта «{}»: объекты генератора сменились ({} → {}): правки игроков остаются, нетронутое сгенерируется с новыми "
+                    + "объектами, индекс pregen старых не используется (нужен /hocubes pregen)", map, objSeen, obj == null ? "нет" : obj);
+        boolean dirty = false;
+        if (!tag.equals(seen)) { meta.set("generator_seen", tag); dirty = true; }
+        if (obj != null ? !obj.equals(objSeen) : objSeen != null) { meta.set("objects_seen", obj); dirty = true; }
+        if (dirty) meta.save();
     }
 }

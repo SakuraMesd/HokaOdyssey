@@ -16,12 +16,22 @@ public interface GenContext {
     /** Сид секретов (map.yml secret_seed) — только сервер; на клиенте исключение. */
     long secretSeed();
 
+    /** Библиотека объектов карты (пакет; API 2, ядро 0.60). Нет — пусто. */
+    default GenObjects objects() { return GenObjects.EMPTY; }
+
     default int intOption(String k, int def) { return options().get(k) instanceof Number n ? n.intValue() : def; }
     default double doubleOption(String k, double def) { return options().get(k) instanceof Number n ? n.doubleValue() : def; }
     default String stringOption(String k, String def) { Object v = options().get(k); return v == null ? def : v.toString(); }
 
     /** Простая реализация (сервер и клиент). secretSeed == null — секретов нет (клиент). */
     static GenContext of(String map, long seed, GenBounds bounds, Map<String, Object> options, GenIds ids, boolean server, Long secretSeed) {
+        return of(map, seed, bounds, options, ids, server, secretSeed, GenObjects.EMPTY);
+    }
+
+    /** С библиотекой объектов (null — пусто). */
+    static GenContext of(String map, long seed, GenBounds bounds, Map<String, Object> options, GenIds ids, boolean server, Long secretSeed,
+                         GenObjects objects) {
+        GenObjects obj = objects == null ? GenObjects.EMPTY : objects;
         Map<String, Object> o = options == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(options));
         return new GenContext() {
             @Override public String map() { return map; }
@@ -29,6 +39,7 @@ public interface GenContext {
             @Override public GenBounds bounds() { return bounds; }
             @Override public Map<String, Object> options() { return o; }
             @Override public GenIds ids() { return ids; }
+            @Override public GenObjects objects() { return obj; }
             @Override public boolean server() { return server; }
             @Override public long secretSeed() {
                 if (!server || secretSeed == null) throw new IllegalStateException("secretSeed — только на сервере");

@@ -85,6 +85,10 @@ public final class OdysseyServer implements OdysseyServerApi {
         // переносимые генераторы планет (jar на gen-api) — до карт: им генерируют и сервер, и клиенты 0.59+
         int pg = ink.hoka.odyssey.server.tall.gen.PortableGens.scan(Path.of("generators"));
         if (pg > 0) LOG.info("переносимых генераторов из generators/: {}", pg);
+        // объекты-шаблоны для генерации (/hoobj, папка objects/) — до карт: пакет объектов карты собирается при загрузке
+        var objects = new ink.hoka.odyssey.server.objects.ObjectLibrary(Path.of("objects"));
+        ink.hoka.odyssey.server.objects.ObjectLibrary.setGlobal(objects);
+        if (!objects.ids().isEmpty()) LOG.info("объектов для генерации: {} (категории {})", objects.ids().size(), objects.categories());
         var maps = new ink.hoka.odyssey.server.maps.Maps(Path.of("maps"));
         var ops = new ink.hoka.odyssey.server.perms.Ops(Path.of("ops.json"));
         OdysseyServer core = new OdysseyServer(maps, ops);
@@ -123,6 +127,8 @@ public final class OdysseyServer implements OdysseyServerApi {
         cm.register(new ink.hoka.odyssey.server.perms.HoOpCommand(ops));
         cm.register(new ink.hoka.odyssey.server.tall.HoTallCommand(maps, ops));
         cm.register(new ink.hoka.odyssey.server.tall.HoCubesCommand(maps, ops));
+        cm.register(new ink.hoka.odyssey.server.objects.HoObjCommand(objects, maps, ops));   // /hoobj — объекты для генерации
+        ink.hoka.odyssey.server.objects.Selections.register(events);
         ink.hoka.odyssey.server.tall.Handshake.register();
         JoinTrace.register(events);                                       // «вход ник: авторизация→мир N мс (этапы …)»
         ink.hoka.odyssey.server.tall.CubeStreamer.register();

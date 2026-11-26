@@ -21,7 +21,13 @@ public final class GenFingerprint {
     }
 
     /** Отпечаток: 16 кубов от minY до maxY границ, по X/Z — у центра (в пределах size). */
-    public static long of(PlanetGenerator g, GenBounds b, long seed) {
+    public static long of(PlanetGenerator g, GenBounds b, long seed) { return of(g, b, seed, 0); }
+
+    /**
+     * Отпечаток с хэшем пакета объектов (кубы отпечатка деревья почти не задевают — хэш подмешивается явно).
+     * objectsHash 0 — ровно как {@link #of(PlanetGenerator, GenBounds, long)}: старые эталоны не меняются.
+     */
+    public static long of(PlanetGenerator g, GenBounds b, long seed, long objectsHash) {
         GenArrayCube buf = new GenArrayCube(false);
         long h = GenHash.SEED ^ 0x46494E474552L;                              // "FINGER"
         int minCy = b.minY() >> 4, maxCy = b.maxY() >> 4;
@@ -31,6 +37,7 @@ public final class GenFingerprint {
             int cx = Math.floorMod(k * 37, 2 * half) - half, cz = Math.floorMod(k * 61 + 7, 2 * half) - half;
             h = GenHash.round(h, visible(g, b, seed, cx, cy, cz, buf).visHash());
         }
+        if (objectsHash != 0) h = GenHash.round(h, objectsHash);
         return GenHash.avalanche(h);
     }
 }
