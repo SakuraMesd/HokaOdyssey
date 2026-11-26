@@ -63,6 +63,15 @@ public abstract class SodiumOptionsMixin {
                         .setValueFormatter(ink.hoka.odyssey.client.GenSetting::valueText)
                         .setImpact(OptionImpact.MEDIUM)
                         .setBinding(ink.hoka.odyssey.client.GenSetting::set, ink.hoka.odyssey.client.GenSetting::get)
-                        .setStorageHandler(ink.hoka.odyssey.client.GenSetting::save)));
+                        .setStorageHandler(ink.hoka.odyssey.client.GenSetting::save))
+                .addOption(builder.createIntegerOption(Identifier.fromNamespaceAndPath("hoka_odyssey", "gen_disk"))   // 0.63
+                        .setName(Component.translatable("options.hoka_odyssey.gen_disk"))
+                        .setTooltip(Component.translatable("options.hoka_odyssey.gen_disk.tooltip"))
+                        .setRange(0, ink.hoka.odyssey.client.GenSetting.DISK_MAX, ink.hoka.odyssey.client.GenSetting.DISK_STEP)
+                        .setDefaultValue(ink.hoka.odyssey.client.GenSetting.DISK_DEFAULT)
+                        .setValueFormatter(ink.hoka.odyssey.client.GenSetting::diskText)
+                        .setImpact(OptionImpact.LOW)
+                        .setBinding(ink.hoka.odyssey.client.GenSetting::setDisk, ink.hoka.odyssey.client.GenSetting::diskMb)
+                        .setStorageHandler(ink.hoka.odyssey.client.GenSetting::saveDisk)));
     }
 }

@@ -55,7 +55,7 @@ HokaOdyssey/
 │  └─ src/main/java/ink/hoka/odyssey/server/
 │     OdysseyServer        main: Minestom, карты, права, модули, консоль, остановка
 │     ModuleManager, ModuleClassLoader, ModuleContextImpl, ServiceRegistry, ModuleCommand (/homodule)
-│     maps/   Maps, HoMapCommand (/homap)       — миры в папке maps/
+│     maps/   Maps, HoMapCommand (/homap), MapTime+HoTimeCommand (/hotime) — миры в папке maps/, время суток
 │     perms/  Ops, HoOpCommand (/hoop)          — операторы, ops.json
 │     blocks/ BlockRules, MultiBlocks, Dir      — ванильная установка блоков
 ├─ modules/
@@ -153,6 +153,7 @@ SpaceApi space = services().require(SpaceApi.class);   // брать занов�
 | Команда | |
 |---|---|
 | `/homap list` / `tp <карта> [игрок]` / `create <имя> [flat\|void]` / `delete <карта> confirm` / `setspawn` | карты |
+| `/hotime query` / `set day\|noon\|sunset\|night\|midnight\|sunrise\|<тики>` / `add <тики>` / `speed <×>` / `cycle on\|off` `[карта]` | время суток карты (map.yml `time: {cycle, speed, start}`) |
 | `/hoop <ник>` / `/hoop` | дать/забрать OP / список |
 | `/homodule list` / `info <id>` / `reload <id>` / `unload <id>` / `load <файл.jar>` | модули |
 | `stop` (консоль) | остановка: модули выключаются, карты сохраняются |

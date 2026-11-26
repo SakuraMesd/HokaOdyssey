@@ -38,12 +38,16 @@ final class ValeGen implements PlanetGenerator {
     private final Layer[] layers;
     private final GenPlacer placer;
     private final boolean anyData;
-    private final AtomicReferenceArray<ObjSpan> spans = new AtomicReferenceArray<>(1024);
+    /** Объекты колонок: 2-путевой кэш на 8192 (окно игрока 65×65 влезает; было 1024 прямых — пересчёт по кругу). */
+    private final AtomicReferenceArray<ObjSpan> spans = new AtomicReferenceArray<>(SPANS);
+    private static final int SPANS = 8192, SPAN_STRIPES = 512;
+    private final Object[] spanLocks = new Object[SPAN_STRIPES];
     private final AtomicReferenceArray<Built> shapes = new AtomicReferenceArray<>(4096);
     private final Map<String, Shape[]> variants = new HashMap<>();             // только поиск по id (не обход)
 
     ValeGen(GenContext c) {
         GenBounds b = c.bounds();
+        for (int i = 0; i < SPAN_STRIPES; i++) spanLocks[i] = new Object();
         bottom = b.minY();
         sea = Math.max(bottom + 16, Math.min(b.maxY() - 64, c.intOption("sea_level", ValeProvider.SEA_LEVEL)));
         t = new Terrain(c.seed(), sea, bottom, b.maxY());
@@ -441,9 +445,24 @@ final class ValeGen implements PlanetGenerator {
     }
 
     private ObjSpan span(int cx, int cz) {
-        int i = (int) (GenRandom.mix(((long) cx << 32) ^ (cz & 0xFFFFFFFFL) ^ 0x51L) & (spans.length() - 1));
+        int i = (int) (GenRandom.mix(((long) cx << 32) ^ (cz & 0xFFFFFFFFL) ^ 0x51L) & (SPANS - 2));   // пара мест i, i+1
         ObjSpan s = spans.get(i);
         if (s != null && s.cx() == cx && s.cz() == cz) return s;
+        s = spans.get(i + 1);
+        if (s != null && s.cx() == cx && s.cz() == cz) return s;
+        synchronized (spanLocks[(i >> 1) & (SPAN_STRIPES - 1)]) {            // одну колонку собирает один поток
+            s = spans.get(i);
+            if (s != null && s.cx() == cx && s.cz() == cz) return s;
+            ObjSpan o = spans.get(i + 1);
+            if (o != null && o.cx() == cx && o.cz() == cz) return o;
+            s = computeSpan(cx, cz);
+            spans.set(i + 1, spans.get(i));
+            spans.set(i, s);
+            return s;
+        }
+    }
+
+    private ObjSpan computeSpan(int cx, int cz) {
         int lo = Integer.MAX_VALUE, hi = Integer.MIN_VALUE;
         int x0 = cx << 4, z0 = cz << 4;
         List<P> all = new ArrayList<>(), buf = new ArrayList<>();
@@ -458,9 +477,7 @@ final class ValeGen implements PlanetGenerator {
                 hi = Math.max(hi, p.y() + p.sh().maxDy);
             }
         }
-        s = new ObjSpan(cx, cz, lo, hi, all.toArray(new P[0]));
-        spans.set(i, s);
-        return s;
+        return new ObjSpan(cx, cz, lo, hi, all.toArray(new P[0]));
     }
 
     // ───────────── колонка ─────────────

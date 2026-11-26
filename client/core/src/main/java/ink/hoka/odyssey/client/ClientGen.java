@@ -44,7 +44,7 @@ public final class ClientGen {
     private static final String[] STATUS = {"ок", "нет jar", "номера не сходятся", "отпечаток не сходится", "ошибка", "выкл игроком"};
 
     /** Загруженный генератор (до сброса слота). */
-    private record Loaded(GenWire.Def def, PlanetGenerator gen, ClientGenIds ids, GenBounds bounds) {}
+    private record Loaded(GenWire.Def def, PlanetGenerator gen, ClientGenIds ids, GenBounds bounds, long fp) {}
 
     private static GenWire.Def def;              // объявленный сервером (null — нет)
     private static Loaded loaded;
@@ -94,7 +94,7 @@ public final class ClientGen {
         GenMemo.key(key(d));
         LOG.info("генерация на клиенте: {}@{} (слот {}, {})", d.id(), d.version(), d.slot(), d.filePath());
         if (GenSetting.threads() == 0) { send(d.slot(), GenWire.ST_OFF); return; }   // игрок выключил — старый путь
-        if (loaded != null) { loaded = new Loaded(d, loaded.gen(), loaded.ids(), loaded.bounds()); enable(); }   // тот же генератор — сразу
+        if (loaded != null) { loaded = new Loaded(d, loaded.gen(), loaded.ids(), loaded.bounds(), loaded.fp()); enable(); }   // тот же генератор — сразу
     }
 
     private static void closeLoaded() {
@@ -211,7 +211,7 @@ public final class ClientGen {
         if (d.fingerprint() != 0 && fp != d.fingerprint()) { try { g.close(); } catch (Throwable ignored) {} throw new FingerprintMismatch(fp); }
         LOG.info("генерация на клиенте: {}@{} готов (состояний {}, биомов {}, отпечаток {})", d.id(), d.version(), d.statesCount(),
                 ids.biomeNames().size(), Long.toHexString(fp));
-        return new Loaded(d, g, ids, bounds);
+        return new Loaded(d, g, ids, bounds, fp);
     }
 
     /** Генератор готов и настройка не «Выкл» — пул и «ок» серверу. */
@@ -220,9 +220,34 @@ public final class ClientGen {
         Loaded l = loaded;
         if (d == null || l == null) return;
         if (GenSetting.threads() == 0) { send(d.slot(), GenWire.ST_OFF); return; }
+        GenPool.disk(disk(d, l));
         GenPool.start(new GenPool.Job(d.slot(), l.gen(), l.bounds(), d.seed(), l.ids().biomeHolders()));
         failures = 0;
         send(d.slot(), GenWire.ST_OK);
+    }
+
+    // ───────────── 0.63: кэш генерации на диске ─────────────
+
+    private static GenDiskCache disk;
+
+    /**
+     * Дисковый кэш под этот генератор: ключ — всё, от чего зависит куб (id, версия, sha jar, сид, настройки, границы,
+     * пакет объектов, отпечаток, номера состояний и биомов). null — выключен настройкой.
+     */
+    private static GenDiskCache disk(GenWire.Def d, Loaded l) {
+        if (GenSetting.diskMb() <= 0) { if (disk != null) disk.open(null); return null; }
+        if (disk == null) disk = new GenDiskCache(net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir()
+                .resolve("hoka_odyssey").resolve("gencache"), (long) GenSetting.diskMb() << 20);
+        disk.open(key(d) + "/fp:" + Long.toHexString(l.fp()) + "/st:" + d.statesCount() + ":" + Long.toHexString(d.statesDigest())
+                + "/bi:" + Long.toHexString(d.biomesDigest()));
+        return disk;
+    }
+
+    static void diskSettingChanged() {
+        if (disk != null) disk.limit((long) GenSetting.diskMb() << 20);
+        GenWire.Def d = def;
+        Loaded l = loaded;
+        if (d != null && l != null && status == GenWire.ST_OK) GenPool.disk(disk(d, l));
     }
 
     static void settingChanged() {
@@ -246,6 +271,8 @@ public final class ClientGen {
 
     static void disconnected() {
         GenPool.stop();
+        if (disk != null) disk.open(null);                               // хвост записи допишется
+        ChunkRate.reset();
         def = null;
         closeLoaded();
         status = -1;
@@ -411,11 +438,12 @@ public final class ClientGen {
         return "Hoka генерация: " + (d == null ? "—" : d.id() + "@" + d.version()) + " " + st
                 + ", потоков " + GenPool.threads() + ", меток " + labels + " (однородных сразу " + uniformFast + "), из памяти " + memoHits + ", " + GenPool.stats()
                 + ", расхождений " + mismatches + (checks > 0 ? ", сверка " + (checks - checkBad) + "/" + checks : "")
-                + ", выборок " + samplesSent;
+                + ", выборок " + samplesSent + (disk != null && disk.on() ? "; " + disk.stats() : "");
     }
 
     public static String stats() {
         return "генерация: меток " + labels + " (однородных сразу " + uniformFast + "), из памяти " + memoHits + ", " + GenPool.stats() + ", расхождений " + mismatches
-                + ", выборок " + samplesSent + ", секретов " + secretsApplied + ", " + SolidCubes.stats();
+                + ", выборок " + samplesSent + ", секретов " + secretsApplied + ", " + SolidCubes.stats()
+                + (disk != null && disk.on() ? ", " + disk.stats() : "");
     }
 }

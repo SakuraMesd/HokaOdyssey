@@ -7,7 +7,9 @@ import net.minecraft.network.chat.Component;
 
 /**
  * 0.59: настройка «Генерация мира» — сколько потоков генерируют нетронутые кубы на клиенте: 0 — Выкл (сервер шлёт
- * кубы, как раньше), 1–8, AUTO — по ядрам: clamp(ядер − 2, 1, 4). Хранится в config/hoka_odyssey.json (clientGen).
+ * кубы, как раньше), 1–8, AUTO — по ядрам: 0.63 — ядер − 1, не меньше 2 (было clamp(ядер − 2, 1, 4)).
+ * Хранится в config/hoka_odyssey.json (clientGen).
+ * <p>0.63: «Кэш генерации на диске, МБ» (genDiskMb): сгенерированные кубы на диске (GenDiskCache), 0 — выкл.</p>
  */
 public final class GenSetting {
 
@@ -23,7 +25,7 @@ public final class GenSetting {
     /** Потоков сейчас (0 — выключено). */
     static int threads() {
         if (value == 0) return 0;
-        if (value == AUTO) return Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors() - 2));
+        if (value == AUTO) return threadsAuto();
         return value;
     }
 
@@ -44,7 +46,41 @@ public final class GenSetting {
                 : Component.translatable("options.hoka_odyssey.client_gen.value", v);
     }
 
-    private static int threadsAuto() { return Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors() - 2)); }
+    /** 0.63: ядер − 1, не меньше 2 (потоки низкого приоритета; при долгих кадрах GenPool сам берёт меньше). */
+    static int threadsAuto() { return Math.max(2, Math.min(16, Runtime.getRuntime().availableProcessors() - 1)); }
+
+    // ───────────── 0.63: кэш генерации на диске ─────────────
+
+    public static final int DISK_MAX = 8192, DISK_STEP = 128, DISK_DEFAULT = 512;
+    private static int diskMb = loadDisk();
+
+    public static int diskMb() { return diskMb; }
+
+    public static void setDisk(int mb) { diskMb = Math.max(0, Math.min(DISK_MAX, mb)); }
+
+    public static void saveDisk() {
+        VerticalView.put("genDiskMb", diskMb);
+        ClientGen.diskSettingChanged();
+    }
+
+    private static int loadDisk() {
+        JsonObject o = VerticalView.read();
+        try { return o.has("genDiskMb") ? Math.max(0, Math.min(DISK_MAX, o.get("genDiskMb").getAsInt())) : DISK_DEFAULT; }
+        catch (Exception e) { return DISK_DEFAULT; }
+    }
+
+    public static Component diskText(int mb) {
+        return mb == 0 ? Component.translatable("options.hoka_odyssey.gen_disk.off")
+                : Component.translatable("options.hoka_odyssey.gen_disk.value", mb);
+    }
+
+    /** Ползунок ванильного экрана графики (шаг DISK_STEP МБ). */
+    public static OptionInstance<Integer> diskOption() {
+        return new OptionInstance<>("options.hoka_odyssey.gen_disk",
+                OptionInstance.cachedConstantTooltip(Component.translatable("options.hoka_odyssey.gen_disk.tooltip")),
+                (caption, v) -> Options.genericValueLabel(caption, diskText(v * DISK_STEP)),
+                new OptionInstance.IntRange(0, DISK_MAX / DISK_STEP, false), diskMb / DISK_STEP, v -> { setDisk(v * DISK_STEP); saveDisk(); });
+    }
 
     /** Ползунок ванильного экрана графики. */
     public static OptionInstance<Integer> option() {

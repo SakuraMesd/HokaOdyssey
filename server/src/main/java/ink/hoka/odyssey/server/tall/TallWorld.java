@@ -48,6 +48,9 @@ public final class TallWorld {
         if (!Files.isDirectory(mapsDir)) return;
         try (Stream<Path> s = Files.list(mapsDir)) {
             DimensionType base = DimensionType.builder().build();
+            // с солнцем — основа ванильный overworld: его timelines (день/луна) и атрибуты (цвет неба/тумана). Без них
+            // у клиента 1.21.11 солнце навсегда в зените (SUN_ANGLE 0), ночи нет (SKY_LIGHT_LEVEL 15), туман и низ неба чёрные
+            DimensionType overworld = overworld();
             for (Path d : s.filter(Files::isDirectory).toList()) {
                 Path yml = d.resolve("map.yml");
                 if (!Files.isRegularFile(yml)) continue;
@@ -57,7 +60,7 @@ public final class TallWorld {
                 boolean sun = meta.getBoolean("sun", true);
                 float ambient = (float) Math.max(0, Math.min(1, meta.getDouble("ambient", 0)));
                 var key = MinecraftServer.getDimensionTypeRegistry().register(Key.key("hoka:tall_" + name.replaceAll("[^a-z0-9_]", "_")),
-                        tall(base, MIN_Y, HEIGHT, sun, ambient));
+                        tall(sun && overworld != null ? overworld : base, MIN_Y, HEIGHT, sun, ambient));
                 KEYS.put(name, key);
                 if (meta.getBoolean("cubes", false)) CUBE_MAPS.add(name);
                 LOG.info("высокая карта «{}»: {}…{}, солнце {}, свет не ниже {}%", name, MIN_Y, MIN_Y + HEIGHT - 1,
@@ -116,6 +119,21 @@ public final class TallWorld {
      * sun = false — неба нет (как у Нижнего мира: свет неба не считается, тени от солнца нет, время на свет не влияет);
      * ambient — нижняя граница яркости блоков (0…1).
      */
+    /** Ванильный overworld из реестра Minestom (null — нет или без timelines). */
+    static DimensionType overworld() {
+        try {
+            DimensionType o = MinecraftServer.getDimensionTypeRegistry().get(DimensionType.OVERWORLD);
+            if (o == null || o.timelines() == null || o.timelines().size() == 0) {
+                LOG.warn("нет ванильного overworld с timelines — на высоких картах не будет смены дня и ночи");
+                return null;
+            }
+            return o;
+        } catch (RuntimeException e) {
+            LOG.warn("overworld из реестра: {}", e.toString());
+            return null;
+        }
+    }
+
     static DimensionType tall(DimensionType base, int minY, int height, boolean sun, float ambient) throws Exception {
         Class<?> c = base.getClass();
         var comps = c.getRecordComponents();

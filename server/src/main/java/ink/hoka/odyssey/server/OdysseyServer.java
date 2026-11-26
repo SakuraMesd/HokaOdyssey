@@ -128,6 +128,7 @@ public final class OdysseyServer implements OdysseyServerApi {
         });
         var cm = MinecraftServer.getCommandManager();
         cm.register(new ink.hoka.odyssey.server.maps.HoMapCommand(maps, ops));
+        cm.register(new ink.hoka.odyssey.server.maps.HoTimeCommand(maps, ops));   // /hotime — время суток карты
         cm.register(new ink.hoka.odyssey.server.perms.HoOpCommand(ops));
         cm.register(new ink.hoka.odyssey.server.tall.HoTallCommand(maps, ops));
         cm.register(new ink.hoka.odyssey.server.tall.HoCubesCommand(maps, ops));

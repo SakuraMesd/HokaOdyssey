@@ -11,8 +11,12 @@
   "options.hoka_odyssey.cube_cache.value": "%s MB",
   "options.hoka_odyssey.cube_cache.off": "Off",
   "options.hoka_odyssey.client_gen": "World Generation",
-  "options.hoka_odyssey.client_gen.tooltip": "On Hoka Odyssey maps whose generator can run on your computer, untouched terrain is generated locally instead of being downloaded: the world loads much faster after teleports and uses far less traffic. Places changed by players still come from the server. Auto uses up to 4 threads depending on your CPU; Off downloads everything as before.",
+  "options.hoka_odyssey.client_gen.tooltip": "On Hoka Odyssey maps whose generator can run on your computer, untouched terrain is generated locally instead of being downloaded: the world loads much faster after teleports and uses far less traffic. Places changed by players still come from the server. Auto uses your CPU cores minus one (at least 2); Off downloads everything as before.",
   "options.hoka_odyssey.client_gen.value": "%s threads",
   "options.hoka_odyssey.client_gen.auto": "Auto (%s)",
-  "options.hoka_odyssey.client_gen.off": "Off"
+  "options.hoka_odyssey.client_gen.off": "Off",
+  "options.hoka_odyssey.gen_disk": "Generation Disk Cache",
+  "options.hoka_odyssey.gen_disk.tooltip": "How much disk space to keep for terrain generated on your computer. When you rejoin or come back to known places it is read from disk instantly instead of being generated again. The oldest data is removed automatically when the space runs out. 0 turns it off.",
+  "options.hoka_odyssey.gen_disk.value": "%s MB",
+  "options.hoka_odyssey.gen_disk.off": "Off"
 }

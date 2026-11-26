@@ -43,7 +43,8 @@ final class Terrain {
     /** Снеговая линия (± шум 60), выше 1600 — снег везде, кроме стен. */
     static final int SNOW_LINE = 1150, GLACIER = 1250;
 
-    private static final int CACHE = 4096;
+    /** Кэш колонок: 2-путевой, 8192 места (~25 МБ) — окно игрока 65×65 + охват объектов влезает целиком (было 4096 прямых). */
+    private static final int CACHE = 8192, STRIPES = 512;
 
     final int sea, bottom, top;
     final long seed;
@@ -51,12 +52,15 @@ final class Terrain {
             cliffN, cliffT, plateauN, plateauP, riftN, riftW, riftM, riftD, riverN, temp, humid, magic, mesaN, cherryN, strataN,
             iceN;
     private final AtomicReferenceArray<Col> cache = new AtomicReferenceArray<>(CACHE);
+    /** Замки полос: одну колонку считает один поток, остальные ждут его (раньше N потоков считали её N раз). */
+    private final Object[] locks = new Object[STRIPES];
 
     Terrain(long seed, int sea, int bottom, int top) {
         this.seed = seed;
         this.sea = sea;
         this.bottom = bottom;
         this.top = top;
+        for (int i = 0; i < STRIPES; i++) locks[i] = new Object();
         cont = noise(seed, 1); hill = noise(seed, 2); det = noise(seed, 3); hillAmp = noise(seed, 4);
         lake = noise(seed, 6); forest = noise(seed, 7); birch = noise(seed, 8); meadow = noise(seed, 9);
         jitter = noise(seed, 10); glade = noise(seed, 11);
@@ -311,12 +315,22 @@ final class Terrain {
     }
 
     Col col(int cx, int cz) {
-        int i = (int) (GenRandom.mix(((long) cx << 32) ^ (cz & 0xFFFFFFFFL)) & (CACHE - 1));
+        long m = GenRandom.mix(((long) cx << 32) ^ (cz & 0xFFFFFFFFL));
+        int i = (int) (m & (CACHE - 2));                                     // пара мест i, i+1
         Col c = cache.get(i);
         if (c != null && c.cx == cx && c.cz == cz) return c;
-        c = compute(cx, cz);
-        cache.set(i, c);
-        return c;
+        c = cache.get(i + 1);
+        if (c != null && c.cx == cx && c.cz == cz) return c;
+        synchronized (locks[(i >> 1) & (STRIPES - 1)]) {
+            c = cache.get(i);                                                // пока ждали — посчитал другой поток
+            if (c != null && c.cx == cx && c.cz == cz) return c;
+            Col o = cache.get(i + 1);
+            if (o != null && o.cx == cx && o.cz == cz) return o;
+            Col n = compute(cx, cz);
+            cache.set(i + 1, cache.get(i));                                  // свежая — в i, прежняя — во второе место
+            cache.set(i, n);
+            return n;
+        }
     }
 
     int height(int x, int z) { return col(x >> 4, z >> 4).h(x & 15, z & 15); }

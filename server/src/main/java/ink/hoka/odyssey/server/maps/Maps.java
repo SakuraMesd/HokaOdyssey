@@ -94,6 +94,9 @@ public final class Maps {
         }
 
         public String generator() { return meta.getString("generator", "flat"); }
+
+        /** map.yml карты (для /hotime — сохранить раздел time:). */
+        public ModuleConfig meta() { return meta; }
     }
 
     private final Path dir;
@@ -198,6 +201,7 @@ public final class Maps {
             inst.setGenerator(generator(gen));
         }
         m = new GameMap(name, inst, d, meta);
+        MapTime.apply(inst, MapTime.read(meta), true);                // время суток (map.yml time:), /hotime
         loaded.put(name, m);
         if (rg != null) {
             ink.hoka.odyssey.server.tall.gen.CubeGens.markSeen(name, meta, rg);

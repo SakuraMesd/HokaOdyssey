@@ -347,6 +347,7 @@ public final class CubeQueue {
     public static String stats() {
         return "очередь кубов " + pending + " (пакетов " + Q.size() + ", макс " + maxLen + "), устаревших " + stale
                 + ", ванильных отложено " + deferred + " (ждут " + vanilla + ", повторено " + replayed
-                + (replayed > 0 ? String.format(", в среднем %.3f мс, макс %.2f мс", replayNs / 1e6 / replayed, replayMaxNs / 1e6) : "") + ")";
+                + (replayed > 0 ? String.format(", в среднем %.3f мс, макс %.2f мс", replayNs / 1e6 / replayed, replayMaxNs / 1e6) : "") + ")"
+                + ", " + ChunkRate.stats();
     }
 }

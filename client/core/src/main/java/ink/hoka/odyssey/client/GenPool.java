@@ -2,7 +2,6 @@ package ink.hoka.odyssey.client;
 
 import ink.hoka.odyssey.gen.GenArrayCube;
 import ink.hoka.odyssey.gen.GenBounds;
-import ink.hoka.odyssey.gen.GenFingerprint;
 import ink.hoka.odyssey.gen.PlanetGenerator;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
@@ -26,8 +25,9 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 0.59: пул генерации нетронутых кубов на клиенте (op 21). Задачи — по кольцам расстояния Чебышёва от куба игрока
- * (0..64), в кольце — сначала впереди по взгляду. Рабочие потоки (низкий приоритет) генерируют в свои массивы,
+ * 0.59: пул генерации нетронутых кубов на клиенте (op 21). Задачи — по кольцам от куба игрока ({@link #ring}: 0.63 —
+ * по горизонтали, высота сжата втрое, позади взгляда дальше), в кольце — сначала впереди по взгляду; повернулся —
+ * кольца пересобираются (не чаще 4 раз в секунду). 0.63: куб сначала ищется в дисковом кэше (GenDiskCache). Рабочие потоки (низкий приоритет) генерируют в свои массивы,
  * считают GenHash и собирают секцию; готовое — в RESULTS (не больше 256, обратное давление), вставляет главный поток
  * по бюджету кадра (CubeQueue.run → apply). Отмена: op 2/4/13 по кубу, новый скелет/Forget столбца, смена мира/слота.
  * Состояние задач (PENDING, BY_COL) — только главный поток; кольца — под LOCK.
@@ -36,7 +36,7 @@ public final class GenPool {
 
     private GenPool() {}
 
-    static final int RINGS = 65, MAX_RESULTS = 256;
+    static final int RINGS = 128, MAX_RESULTS = 512;
 
     /** Текущий генератор: всё, что нужно рабочему потоку (неизменяемо). */
     record Job(int slot, PlanetGenerator gen, GenBounds bounds, long seed, Holder<Biome>[] biomes) {}
@@ -61,6 +61,7 @@ public final class GenPool {
         int[] bes;                               // индексы y<<8|z<<4|x состояний с блок-сущностью (null — нет)
         Throwable err;
         long ns;
+        boolean generated, disk;                 // 0.63: прошёл generate (писать на диск) / взят с диска
         Result(Task t) { this.t = t; }
     }
 
@@ -82,7 +83,11 @@ public final class GenPool {
     private static boolean wake;
     private static final GenArrayCube MAIN = new GenArrayCube(false);
 
-    public static volatile long generated, genNs, errors, forced, dropped;
+    public static volatile long generated, genNs, errors, forced, dropped, fromDisk, insertNs, inserted;
+    /** 0.63: дисковый кэш текущего генератора (null — выключен). */
+    private static volatile GenDiskCache disk;
+
+    static void disk(GenDiskCache d) { disk = d; }
 
     static Job job() { return job; }
 
@@ -189,18 +194,25 @@ public final class GenPool {
 
     private static int px, py, pz;
     private static double lx, ly, lz;
+    /** Взгляд на последней раскладке колец и когда она была. */
+    private static double blx, bly, blz;
+    private static long lastRebucket;
 
-    /** Куб игрока сменился — переложить задачи по кольцам (O(n)). */
+    /** Куб игрока сменился или игрок заметно повернулся — переложить задачи по кольцам (O(n)). */
     private static void updatePlayer(boolean rebucket) {
         var p = Minecraft.getInstance().player;
         if (p == null) return;
         long s = SectionPos.asLong(p.blockPosition());
         var look = p.getLookAngle();
         lx = look.x; ly = look.y; lz = look.z;
-        if (s == playerSec) return;
+        long now = System.nanoTime();
+        boolean turned = lx * blx + ly * bly + lz * blz < 0.7 && now - lastRebucket > 250_000_000L;
+        if (s == playerSec && !turned) return;
         playerSec = s;
         px = SectionPos.x(s); py = SectionPos.y(s); pz = SectionPos.z(s);
+        blx = lx; bly = ly; blz = lz;
         if (!rebucket) return;
+        lastRebucket = now;
         synchronized (LOCK) {
             List<Task> all = new ArrayList<>(queued);
             for (ArrayDeque<Task> r : RING) { for (Task t : r) if (!t.cancelled) all.add(t); r.clear(); }
@@ -209,11 +221,24 @@ public final class GenPool {
         }
     }
 
+    /**
+     * 0.63: кольцо куба (dx, dy, dz от куба игрока). Расстояние — по горизонтали (Чебышёв), высота сжата втрое (±2
+     * куба — даром): гора над игроком (полоса поверхности, до ±128 кубов) не ждёт всего горизонта; позади взгляда —
+     * на треть дальше (не больше +8). Было: max(|dx|, |dy|, |dz|) до 64.
+     */
+    static int ring(int dx, int dy, int dz, boolean ahead) {
+        int h = Math.max(Math.abs(dx), Math.abs(dz)), ady = Math.abs(dy);
+        int ring = Math.max(h, ady <= 2 ? 0 : (ady + 2) / 3);
+        if (!ahead && ring > 2) ring += Math.min(8, ring / 3);
+        return Math.min(RINGS - 1, ring);
+    }
+
     /** Под LOCK. */
     private static void enqueue(Task t) {
         int dx = SectionPos.x(t.pos) - px, dy = SectionPos.y(t.pos) - py, dz = SectionPos.z(t.pos) - pz;
-        int ring = Math.min(RINGS - 1, Math.max(Math.abs(dx), Math.max(Math.abs(dy), Math.abs(dz))));
-        if (dx * lx + dy * ly + dz * lz >= 0) RING[ring].addFirst(t); else RING[ring].addLast(t);
+        boolean ahead = dx * lx + dy * ly + dz * lz >= 0;
+        int ring = ring(dx, dy, dz, ahead);
+        if (ahead) RING[ring].addFirst(t); else RING[ring].addLast(t);
         queued++;
     }
 
@@ -251,8 +276,9 @@ public final class GenPool {
         int x = SectionPos.x(t.pos), y = SectionPos.y(t.pos), z = SectionPos.z(t.pos);
         try {
             if (t.uni >= 0) { c.reset(x, y, z, j.seed()); c.fill(t.uni); c.fillBiome(t.uniBiome); }
-            else GenFingerprint.visible(j.gen(), j.bounds(), j.seed(), x, y, z, c);
+            else visible(j, x, y, z, c, r);
             r.hash = c.visHash();
+            if (r.generated) { GenDiskCache d = disk; if (d != null) d.put(x, y, z, c, r.hash); }
             build(r, c, t.f, j);
         } catch (Throwable e) {
             r.err = e;
@@ -260,6 +286,22 @@ public final class GenPool {
         }
         r.ns = System.nanoTime() - t0;
         return r;
+    }
+
+    /**
+     * Как GenFingerprint.visible (границы → hasBlocks → uniform → generate), но 0.63: до подсказок генератора — дисковый
+     * кэш (в нём только кубы, прошедшие generate; подсказки на холодных кэшах рельефа — главная цена куба).
+     */
+    private static void visible(Job j, int x, int y, int z, GenArrayCube c, Result r) {
+        c.reset(x, y, z, j.seed());
+        if (!j.bounds().cubeInside(x, y, z)) return;
+        GenDiskCache d = disk;
+        if (d != null && d.get(x, y, z, c)) { r.disk = true; fromDisk++; return; }
+        if (!j.gen().hasBlocks(x, y, z)) return;
+        int u = j.gen().uniform(x, y, z);
+        if (u >= 0) { c.fill(u); return; }
+        j.gen().generate(c);
+        r.generated = true;
     }
 
     /** Биом по номеру генератора (нет — первый / по умолчанию фабрики). */
@@ -394,11 +436,15 @@ public final class GenPool {
         if (t.f != level.palettedContainerFactory()) { dropped++; CubeCache.want(t.pos, CubeCache.WANT_BLOCKS); return; }
         generated++;
         genNs += r.ns;
+        long t0 = System.nanoTime();
         ClientGen.placed(level, t.pos, r.sec, r.bes, r.hash, t.expect);
+        insertNs += System.nanoTime() - t0;                            // 0.63: цена вставки на главном потоке
+        inserted++;
     }
 
     public static String stats() {
-        return "сгенерировано " + generated + (generated > 0 ? String.format(" (%.0f мкс/куб)", genNs / 1e3 / generated) : "")
+        return "сгенерировано " + generated + (generated > 0 ? String.format(" (%.0f мкс/куб, вставка %.0f мкс)", genNs / 1e3 / generated,
+                insertNs / 1e3 / Math.max(1, inserted)) : "") + (fromDisk > 0 ? ", с диска " + fromDisk : "")
                 + ", ждут " + PENDING.size() + ", готово " + RESULTS.size() + ", синхронно " + forced + ", отброшено " + dropped
                 + (errors > 0 ? ", ошибок " + errors : "");
     }

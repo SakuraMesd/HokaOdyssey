@@ -29,6 +29,14 @@ sky:
   stars: 2200
   sun: { type: cube, size: 7 }                 # cube | square (ванильный квадрат) | none
   moon: { type: cube, size: 5, phases: true }
+  # Туман вдали (непрогруженные кубы уходят в дымку) — клиентский модуль sky 0.2. Нет ключа — включён с этими
+  # значениями. color: auto (цвет горизонта по времени суток) | "#rrggbb"; start/end — доли дальности прорисовки
+  # (end 0.2…1.5); density 0…1; vertical: false — без учёта высоты окна. fog: vanilla — ванильный туман.
+  fog: { color: auto, start: 0.65, end: 1.0, density: 1.0, vertical: true }
+# Время суток: cycle — идёт ли; speed — множитель (1 = сутки 20 мин, 2 = 10 мин, 0 = стоп);
+# start — время при загрузке карты (0 = 06:00, 1000 = утро, 6000 = полдень, 13000 = ночь, 18000 = полночь).
+# Меняется на ходу: /hotime set|add|speed|cycle|query (OP); speed и cycle пишутся сюда же.
+time: {cycle: true, speed: 1.0, start: 1000}
 spawn:
   x: 0.5
   y: 306.0

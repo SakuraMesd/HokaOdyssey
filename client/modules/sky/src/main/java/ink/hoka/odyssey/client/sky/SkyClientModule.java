@@ -49,6 +49,8 @@ import java.util.OptionalInt;
  * кубическое солнце с квадратным ореолом, дымка у горизонта цветом тумана игры (чтобы дальний мир не «отрывался»).
  * Всё — свои RenderPipeline на ванильном шейдере position_color и GpuBuffer: узор/звёзды запекаются один раз
  * (в фоне), на кадр — только купол, солнце и луна (~1300 квадов) и ~8 вызовов отрисовки.
+ * 0.2: свой туман (цвет — горизонт купола по времени суток, край прорисовки тает в нём; см. раздел «туман»),
+ * низ купола под горизонтом — цвет тумана (с высоты небо снизу не чернеет).
  * <pre>
  * S2C: 1 SKY  int n; n × (UTF key, UTF value)   — n = 0 / enabled=false / preset=vanilla: ванильное небо
  * </pre>
@@ -224,7 +226,6 @@ public final class SkyClientModule implements ClientModule {
         float starA = probe.getValue(EnvironmentAttributes.STAR_ANGLE, pt) * DEG;
         MoonPhase phase = probe.getValue(EnvironmentAttributes.MOON_PHASE, pt);
         float rain = lvl.getRainLevel(pt), thunder = lvl.getThunderLevel(pt);
-        int fog = fogEnv.getBaseColor(lvl, cam, mc.options.getEffectiveRenderDistance(), pt) & 0xFFFFFF;
         double time = (lvl.getGameTime() + pt) / 20.0;                    // секунды игры — для вращения узора
 
         // путь солнца как у игры (поворот Y −90°, затем X на угол), наклонённый на tilt к югу
@@ -237,9 +238,16 @@ public final class SkyClientModule implements ClientModule {
         float twK = smooth(-0.34f, -0.02f, sunH) * (1 - smooth(0.06f, 0.45f, sunH));   // закат/рассвет
         float wet = Math.min(1, rain * 0.75f + thunder * 0.25f);
 
+        // цвет тумана: свой (цвет горизонта купола) или ванильный, если fog: vanilla
+        int fog;
+        if (c.fogOn) {
+            fog = fogColor(c, cam, dayK, twK, wet);
+            applyFog(c, mc, lvl, cam, fog, pt);                                // до прохода: пишет в буферы
+        } else fog = fogEnv.getBaseColor(lvl, cam, mc.options.getEffectiveRenderDistance(), pt) & 0xFFFFFF;
+
         DynBuf d = dyn;
         d.n = 0;
-        int domeQ = dome(d, c, dayK, twK, wet);
+        int domeQ = dome(d, c, dayK, twK, wet, fog);
         int moonStart = d.n;
         int moonQ = c.moonType.equals("none") ? 0 : body(d, moon, c.moonSize, c.moonColor, c.moonColor, (float) time * 0.15f, c.moonType,
                 c.moonPhases ? phase.index() : 0, c.moonPhases, false);
@@ -349,13 +357,158 @@ public final class SkyClientModule implements ClientModule {
         ops++;
     }
 
+    // ───────────────────────── туман (0.2) ─────────────────────────
+    //
+    // Ванильный туман 1.21.11: GameRenderer.renderLevel → FogRenderer.setupFog пишет UBO «Fog» (цвет, env start/end —
+    // сферическая дальность, renderDistance start/end — цилиндрическая, skyEnd, cloudEnd), его читают шейдеры сущностей,
+    // частиц, блоков-сущностей. Sodium берёт те же числа в свой FogParameters (FogRendererMixin) и кладёт в
+    // SodiumWorldRenderer.lastFogParameters в setupTerrain — до основного прохода; рисует землю уже в нём. Модулю
+    // миксины недоступны, поэтому в START_MAIN (после setupFog и setupTerrain, до земли) переписываем оба: UBO текущего
+    // кадра и lastFogParameters. cullDistance у Sodium оставляем прежний — иначе он каждый кадр перестраивал бы граф.
+
+    /** Цвет тумана = цвет горизонта купола по времени суток (к закату — в сторону солнца теплее), или fog.color. */
+    private int fogColor(Cfg c, Camera cam, float dayK, float twK, float wet) {
+        float sx = sun.x, sz = sun.z, sl = (float) Math.sqrt(sx * sx + sz * sz);
+        var f = cam.forwardVector();
+        float fl = (float) Math.sqrt(f.x() * f.x() + f.z() * f.z());
+        float side = sl > 1e-4f && fl > 1e-4f ? (float) Math.pow(Math.max(0, (f.x() * sx + f.z() * sz) / (sl * fl) * 0.5f + 0.5f), 3) : 0.5f;
+        int col;
+        if (c.fogColor < 0) col = lerp(lerp(c.nightH, c.dayH, dayK), c.setH, twK * (0.3f + 0.7f * side));
+        else col = lerp(lerp(lerp(c.nightH, scale(c.fogColor, 0.3f), 0.5f), c.fogColor, dayK), c.setH, twK * 0.5f * side);
+        if (wet > 0) col = lerp(col, scale(gray(col), 0.72f), wet * 0.65f);
+        return col;
+    }
+
+    private final net.minecraft.client.renderer.fog.FogData fogData = new net.minecraft.client.renderer.fog.FogData();
+
+    private void applyFog(Cfg c, Minecraft mc, ClientLevel lvl, Camera cam, int rgb, float pt) {
+        float rd = mc.options.getEffectiveRenderDistance() * 16f;
+        // ваниль (дождь, «туман босса») — чтобы погода по-прежнему сгущала
+        FogDataHolder.fill(fogEnv, fogData, cam, lvl, rd, mc.getDeltaTracker());
+        var probe = cam.attributeProbe();
+        float baseS = probe.getValue(EnvironmentAttributes.FOG_START_DISTANCE, pt), baseE = probe.getValue(EnvironmentAttributes.FOG_END_DISTANCE, pt);
+        // край прорисовки (по горизонтали): start..end доли дальности
+        float rEnd = Math.max(16, rd * c.fogEnd), rStart = Math.min(rEnd - 8, rd * c.fogStart);
+        // по сфере: учёт высоты — окно кубов вверх/вниз (и полоса гор), иначе — как край по горизонтали
+        float vb = c.fogVertical ? verticalBlocks() : 0;
+        float eEnd = (float) Math.sqrt(rEnd * rEnd + vb * vb), eStart = eEnd * c.fogStart;
+        if (!c.fogVertical) { eEnd = Float.MAX_VALUE; eStart = Float.MAX_VALUE; }
+        // дождь сдвигает ванильные start/end — тот же сдвиг нашим
+        float dS = fogData.environmentalStart - baseS, dE = fogData.environmentalEnd - baseE;
+        if (dS < 0 && eStart != Float.MAX_VALUE) eStart = Math.max(0, eStart + dS);
+        if (dE < 0) { if (eEnd == Float.MAX_VALUE) { eEnd = fogData.environmentalEnd; eStart = Math.min(eStart, fogData.environmentalStart); } else eEnd = Math.max(Math.min(96, eEnd), eEnd + dE); }
+        if (mc.gui.getBossOverlay().shouldCreateWorldFog()) { eStart = fogData.environmentalStart; eEnd = fogData.environmentalEnd; }
+        if (eStart >= eEnd) eStart = eEnd - 1;
+        float r = (rgb >> 16 & 255) / 255f, g = (rgb >> 8 & 255) / 255f, b = (rgb & 255) / 255f, a = c.fogDensity;
+        writeVanillaFog(mc, r, g, b, a, eStart, eEnd, rStart, rEnd, fogData.skyEnd, fogData.cloudEnd);
+        writeSodiumFog(r, g, b, a, eStart, eEnd, rStart, rEnd);
+    }
+
+    /** Вызов ванильного setupFog окружения (только числа — без записи в UBO). */
+    private static final class FogDataHolder {
+        static void fill(AtmosphericFogEnvironment env, net.minecraft.client.renderer.fog.FogData d, Camera cam, ClientLevel lvl,
+                         float rd, net.minecraft.client.DeltaTracker dt) {
+            d.environmentalStart = 0; d.environmentalEnd = 1024; d.skyEnd = rd; d.cloudEnd = 2048;
+            env.setupFog(d, cam, lvl, rd, dt);
+        }
+    }
+
+    /** Высота окна кубов (блоки) из ядра: max(«Дальность по высоте», «Горы целиком») × 16; нет ядра — 0. */
+    private static java.lang.reflect.Method vvGet, vvSurf;
+    private static boolean vvTried;
+
+    private static float verticalBlocks() {
+        try {
+            if (!vvTried) {
+                vvTried = true;
+                Class<?> vv = Class.forName("ink.hoka.odyssey.client.VerticalView", false, SkyClientModule.class.getClassLoader());
+                vvGet = vv.getMethod("get");
+                try { vvSurf = vv.getMethod("surface"); } catch (NoSuchMethodException ignored) {}
+            }
+            if (vvGet == null) return 0;
+            int v = (Integer) vvGet.invoke(null);
+            int s = vvSurf == null ? 0 : (Integer) vvSurf.invoke(null);
+            return Math.max(v, s) * 16f;
+        } catch (Throwable t) {
+            vvGet = null;
+            return 0;
+        }
+    }
+
+    // ванильный UBO: GameRenderer.fogRenderer → FogRenderer.regularBuffer (имена в игре промежуточные — ищем по типу)
+    private static java.lang.reflect.Field fogRendererField, ringField;
+    private static boolean vanillaTried, vanillaBroken;
+
+    private void writeVanillaFog(Minecraft mc, float r, float g, float b, float a, float eS, float eE, float rS, float rE, float sky, float cloud) {
+        if (vanillaBroken) return;
+        try {
+            if (!vanillaTried) {
+                vanillaTried = true;
+                for (var f : net.minecraft.client.renderer.GameRenderer.class.getDeclaredFields())
+                    if (f.getType() == net.minecraft.client.renderer.fog.FogRenderer.class) { f.setAccessible(true); fogRendererField = f; }
+                for (var f : net.minecraft.client.renderer.fog.FogRenderer.class.getDeclaredFields())
+                    if (f.getType() == net.minecraft.client.renderer.MappableRingBuffer.class) { f.setAccessible(true); ringField = f; }
+                if (fogRendererField == null || ringField == null) throw new IllegalStateException("нет полей FogRenderer");
+            }
+            Object fr = fogRendererField.get(mc.gameRenderer);
+            var ring = (net.minecraft.client.renderer.MappableRingBuffer) ringField.get(fr);
+            if (ring == null) return;
+            GpuBuffer buf = ring.currentBuffer();
+            // туман выключен (F3) — шейдеры смотрят в пустой буфер; наш писать незачем, но и вреда нет
+            try (GpuBuffer.MappedView v = RenderSystem.getDevice().createCommandEncoder().mapBuffer(buf, false, true)) {
+                ByteBuffer bb = v.data();
+                bb.position(0);
+                com.mojang.blaze3d.buffers.Std140Builder.intoBuffer(bb).putVec4(r, g, b, a)
+                        .putFloat(eS).putFloat(eE).putFloat(rS).putFloat(rE).putFloat(sky).putFloat(cloud);
+            }
+        } catch (Throwable t) {
+            vanillaBroken = true;
+            if (ctx != null) ctx.logger().warn("небо: свой туман для сущностей недоступен: {}", t.toString());
+        }
+    }
+
+    // Sodium: SodiumWorldRenderer.instanceNullable().lastFogParameters = new FogParameters(9 чисел), cullDistance — прежний
+    private static java.lang.reflect.Method sodInst, sodCull;
+    private static java.lang.reflect.Field sodLast;
+    private static java.lang.reflect.Constructor<?> sodCtor;
+    private static boolean sodTried, sodBroken;
+
+    private void writeSodiumFog(float r, float g, float b, float a, float eS, float eE, float rS, float rE) {
+        if (sodBroken) return;
+        try {
+            if (!sodTried) {
+                sodTried = true;
+                ClassLoader cl = Minecraft.class.getClassLoader();
+                Class<?> wr, fp;
+                try {
+                    wr = Class.forName("net.caffeinemc.mods.sodium.client.render.SodiumWorldRenderer", false, cl);
+                    fp = Class.forName("net.caffeinemc.mods.sodium.client.util.FogParameters", false, cl);
+                } catch (ClassNotFoundException e) { sodBroken = true; return; }   // без Sodium — хватает ванильного UBO
+                sodInst = wr.getMethod("instanceNullable");
+                sodLast = wr.getDeclaredField("lastFogParameters");
+                sodLast.setAccessible(true);
+                sodCull = fp.getMethod("cullDistance");
+                sodCtor = fp.getConstructor(float.class, float.class, float.class, float.class, float.class, float.class, float.class, float.class, float.class);
+            }
+            Object w = sodInst.invoke(null);
+            if (w == null) return;
+            Object old = sodLast.get(w);
+            if (old == null) return;
+            float cull = (Float) sodCull.invoke(old);
+            sodLast.set(w, sodCtor.newInstance(r, g, b, a, eS, eE, rS, rE, cull));
+        } catch (Throwable t) {
+            sodBroken = true;
+            if (ctx != null) ctx.logger().warn("небо: свой туман для Sodium недоступен: {}", t.toString());
+        }
+    }
+
     // ───────────────────────── купол ─────────────────────────
 
     private static final float[] DOME_EL = {-90, -40, -15, -6, -2, 0, 2, 5, 9, 14, 20, 28, 38, 50, 64, 78, 90};
     private static final int AZ = 40;
     private final int[] domeCol = new int[DOME_EL.length * (AZ + 1)];
 
-    private int dome(DynBuf d, Cfg c, float dayK, float twK, float wet) {
+    private int dome(DynBuf d, Cfg c, float dayK, float twK, float wet, int fog) {
         int zen = lerp(c.nightZ, c.dayZ, dayK), hor = lerp(c.nightH, c.dayH, dayK);
         zen = lerp(zen, c.setZ, twK * 0.55f);
         float sx = sun.x, sz = sun.z, sl = (float) Math.sqrt(sx * sx + sz * sz);
@@ -374,8 +527,9 @@ public final class SkyClientModule implements ClientModule {
                 float g = Math.max(0, x * sun.x + y * sun.y + z * sun.z);        // к солнцу
                 float glow = (float) (Math.pow(g, 4) * (0.12f * dayK + 0.45f * twK));
                 if (glow > 0.003f) col = add(col, c.glow, glow);
-                if (y < 0) col = lerp(col, scale(hc, 0.55f), smooth(0, -0.3f, y));   // под горизонтом темнее
                 if (wet > 0) col = lerp(col, scale(gray(col), 0.72f), wet * 0.65f);
+                // 0.2: под горизонтом — цвет тумана (не темнее): с высоты низ неба = дымка, в которую уходит край мира
+                if (y < 0) col = lerp(col, fog, smooth(0, -0.12f, y));
                 domeCol[r * (AZ + 1) + a] = 0xFF000000 | col;
             }
         }
@@ -390,7 +544,8 @@ public final class SkyClientModule implements ClientModule {
         float k = Math.min(1, blend + wet * 0.2f);
         for (int r = 0; r < FOG_EL.length; r++) {
             float y = (float) Math.sin(FOG_EL[r] * DEG);
-            float a = k * (1 - smooth(-0.02f, 0.34f, y));
+            float kk = y < 0 ? k + (1 - k) * smooth(0, -0.1f, y) : k;      // ниже горизонта — сплошь туман
+            float a = kk * (1 - smooth(-0.02f, 0.34f, y));
             int ai = Math.round(Math.max(0, Math.min(1, a)) * 255);
             for (int i = 0; i <= AZ; i++) fogCol[r * (AZ + 1) + i] = ai << 24 | fog;
         }
@@ -816,6 +971,10 @@ public final class SkyClientModule implements ClientModule {
         float sunSize, sunSpin, moonSize;
         int sunColor, sunHalo, moonColor;
         boolean moonPhases;
+        // туман 0.2: fog: { color: auto|#rrggbb, start: 0.65, end: 1.0, density: 1.0, vertical: true } | fog: vanilla
+        boolean fogOn, fogVertical;
+        int fogColor;                                                         // −1 — auto (цвет горизонта)
+        float fogStart, fogEnd, fogDensity;
 
         /** Слои запекания те же (меняются только цвета купола/солнца) — пересобирать не нужно. */
         boolean sameBake(Cfg o) {
@@ -865,6 +1024,15 @@ public final class SkyClientModule implements ClientModule {
             if (c.moonType.equals("vanilla")) c.moonType = "square";
             if (c.sunType.equals("false") || c.sunType.equals("off")) c.sunType = "none";   // sun: false / off
             if (c.moonType.equals("false") || c.moonType.equals("off")) c.moonType = "none";
+            String fog = m.getOrDefault("fog", "true").trim().toLowerCase();       // короткая форма fog: false / vanilla
+            c.fogOn = !(fog.equals("false") || fog.equals("off") || fog.equals("vanilla"))
+                    && !m.getOrDefault("fog.enabled", "true").trim().equalsIgnoreCase("false");
+            String fc = m.getOrDefault("fog.color", "auto").trim();
+            c.fogColor = fc.equalsIgnoreCase("auto") ? -1 : parseCol(fc, -1);
+            c.fogEnd = Math.max(0.2f, Math.min(1.5f, (float) num(m, "fog.end", 1.0)));
+            c.fogStart = Math.max(0, Math.min(c.fogEnd - 0.02f, (float) num(m, "fog.start", 0.65)));
+            c.fogDensity = clamp01((float) num(m, "fog.density", 1.0));
+            c.fogVertical = !m.getOrDefault("fog.vertical", "true").trim().equalsIgnoreCase("false");
             return c;
         }
 

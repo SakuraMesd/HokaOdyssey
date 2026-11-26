@@ -1,5 +1,5 @@
 // Ядро-мод Hoka Odyssey: маленький, ставится один раз. Всё остальное приходит с сервера модулями.
-version = "0.62.1"
+version = "0.63.0"
 group = "ink.hoka"
 
 val mc = "1.21.11"
@@ -25,3 +25,11 @@ dependencies {
 // -Phoka.genApi=<папка с исходниками> — другой путь (например, пока gen-api не в дереве).
 val genApi = (findProperty("hoka.genApi") as String?) ?: "../../gen-api/src/main/java"
 the<SourceSetContainer>()["main"].java.srcDir(genApi)
+
+// 0.63: тесты частей без классов игры (GenDiskCache)
+dependencies {
+    "testImplementation"(platform("org.junit:junit-bom:5.13.4"))
+    "testImplementation"("org.junit.jupiter:junit-jupiter")
+    "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
+}
+tasks.named<Test>("test") { useJUnitPlatform() }
