@@ -87,6 +87,9 @@ public final class OdysseyServer implements OdysseyServerApi {
         GlobalEventHandler events = MinecraftServer.getGlobalEventHandler();
         // основная карта при входе; модуль может выбрать другую в своём обработчике того же события (он вызывается позже)
         events.addListener(AsyncPlayerConfigurationEvent.class, e -> {
+            var via = ink.hoka.odyssey.server.net.ProxyProtocol.proxyOf(e.getPlayer().getPlayerConnection());
+            if (via != null) LOG.info("{} вошёл через прокси {}, реальный IP {}", e.getPlayer().getUsername(), via,
+                    e.getPlayer().getPlayerConnection().getRemoteAddress());
             if (ink.hoka.odyssey.server.tall.TallWorld.enabled)               // моду: позиции блоков — в формате высокого мира + рукопожатие
                 ink.hoka.odyssey.server.tall.Handshake.onConfiguration(e);
             e.setSpawningInstance(main.instance);
@@ -128,6 +131,8 @@ public final class OdysseyServer implements OdysseyServerApi {
         startConsole();
 
         int port = parsePort(System.getenv("SERVER_PORT"));
+        // HAProxy PROXY protocol (туннель хостинга → настоящий IP): -Dhoka.proxy.trusted=IP,CIDR; пусто — выкл
+        ink.hoka.odyssey.server.net.ProxyProtocol.configureFromSystem();
         server.start("0.0.0.0", port);
         LOG.info("Hoka Odyssey {} (Minestom, Minecraft 1.21.11) на порту {}", VERSION, port);
         // по этой строке панель Pterodactyl (яйцо Paper) понимает, что сервер запущен
