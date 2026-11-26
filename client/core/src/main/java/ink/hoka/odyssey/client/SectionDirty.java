@@ -66,9 +66,18 @@ public final class SectionDirty {
                     if ((any & need) != need) continue;
                     long p = SectionPos.asLong(x + dx, y + dy, z + dz);
                     if ((hf & need) == need) NEAR.add(p);
-                    else SOFTS.add(p);
+                    else if (SOFTS.add(p) && camKnown && Math.abs(x + dx - camX) <= 2 && Math.abs(y + dy - camY) <= 2
+                            && Math.abs(z + dz - camZ) <= 2) URGENT.add(p);   // у камеры — в ближайший сброс
                 }
     }
+
+    /**
+     * 0.63.6: мягкие у камеры (≤2 секции) — список, а не перебор всего SOFTS на каждом сбросе (их тысячи, сброс —
+     * дважды за кадр: 6–7% главного потока в полёте). Камера перешла в другую секцию — один полный перебор, как было.
+     */
+    private static final it.unimi.dsi.fastutil.longs.LongArrayList URGENT = new it.unimi.dsi.fastutil.longs.LongArrayList();
+    private static int camX, camY, camZ;
+    private static boolean camKnown;
 
     /** Свет куба: сам куб — обязательно (если есть), соседи за гранями m — мягко. */
     public static void markLight(int x, int y, int z, int m) {
@@ -102,23 +111,39 @@ public final class SectionDirty {
             }
             NEAR.clear();
         }
-        if (SOFTS.isEmpty()) { softAt = System.nanoTime(); return; }
+        if (SOFTS.isEmpty()) { softAt = System.nanoTime(); URGENT.clear(); return; }
         long now = System.nanoTime();
         boolean due = now - softAt >= SOFT_NS;
         var cam = mc.gameRenderer.getMainCamera().position();
         int cx = SectionPos.blockToSectionCoord(cam.x), cy = SectionPos.blockToSectionCoord(cam.y), cz = SectionPos.blockToSectionCoord(cam.z);
+        boolean moved = !camKnown || cx != camX || cy != camY || cz != camZ;
+        camX = cx; camY = cy; camZ = cz; camKnown = true;
         boolean win = ContentRange.winLo <= ContentRange.winHi;
-        for (LongIterator it = SOFTS.iterator(); it.hasNext(); ) {
-            long p = it.nextLong();
-            int x = SectionPos.x(p), y = SectionPos.y(p), z = SectionPos.z(p);
-            if (!due && (Math.abs(x - cx) > 2 || Math.abs(y - cy) > 2 || Math.abs(z - cz) > 2)) continue;
-            it.remove();
-            if (win && (y < ContentRange.winLo || y > ContentRange.winHi) || air(level, p)) { skipped++; continue; }
-            lr.setSectionDirty(x, y, z);
-            flushed++;
-            softFlushed++;
+        if (due || moved) {                                            // полный перебор: срок вышел / камера в новой секции
+            URGENT.clear();
+            for (LongIterator it = SOFTS.iterator(); it.hasNext(); ) {
+                long p = it.nextLong();
+                int x = SectionPos.x(p), y = SectionPos.y(p), z = SectionPos.z(p);
+                if (!due && (Math.abs(x - cx) > 2 || Math.abs(y - cy) > 2 || Math.abs(z - cz) > 2)) continue;
+                it.remove();
+                softOne(lr, level, win, p);
+            }
+        } else if (!URGENT.isEmpty()) {                                // только новые у камеры
+            for (int i = 0, n = URGENT.size(); i < n; i++) {
+                long p = URGENT.getLong(i);
+                if (SOFTS.remove(p)) softOne(lr, level, win, p);
+            }
+            URGENT.clear();
         }
         if (due) softAt = now;
+    }
+
+    private static void softOne(net.minecraft.client.renderer.LevelRenderer lr, ClientLevel level, boolean win, long p) {
+        int x = SectionPos.x(p), y = SectionPos.y(p), z = SectionPos.z(p);
+        if (win && (y < ContentRange.winLo || y > ContentRange.winHi) || air(level, p)) { skipped++; return; }
+        lr.setSectionDirty(x, y, z);
+        flushed++;
+        softFlushed++;
     }
 
     /** Секция — воздух (или столбца нет): сетки у неё нет и от соседей не появится. */
@@ -135,7 +160,7 @@ public final class SectionDirty {
         return air(level, SectionPos.asLong(x, y, z));
     }
 
-    public static void clear() { SET.clear(); NEAR.clear(); SOFTS.clear(); }
+    public static void clear() { SET.clear(); NEAR.clear(); SOFTS.clear(); URGENT.clear(); camKnown = false; }
 
     public static int pendingSoft() { return SOFTS.size(); }
 

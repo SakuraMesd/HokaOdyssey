@@ -348,8 +348,9 @@ public final class ServerLight {
             // 0.52: что видела сетка (очередь движка, иначе видимый слой) — до постановки нового в очередь
             DataLayer oldSky = sky == null ? null : seen(sky, p), oldBlk = blk == null ? null : seen(blk, p);
             boolean dirty = false;
+            DataLayer newSky = null;                                    // 0.63.6: тот же слой — и в движок, и для сравнения
             if (sky != null) {
-                if (stored(sky, p)) { e.queueSectionData(LightLayer.SKY, sp, c.skyLayer()); dirty = true; }
+                if (stored(sky, p)) { e.queueSectionData(LightLayer.SKY, sp, newSky = c.skyLayer()); dirty = true; }
                 else sky.hoka$queued().remove(p);                       // старое из очереди не применится позже
             }
             if (blk != null && c.blk() != 0) {
@@ -365,7 +366,7 @@ public final class ServerLight {
             int m;
             if (was != null) m = was.same(c) ? 0 : SectionDirty.SELF | c.faces(was);
             else if (sky != null && oldSky == null) m = SectionDirty.ALL;
-            else m = diff(c, oldSky, blk != null && c.blk() != 0, oldBlk);
+            else m = diff(c, newSky, oldSky, blk != null && c.blk() != 0, oldBlk);
             if (m == 0) { sameLight++; continue; }
             if (SectionDirty.isAir(lvl, x, y, z)) m &= ~SectionDirty.SELF;   // у воздуха сетки нет
             SectionDirty.markLight(x, y, z, m);                            // соседи — мягко (свет дыр не делает)
@@ -442,26 +443,60 @@ public final class ServerLight {
 
     /**
      * Отличие нового света куба от слоёв движка: 0 — тот же, иначе SELF | грани, где другой крайний ряд.
-     * oldSky null — небо не сравнивать; blk — сравнить свет блоков (oldBlk null = весь 0).
+     * oldSky null — небо не сравнивать; blk — сравнить свет блоков (oldBlk null = весь 0). newSky — слой неба куба,
+     * уже отданный движку (null — собрать здесь).
+     * <p>0.63.6: сравнение по байтам слоёв (2048 Б, Arrays.equals — векторно), грани — по крайним байтам/полубайтам.
+     * Было: 4096 точек × (DataLayer.get + Cube.sky) на каждый первый свет куба — 8% главного потока в полёте.
+     * Результат тот же: любая отличная точка — SELF и её грани.</p>
      */
-    private static int diff(Cube c, DataLayer oldSky, boolean blk, DataLayer oldBlk) {
+    private static int diff(Cube c, DataLayer newSky, DataLayer oldSky, boolean blk, DataLayer oldBlk) {
         if (oldSky != null && (c.sky() == 1 && oldSky.isDefinitelyFilledWith(0) || c.sky() == 2 && oldSky.isDefinitelyFilledWith(15)))
             oldSky = null;                                             // однородные — без перебора
         if (blk && c.blk() == 1 && (oldBlk == null || oldBlk.isDefinitelyFilledWith(0))) blk = false;
         if (oldSky == null && !blk) return 0;
         int m = 0;
-        for (int y = 0; y < 16; y++)
-            for (int z = 0; z < 16; z++)
-                for (int x = 0; x < 16; x++) {
-                    boolean d = oldSky != null && oldSky.get(x, y, z) != c.sky(x, y, z);
-                    if (!d && blk) d = (oldBlk == null ? 0 : oldBlk.get(x, y, z)) != c.blk(x, y, z);
-                    if (!d) continue;
-                    m |= SectionDirty.SELF;
-                    if (x == 0) m |= SectionDirty.NX; else if (x == 15) m |= SectionDirty.PX;
-                    if (y == 0) m |= SectionDirty.NY; else if (y == 15) m |= SectionDirty.PY;
-                    if (z == 0) m |= SectionDirty.NZ; else if (z == 15) m |= SectionDirty.PZ;
-                    if (m == (SectionDirty.SELF | SectionDirty.FACES)) return m;
-                }
+        if (oldSky != null) {
+            if (newSky == null) newSky = c.skyLayer();
+            m = layerDiff(bytes(newSky), bytes(oldSky));
+        }
+        if (blk && m != (SectionDirty.SELF | SectionDirty.FACES)) {
+            if (c.blk() != 1 && c.blk() != 3) return SectionDirty.SELF | SectionDirty.FACES;   // «не прислан» (-1) ≠ любому
+            m |= layerDiff(c.blk() == 3 ? c.bd() : constLayer(0), oldBlk == null ? constLayer(0) : bytes(oldBlk));
+        }
+        return m;
+    }
+
+    /** Однородные слои (все клетки v) — только для чтения. */
+    private static final byte[][] CONST = new byte[16][];
+
+    private static byte[] constLayer(int v) {
+        byte[] a = CONST[v];
+        if (a == null) { a = new byte[2048]; java.util.Arrays.fill(a, (byte) (v | v << 4)); CONST[v] = a; }
+        return a;
+    }
+
+    /** Байты слоя без побочных эффектов (getData у однородного завёл бы массив). */
+    private static byte[] bytes(DataLayer l) {
+        return l.isDefinitelyHomogenous() ? constLayer(l.get(0, 0, 0) & 15) : l.getData();
+    }
+
+    /** Отличие двух слоёв (индекс клетки y<<8|z<<4|x, чётная — младший полубайт): 0 или SELF | грани. */
+    static int layerDiff(byte[] a, byte[] b) {
+        if (a == b || java.util.Arrays.equals(a, b)) return 0;
+        int m = SectionDirty.SELF;
+        if (!java.util.Arrays.equals(a, 0, 128, b, 0, 128)) m |= SectionDirty.NY;            // y = 0
+        if (!java.util.Arrays.equals(a, 1920, 2048, b, 1920, 2048)) m |= SectionDirty.PY;    // y = 15
+        for (int y = 0; y < 16; y++) {
+            int base = y << 7;
+            if ((m & SectionDirty.NZ) == 0 && !java.util.Arrays.equals(a, base, base + 8, b, base, base + 8)) m |= SectionDirty.NZ;
+            if ((m & SectionDirty.PZ) == 0 && !java.util.Arrays.equals(a, base + 120, base + 128, b, base + 120, base + 128)) m |= SectionDirty.PZ;
+            if ((m & (SectionDirty.NX | SectionDirty.PX)) == (SectionDirty.NX | SectionDirty.PX)) continue;
+            for (int z = 0; z < 16; z++) {
+                int i = base + (z << 3);
+                if (((a[i] ^ b[i]) & 0x0F) != 0) m |= SectionDirty.NX;                       // x = 0
+                if (((a[i + 7] ^ b[i + 7]) & 0xF0) != 0) m |= SectionDirty.PX;               // x = 15
+            }
+        }
         return m;
     }
 

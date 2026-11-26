@@ -48,7 +48,8 @@ import java.util.OptionalInt;
  * или «кубики», медленно вращается), туманность и звёзды (ночью, вращаются с небом), кубическая луна с фазами,
  * кубическое солнце с квадратным ореолом, дымка у горизонта цветом тумана игры (чтобы дальний мир не «отрывался»).
  * Всё — свои RenderPipeline на ванильном шейдере position_color и GpuBuffer: узор/звёзды запекаются один раз
- * (в фоне), на кадр — только купол, солнце и луна (~1300 квадов) и ~8 вызовов отрисовки.
+ * (в фоне), на кадр — только солнце и луна (~30 квадов) и ~8 вызовов отрисовки; купол и дымка — свой буфер, пересобирается
+ * лишь при смене времени суток/погоды/цвета тумана (0.2.1).
  * 0.2: свой туман (цвет — горизонт купола по времени суток, край прорисовки тает в нём; см. раздел «туман»),
  * низ купола под горизонтом — цвет тумана (с высоты небо снизу не чернеет).
  * <pre>
@@ -107,8 +108,9 @@ public final class SkyClientModule implements ClientModule {
         Baked p = pending;
         pending = null;
         if (p != null) p.release();
-        if (dynVb != null) { dynVb.close(); dynVb = null; }
-        if (dynBuf != null) { MemoryUtil.memFree(dynBuf); dynBuf = null; }
+        dynUp.release();
+        sphUp.release();
+        sphOk = false;
     }
 
     // ───────────────────────── настройки ─────────────────────────
@@ -245,9 +247,15 @@ public final class SkyClientModule implements ClientModule {
             applyFog(c, mc, lvl, cam, fog, pt);                                // до прохода: пишет в буферы
         } else fog = fogEnv.getBaseColor(lvl, cam, mc.options.getEffectiveRenderDistance(), pt) & 0xFFFFFF;
 
+        // 0.2.1: купол и дымка — свой буфер в видеопамяти, пересобирается, только когда сменились их входы (время суток
+        // с шагом ~1/1000, погода, цвет тумана, настройки): на кадр — лишь солнце/луна (~120 вершин) и униформы.
+        // Было: ~3000 вершин купола считались (pow/sin/cos) и заливались каждый кадр — 3.8% главного потока.
+        GpuBuffer sv = sphere(c, dayK, twK, wet, fog);
+        if (sv == null) return;
+        int domeQ = sphDomeQ, fogStart = sphFogStart, fogQ = sphFogQ;
+
         DynBuf d = dyn;
         d.n = 0;
-        int domeQ = dome(d, c, dayK, twK, wet, fog);
         int moonStart = d.n;
         int moonQ = c.moonType.equals("none") ? 0 : body(d, moon, c.moonSize, c.moonColor, c.moonColor, (float) time * 0.15f, c.moonType,
                 c.moonPhases ? phase.index() : 0, c.moonPhases, false);
@@ -264,18 +272,16 @@ public final class SkyClientModule implements ClientModule {
             sunHaloQ += halo(d, sun, c.sunSize, c.sunHalo, 0.30f, -spin + 45 * DEG, 3.6f);
             sunHaloQ += halo(d, sun, c.sunSize, lerp(c.sunHalo, c.glow, 0.5f), 0.14f + 0.12f * twK, spin * 0.3f, 9f);
         }
-        int fogStart = d.n;
-        int fogQ = fogRing(d, fog, c.fogBlend, wet);
 
         // в видеопамять одним куском
-        GpuBuffer vb = uploadDyn(d);
+        GpuBuffer vb = d.n > 0 ? dynUp.upload(d, "Hoka sky frame") : sv;
         if (vb == null) return;
 
         view.set(RenderSystem.getModelViewMatrix());
         var target = mc.getMainRenderTarget();
         var color = RenderSystem.outputColorTextureOverride != null ? RenderSystem.outputColorTextureOverride : target.getColorTextureView();
         var idx = RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS);
-        int maxQ = d.n / 4;
+        int maxQ = Math.max(d.n / 4, Math.max(domeQ, fogQ));
         if (b != null && b.uploaded) maxQ = Math.max(maxQ, Math.max(b.pattern.n, Math.max(b.nebula.n, b.stars.n)) / 4);
         GpuBuffer ib = idx.getBuffer(maxQ * 6);
         float day = dayK, night = 1 - dayK;
@@ -284,7 +290,7 @@ public final class SkyClientModule implements ClientModule {
         ops = 0;
         {
             // 1. купол
-            drawQ(OPAQUE, vb, 0, domeQ, view, 1, 1, 1, 1);
+            drawQ(OPAQUE, sv, 0, domeQ, view, 1, 1, 1, 1);
             if (b != null && b.uploaded) {
                 // 2. узор: медленно вращается вокруг своей наклонной оси
                 if (b.pattern.vb != null && c.patStrength > 0) {
@@ -309,7 +315,7 @@ public final class SkyClientModule implements ClientModule {
             drawQ(TRANS, vb, sunStart, sunQ, view, 1, 1, 1, 1 - wet * 0.85f);
             drawQ(ADD, vb, sunHaloStart, sunHaloQ, view, 1, 1, 1, (1 - wet * 0.9f) * smooth(-0.25f, 0.02f, sunH));
             // 6. дымка у горизонта цветом тумана игры
-            drawQ(TRANS, vb, fogStart, fogQ, view, 1, 1, 1, 1);
+            drawQ(TRANS, sv, fogStart, fogQ, view, 1, 1, 1, 1);
         }
         if (ops == 0) return;
         try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "Hoka sky", color, OptionalInt.empty())) {
@@ -324,6 +330,32 @@ public final class SkyClientModule implements ClientModule {
                 o.vb = null; o.transform = null;
             }
         }
+    }
+
+    // ── купол и дымка: постоянный буфер (0.2.1) ──
+    private final DynBuf sph = new DynBuf();
+    private final Upload sphUp = new Upload(), dynUp = new Upload();
+    private boolean sphOk;
+    private Cfg sphCfg;
+    private int sphDomeQ, sphFogStart, sphFogQ;
+    private int kDay, kTw, kWet, kSx, kSy, kSz, kFog;
+
+    /** Буфер купола+дымки под текущие входы (пересобрать, если сменились); null — не залился. */
+    private GpuBuffer sphere(Cfg c, float dayK, float twK, float wet, int fog) {
+        int a = Math.round(dayK * 1024), b = Math.round(twK * 1024), w = Math.round(wet * 1024);
+        int sx = Math.round(sun.x * 1024), sy = Math.round(sun.y * 1024), sz = Math.round(sun.z * 1024);
+        GpuBuffer vb = sphUp.vb;
+        if (sphOk && vb != null && !vb.isClosed() && c == sphCfg && a == kDay && b == kTw && w == kWet
+                && sx == kSx && sy == kSy && sz == kSz && fog == kFog) return vb;
+        DynBuf d = sph;
+        d.n = 0;
+        sphDomeQ = dome(d, c, dayK, twK, wet, fog);
+        sphFogStart = d.n;
+        sphFogQ = fogRing(d, fog, c.fogBlend, wet);
+        vb = sphUp.upload(d, "Hoka sky dome");
+        sphOk = vb != null;
+        sphCfg = c; kDay = a; kTw = b; kWet = w; kSx = sx; kSy = sy; kSz = sz; kFog = fog;
+        return vb;
     }
 
     /** Вызов отрисовки кадра (собираются до открытия прохода). */
@@ -687,36 +719,60 @@ public final class SkyClientModule implements ClientModule {
     }
 
     private final DynBuf dyn = new DynBuf();
-    private GpuBuffer dynVb;
-    private ByteBuffer dynBuf;
 
-    private GpuBuffer uploadDyn(DynBuf d) {
-        int bytes = Math.max(16, d.n * 16);
-        if (dynBuf == null || dynBuf.capacity() < bytes) {
-            if (dynBuf != null) MemoryUtil.memFree(dynBuf);
-            dynBuf = MemoryUtil.memAlloc(bytes + bytes / 2);
+    /** Буфер в видеопамяти под DynBuf (растёт при нехватке) и его промежуточная память. */
+    private static final class Upload {
+        GpuBuffer vb;
+        ByteBuffer mem;
+
+        GpuBuffer upload(DynBuf d, String name) {
+            int bytes = Math.max(16, d.n * 16);
+            if (mem == null || mem.capacity() < bytes) {
+                if (mem != null) MemoryUtil.memFree(mem);
+                mem = MemoryUtil.memAlloc(bytes + bytes / 2);
+            }
+            ByteBuffer buf = mem;
+            buf.clear();
+            putVerts(buf, d.p, d.c, d.n);
+            if (d.n == 0) buf.putLong(0).putLong(0);
+            buf.flip();
+            var dev = RenderSystem.getDevice();
+            if (vb == null || vb.isClosed() || vb.size() < bytes) {
+                if (vb != null) vb.close();
+                vb = dev.createBuffer(() -> name, GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST, bytes + bytes / 2);
+            }
+            dev.createCommandEncoder().writeToBuffer(vb.slice(0, buf.remaining()), buf);
+            return vb;
         }
-        ByteBuffer buf = dynBuf;
-        buf.clear();
-        putVerts(buf, d.p, d.c, d.n);
-        if (d.n == 0) buf.putLong(0).putLong(0);
-        buf.flip();
-        var dev = RenderSystem.getDevice();
-        if (dynVb == null || dynVb.isClosed() || dynVb.size() < bytes) {
-            if (dynVb != null) dynVb.close();
-            dynVb = dev.createBuffer(() -> "Hoka sky frame", GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST, bytes + bytes / 2);
+
+        void release() {
+            if (vb != null) { vb.close(); vb = null; }
+            if (mem != null) { MemoryUtil.memFree(mem); mem = null; }
         }
-        dev.createCommandEncoder().writeToBuffer(dynVb.slice(0, buf.remaining()), buf);
-        return dynVb;
     }
 
-    /** POSITION_COLOR: 3 float + RGBA = 16 байт. */
+    private static final boolean LE = java.nio.ByteOrder.nativeOrder() == java.nio.ByteOrder.LITTLE_ENDIAN;
+
+    /** POSITION_COLOR: 3 float + RGBA = 16 байт. 0.2.1: прямой записью в память (буфер — memAlloc, родной порядок). */
     private static void putVerts(ByteBuffer buf, float[] p, int[] c, int n) {
-        for (int k = 0; k < n; k++) {
-            int argb = c[k];
-            buf.putFloat(p[k * 3]).putFloat(p[k * 3 + 1]).putFloat(p[k * 3 + 2])
-                    .put((byte) (argb >> 16)).put((byte) (argb >> 8)).put((byte) argb).put((byte) (argb >>> 24));
+        if (buf.order() != java.nio.ByteOrder.nativeOrder() || buf.remaining() < n * 16) {
+            for (int k = 0; k < n; k++) {
+                int argb = c[k];
+                buf.putFloat(p[k * 3]).putFloat(p[k * 3 + 1]).putFloat(p[k * 3 + 2])
+                        .put((byte) (argb >> 16)).put((byte) (argb >> 8)).put((byte) argb).put((byte) (argb >>> 24));
+            }
+            return;
         }
+        long a = MemoryUtil.memAddress(buf);                               // с текущей позиции
+        for (int k = 0; k < n; k++, a += 16) {
+            int argb = c[k];
+            int r = argb >> 16 & 255, g = argb >> 8 & 255, b = argb & 255, al = argb >>> 24;
+            MemoryUtil.memPutFloat(a, p[k * 3]);
+            MemoryUtil.memPutFloat(a + 4, p[k * 3 + 1]);
+            MemoryUtil.memPutFloat(a + 8, p[k * 3 + 2]);
+            MemoryUtil.memPutInt(a + 12, LE ? r | g << 8 | b << 16 | al << 24 : r << 24 | g << 16 | b << 8 | al);
+        }
+        buf.position(buf.position() + n * 16);
     }
 
     // ───────────────────────── запечённые слои ─────────────────────────

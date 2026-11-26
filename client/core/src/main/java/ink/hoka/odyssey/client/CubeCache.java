@@ -46,6 +46,7 @@ public final class CubeCache {
         LevelChunkSection sec;
         PalettedContainerFactory f;
         long h;                                                         // 0 — ещё не посчитан
+        CubeHash.Slot slot;                                             // 0.63.6: хэш, посчитанный в фоне (null — нет)
         int bytes;
         ServerLight.Cube light;
         long l;
@@ -199,6 +200,7 @@ public final class CubeCache {
         e.sec = s;
         e.f = f;
         e.h = 0;
+        e.slot = CubeHash.later(s);                                     // 0.63.6: хэш — в фоне, не при взятии
         e.bytes = s.getSerializedSize() + 512;                      // объекты палитр/хранилища сверх сетевой формы
         c.bytes += e.bytes;
         bytes += e.bytes;
@@ -278,6 +280,8 @@ public final class CubeCache {
         LevelChunkSection s = e.sec;
         PalettedContainerFactory ef = e.f;
         long eh = e.h;
+        if (eh == 0 && e.slot != null) eh = e.slot.h;                   // 0 — фон ещё не досчитал: здесь
+        e.slot = null;
         try { if (eh == 0) eh = CubeHash.of(s); }
         catch (RuntimeException ex) { eh = -1; }
         // блоки из кэша вынимаем в любом случае: совпало — в мир, нет — устарели

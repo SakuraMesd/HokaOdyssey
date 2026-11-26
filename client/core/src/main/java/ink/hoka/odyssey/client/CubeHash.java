@@ -9,7 +9,7 @@ import net.minecraft.world.level.chunk.LevelChunkSection;
  * сетевым номерам реестров; порядок палитры не важен. Секция клиента считается через её сетевую форму
  * (LevelChunkSection.write → тот же разбор, что проверяет серверный тест на секциях Minestom). Эталоны (как в
  * CubeCacheTest сервера): нули — d7b11457959f700c, узор i*7%23 / i*7%5 — f12b4d5e0f896b11, свет «формула 0..16,
- * блоки 0» — 8abcaff9818b4ab1. Только главный поток (PalettedContainer не любит чужие потоки).
+ * блоки 0» — 8abcaff9818b4ab1. Секции — только главный поток (PalettedContainer не любит чужие потоки); 0.63.6: разбор снимка (wire) — в фоне ({@link #later}).
  */
 public final class CubeHash {
 
@@ -32,6 +32,41 @@ public final class CubeHash {
         byte[] a = new byte[buf.readableBytes()];
         buf.readBytes(a);
         return wire(a, new int[]{0});
+    }
+
+    /** 0.63.6: хэш секции, посчитанный в фоне; h = 0 — ещё нет (тогда считать на месте). */
+    static final class Slot { volatile long h; }
+
+    private static final java.util.concurrent.ThreadPoolExecutor BG = new java.util.concurrent.ThreadPoolExecutor(1, 1,
+            30, java.util.concurrent.TimeUnit.SECONDS, new java.util.concurrent.ArrayBlockingQueue<>(8192), r -> {
+        Thread t = new Thread(r, "hoka-cube-hash");
+        t.setDaemon(true);
+        t.setPriority(Thread.MIN_PRIORITY);
+        return t;
+    }, new java.util.concurrent.ThreadPoolExecutor.DiscardPolicy());
+    static { BG.allowCoreThreadTimeOut(true); }
+
+    /**
+     * 0.63.6: хэш секции, уходящей в кэш кубов, — в фоне. На главном потоке только снимок сетевой формы (write —
+     * копия палитры и массива; секция дальше не меняется, но PalettedContainer читаем только тут), разбор 4096 клеток и
+     * GenHash — в потоке hoka-cube-hash. Было: CubeHash.of при взятии из кэша (CubeCache.take) — 3.6% кадра в полёте.
+     * null — снимка нет (посчитают при взятии, как раньше).
+     */
+    static Slot later(LevelChunkSection s) {
+        byte[] a;
+        try {
+            FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer(s.getSerializedSize()));
+            s.write(buf);
+            a = new byte[buf.readableBytes()];
+            buf.readBytes(a);
+        } catch (RuntimeException e) {
+            return null;
+        }
+        Slot slot = new Slot();
+        BG.execute(() -> {                                              // очередь полна — отброшено: посчитают при взятии
+            try { slot.h = wire(a, new int[]{0}); } catch (RuntimeException ignored) {}
+        });
+        return slot;
     }
 
     /** Хэш секции в сетевой форме: short блоков, контейнер блоков, контейнер биомов. */

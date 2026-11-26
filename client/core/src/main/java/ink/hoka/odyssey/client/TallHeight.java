@@ -42,20 +42,34 @@ public final class TallHeight {
         Heightmap hm = c.getOrCreateHeightmapUnprimed(Heightmap.Types.MOTION_BLOCKING);
         int y0 = sy << 4;
         boolean any = !sec.hasOnlyAir() && sec.maybeHas(BLOCKS);
-        for (int z = 0; z < 16; z++)
-            for (int x = 0; x < 16; x++) {
-                int h = hm.getFirstAvailable(x, z);                     // верхний блок + 1
-                if (h > y0 + 16) continue;                              // верх выше куба — куб его не меняет
-                int top = any ? topIn(sec, x, z, 15) : -1;
-                int now;
-                if (top >= 0) now = y0 + top + 1;
-                else if (h > y0) now = below(level, c, sy, x, z);       // верх был в этом кубе, блоков не стало
-                else continue;                                          // верх ниже, в кубе пусто — как было
-                if (now == h) continue;
-                ((HeightmapAccessor) hm).hoka$setHeight(x, z, now);
-                if (now > h) raised++; else lowered++;
-            }
+        // 0.63.6: сперва — есть ли колонки, которые куб меняет (обычно нет: куб ниже верха); верхи куба — одним
+        // проходом по сетевой форме секции (SectionIds), а не 16 getBlockState на колонку (7% главного потока в полёте)
+        int[] hs = HS;
+        boolean need = false;
+        for (int i = 0; i < 256; i++) {
+            int h = hm.getFirstAvailable(i & 15, i >> 4);
+            hs[i] = h;
+            if (h <= y0 + 16 && (any || h > y0)) need = true;
+        }
+        if (!need) return;
+        int[] tops = any ? SectionIds.tops(sec, BLOCKS) : null;
+        for (int i = 0; i < 256; i++) {
+            int h = hs[i];                                              // верхний блок + 1
+            if (h > y0 + 16) continue;                                  // верх выше куба — куб его не меняет
+            int x = i & 15, z = i >> 4;
+            int top = !any ? -1 : tops != null ? tops[i] : topIn(sec, x, z, 15);
+            int now;
+            if (top >= 0) now = y0 + top + 1;
+            else if (h > y0) now = below(level, c, sy, x, z);           // верх был в этом кубе, блоков не стало
+            else continue;                                              // верх ниже, в кубе пусто — как было
+            if (now == h) continue;
+            ((HeightmapAccessor) hm).hoka$setHeight(x, z, now);
+            if (now > h) raised++; else lowered++;
+        }
     }
+
+    /** Высоты колонок текущего куба (только главный поток). */
+    private static final int[] HS = new int[256];
 
     public static long serverCols;
 
