@@ -89,7 +89,8 @@ final class Terrain {
     /** Шаг сетки медленных полей (узлы — в мировых координатах, кратных 4: одинаково из любого чанка). */
     static final int GS = 4;
     private static final int C = 0, TP = 1, HU = 2, HA = 3, WX = 4, WZ = 5, BN = 6, MESA_F = 7, CLIFF = 8, CLIFFT = 9, PLAT = 10,
-            PLATP = 11, RIVER_F = 12, RIFTM = 13, RIFTN = 14, RIFTW = 15, RIFTD = 16, NF = 17;
+            PLATP = 11, RIVER_F = 12, RIFTM = 13, RIFTN = 14, RIFTW = 15, RIFTD = 16;
+    static final int NF = 17;
 
     /** Медленные поля в узле (x, z). */
     private void slow(int x, int z, double[] f, int o) {
@@ -145,6 +146,17 @@ final class Terrain {
     /** Высота и маски точки (поля сетки g). Порядок: база+холмы → хребты → мезы → террасы → тепуи → реки → озёра → топи → разломы → мелочь. */
     void sample(int x, int z, S s, Grid g, double[] f) {
         g.at(x, z, f);
+        sampleF(x, z, s, f);
+    }
+
+    /** Дальняя прорисовка: точка без сетки — медленные поля прямо в (x, z) (в узлах сетки это те же числа). */
+    void lodSample(int x, int z, S s, double[] f) {
+        slow(x, z, f, 0);
+        sampleF(x, z, s, f);
+    }
+
+    /** Высота и маски точки по готовым медленным полям f. */
+    private void sampleF(int x, int z, S s, double[] f) {
         double c = f[C];
         double land = clamp01(c * 4);
         double h = c < 0 ? sea + 1 + c * 75 : sea + 1 + c * 32;
@@ -294,6 +306,53 @@ final class Terrain {
             case GLOW -> 520;
             default -> 520;
         };
+    }
+
+    // ───────────── дальняя прорисовка ─────────────
+
+    /**
+     * Верх и зона точки для дальней прорисовки — как в {@link #compute}, но уклон s1 оценён по соседним ячейкам плитки
+     * (крупный шаг), без луж лавы. Возвращает top << 8 | zone.
+     */
+    int lodClass(int x, int z, S s, int h, int s1) {
+        byte t, zn;
+        if (s.rift > 0.5 || (s.rift > 0 && h < sea)) {
+            zn = RIFT;
+            double v = jitter.noise(x / 13.0, 2.2, z / 13.0);
+            t = s1 >= 4 ? STONE : v > 0.2 ? MAGMA : v < -0.3 ? TUFF : BASALT;
+        } else if (h < sea) {
+            int depth = sea - h;
+            if (s.swamp > 0.5) t = MUD;
+            else if (depth <= 2) t = SAND;
+            else t = det.noise(x / 9.0, 4.1, z / 9.0) > 0 ? GRAVEL : SAND;
+            zn = s.river > 0.5 ? RIVER : s.swamp > 0.5 ? SWAMP : s.c < 0.04 ? OCEAN : LAKE;
+        } else if (s.swamp < 0.5 && h <= sea + 2) {
+            t = SAND;
+            zn = s.river > 0.3 ? RIVER : BEACH;
+        } else {
+            double snow = snowLine(x, z);
+            boolean steep = s1 >= 6 || (s1 >= 4 && h > 520);
+            if (h >= snow) {
+                boolean gl = h >= GLACIER && s.r < 0.35 && s1 <= 3;
+                t = gl ? ICE : s1 >= 7 ? STONE : SNOW;
+                zn = gl || h >= 1600 ? FROZEN : s1 >= 5 ? JAGGED : STONY;
+            } else {
+                byte cl = climate(x, z, s);
+                if (s.tepui > 0.5 && h > 650) zn = s.tp > 0 ? FLOWER : PALE;
+                else if (h < zoneTop(cl)) zn = cl;
+                else if (h < 720) zn = cl == SAVANNA || cl == MESA ? SAVANNA : TAIGA;
+                else zn = h < 950 ? ALPINE : GROVE;
+                if (zn == MESA) t = steep && s1 >= 8 ? STONE : RED_SAND;
+                else if (steep || (zn == GROVE && s1 >= 3)) t = STONE;
+                else t = switch (zn) {
+                    case REDWOOD -> PODZOL;
+                    case GLOW -> MYCELIUM;
+                    case PALE -> PALE_MOSS;
+                    default -> GRASS;
+                };
+            }
+        }
+        return (t & 0xFF) << 8 | (zn & 0xFF);
     }
 
     // ───────────── колонки чанка (кэш) ─────────────

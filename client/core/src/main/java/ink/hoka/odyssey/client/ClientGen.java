@@ -433,6 +433,20 @@ public final class ClientGen {
 
     // ───────────── отладка ─────────────
 
+    // ───────────── 0.64: дальняя прорисовка ─────────────
+
+    /** Генератор текущей карты для дальней прорисовки (null — нет). Вызывать можно из любых потоков (генератор потокобезопасен). */
+    public static ink.hoka.odyssey.gen.PlanetGenerator lodGenerator() { Loaded l = loaded; return l == null ? null : l.gen(); }
+
+    /** Ключ генератора (сменился — старые плитки не годятся); 0 — нет. */
+    public static long lodKey() { Loaded l = loaded; return l == null ? 0 : l.fp() ^ l.def().seed() * 31 ^ l.def().slot(); }
+
+    /** Биомы по номерам генератора (для оттенка травы/листвы/воды). */
+    public static net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>[] lodBiomes() { Loaded l = loaded; return l == null ? null : l.ids().biomeHolders(); }
+
+    /** Границы карты генератора (null — нет). */
+    public static ink.hoka.odyssey.gen.GenBounds lodBounds() { Loaded l = loaded; return l == null ? null : l.bounds(); }
+
     public static String debugLine() {
         GenWire.Def d = def;
         if (d == null && GenPool.generated == 0) return null;

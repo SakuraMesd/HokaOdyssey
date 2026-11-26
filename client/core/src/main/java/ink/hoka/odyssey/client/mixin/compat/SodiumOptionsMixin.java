@@ -73,5 +73,26 @@ public abstract class SodiumOptionsMixin {
                         .setImpact(OptionImpact.LOW)
                         .setBinding(ink.hoka.odyssey.client.GenSetting::setDisk, ink.hoka.odyssey.client.GenSetting::diskMb)
                         .setStorageHandler(ink.hoka.odyssey.client.GenSetting::saveDisk)));
+        // 0.64: дальняя прорисовка — своей группой
+        page.addOptionGroup(builder.createOptionGroup()
+                .setName(Component.translatable("options.hoka_odyssey.lod.group"))
+                .addOption(builder.createIntegerOption(Identifier.fromNamespaceAndPath("hoka_odyssey", "lod_distance"))
+                        .setName(Component.translatable("options.hoka_odyssey.lod"))
+                        .setTooltip(Component.translatable("options.hoka_odyssey.lod.tooltip"))
+                        .setRange(0, ink.hoka.odyssey.client.LodSetting.MAX, ink.hoka.odyssey.client.LodSetting.STEP)
+                        .setDefaultValue(ink.hoka.odyssey.client.LodSetting.DEFAULT)
+                        .setValueFormatter(ink.hoka.odyssey.client.LodSetting::distanceText)
+                        .setImpact(OptionImpact.MEDIUM)
+                        .setBinding(ink.hoka.odyssey.client.LodSetting::setDistance, ink.hoka.odyssey.client.LodSetting::distance)
+                        .setStorageHandler(ink.hoka.odyssey.client.LodSetting::saveDistance))
+                .addOption(builder.createIntegerOption(Identifier.fromNamespaceAndPath("hoka_odyssey", "lod_quality"))
+                        .setName(Component.translatable("options.hoka_odyssey.lod_quality"))
+                        .setTooltip(Component.translatable("options.hoka_odyssey.lod_quality.tooltip"))
+                        .setRange(ink.hoka.odyssey.client.LodSetting.Q_MIN, ink.hoka.odyssey.client.LodSetting.Q_MAX, 1)
+                        .setDefaultValue(ink.hoka.odyssey.client.LodSetting.Q_DEFAULT)
+                        .setValueFormatter(ink.hoka.odyssey.client.LodSetting::qualityText)
+                        .setImpact(OptionImpact.MEDIUM)
+                        .setBinding(ink.hoka.odyssey.client.LodSetting::setQuality, ink.hoka.odyssey.client.LodSetting::quality)
+                        .setStorageHandler(ink.hoka.odyssey.client.LodSetting::saveQuality)));
     }
 }

@@ -18,14 +18,16 @@ public abstract class VideoOptionsMixin {
         OptionInstance<?>[] a = cir.getReturnValue();
         int at = a.length;
         for (int i = 0; i < a.length; i++) if (a[i] == options.renderDistance()) { at = i + 1; break; }
-        OptionInstance<?>[] r = new OptionInstance<?>[a.length + 5];
+        OptionInstance<?>[] r = new OptionInstance<?>[a.length + 7];
         System.arraycopy(a, 0, r, 0, at);
         r[at] = VerticalView.option();
         r[at + 1] = VerticalView.surfaceOption();                         // 0.62: горы целиком
         r[at + 2] = ink.hoka.odyssey.client.CubeCacheSetting.option();   // 0.51: кэш кубов, МБ
         r[at + 3] = ink.hoka.odyssey.client.GenSetting.option();         // 0.59: генерация мира на клиенте
         r[at + 4] = ink.hoka.odyssey.client.GenSetting.diskOption();     // 0.63: кэш генерации на диске
-        System.arraycopy(a, at, r, at + 5, a.length - at);
+        r[at + 5] = ink.hoka.odyssey.client.LodSetting.distanceOption(); // 0.64: дальняя прорисовка
+        r[at + 6] = ink.hoka.odyssey.client.LodSetting.qualityOption();
+        System.arraycopy(a, at, r, at + 7, a.length - at);
         cir.setReturnValue(r);
     }
 }

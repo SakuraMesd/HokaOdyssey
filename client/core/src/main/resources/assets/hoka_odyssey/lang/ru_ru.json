@@ -18,5 +18,16 @@
   "options.hoka_odyssey.gen_disk": "Кэш генерации на диске",
   "options.hoka_odyssey.gen_disk.tooltip": "Сколько места на диске держать под местность, построенную на вашем компьютере. При повторном входе и возврате в знакомые места она берётся с диска мгновенно, а не строится заново. Старое удаляется само, когда место кончается. 0 — выключен.",
   "options.hoka_odyssey.gen_disk.value": "%s МБ",
-  "options.hoka_odyssey.gen_disk.off": "Выкл"
+  "options.hoka_odyssey.gen_disk.off": "Выкл",
+  "options.hoka_odyssey.lod.group": "Дальняя прорисовка",
+  "options.hoka_odyssey.lod": "Дальняя прорисовка",
+  "options.hoka_odyssey.lod.tooltip": "На картах Hoka Odyssey мир за пределами «Дальности прорисовки» виден упрощённым — горы, леса, вода до самого горизонта. Чем дальше, тем крупнее «пиксели». Считается на вашем компьютере из генератора планеты (интернет не нужен), хранится в видеопамяти. Выкл — как раньше.",
+  "options.hoka_odyssey.lod.value": "%s чанк. (%s бл.)",
+  "options.hoka_odyssey.lod.off": "Выкл",
+  "options.hoka_odyssey.lod_quality": "Качество дальней прорисовки",
+  "options.hoka_odyssey.lod_quality.tooltip": "Как рано укрупнять дальние места. Выше — детальнее вдали, но больше видеопамяти и работы процессора.",
+  "options.hoka_odyssey.lod_quality.1": "Низкое",
+  "options.hoka_odyssey.lod_quality.2": "Среднее",
+  "options.hoka_odyssey.lod_quality.3": "Высокое",
+  "options.hoka_odyssey.lod_quality.4": "Ультра"
 }

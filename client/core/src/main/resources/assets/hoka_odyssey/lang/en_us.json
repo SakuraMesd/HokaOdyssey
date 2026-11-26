@@ -18,5 +18,16 @@
   "options.hoka_odyssey.gen_disk": "Generation Disk Cache",
   "options.hoka_odyssey.gen_disk.tooltip": "How much disk space to keep for terrain generated on your computer. When you rejoin or come back to known places it is read from disk instantly instead of being generated again. The oldest data is removed automatically when the space runs out. 0 turns it off.",
   "options.hoka_odyssey.gen_disk.value": "%s MB",
-  "options.hoka_odyssey.gen_disk.off": "Off"
+  "options.hoka_odyssey.gen_disk.off": "Off",
+  "options.hoka_odyssey.lod.group": "Distant Horizons",
+  "options.hoka_odyssey.lod": "Distant Terrain",
+  "options.hoka_odyssey.lod.tooltip": "On Hoka Odyssey maps the world beyond Render Distance is shown simplified — mountains, forests and water up to the horizon. The farther away, the coarser. Computed on your computer from the planet generator (no network), kept in video memory. Off — as before.",
+  "options.hoka_odyssey.lod.value": "%s chunks (%s blocks)",
+  "options.hoka_odyssey.lod.off": "Off",
+  "options.hoka_odyssey.lod_quality": "Distant Terrain Quality",
+  "options.hoka_odyssey.lod_quality.tooltip": "How early distant places get coarser. Higher — more detail far away, more video memory and CPU work.",
+  "options.hoka_odyssey.lod_quality.1": "Low",
+  "options.hoka_odyssey.lod_quality.2": "Medium",
+  "options.hoka_odyssey.lod_quality.3": "High",
+  "options.hoka_odyssey.lod_quality.4": "Ultra"
 }

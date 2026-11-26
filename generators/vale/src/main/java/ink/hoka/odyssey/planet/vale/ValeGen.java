@@ -76,6 +76,7 @@ final class ValeGen implements PlanetGenerator {
             try { v = ids.biome(BIOME_ID[i]); } catch (RuntimeException e) { v = ids.biome("minecraft:plains"); }
             biomes[i] = v;
         }
+        initLod(ids);
         bandStone = new int[]{stone, stone, pal.d("minecraft:andesite"), pal.d("minecraft:tuff"), stone, pal.d("minecraft:calcite"),
                 stone, pal.d("minecraft:dripstone_block")};
         bandMesa = new int[]{pal.d("minecraft:terracotta"), pal.d("minecraft:orange_terracotta"), pal.d("minecraft:terracotta"),
@@ -838,6 +839,89 @@ final class ValeGen implements PlanetGenerator {
         ObjSpan s = span(cx, cz);
         int y0 = cy << 4;
         return s.any() && s.hi() >= y0 && s.lo() <= y0 + 15;
+    }
+
+    // ───────────── дальняя прорисовка (LOD) ─────────────
+
+    /** Кроны по зонам: состояние листвы (0 — леса нет), высота кроны над землёй, доля ячеек под кронами. */
+    private final int[] lodLeaf = new int[BIOME_ID.length];
+    private final byte[] lodTreeH = new byte[BIOME_ID.length];
+    private final float[] lodTreeD = new float[BIOME_ID.length];
+    private static final long LOD_SALT = 0x10D_7EEL;
+
+    /** Только номера состояний (без Pal: список «используемых» и флаги генерации не меняются). */
+    private void initLod(GenIds ids) {
+        lodZone(ids, FOREST, "oak", 9, 0.70f);
+        lodZone(ids, BIRCH, "birch", 9, 0.65f);
+        lodZone(ids, TAIGA, "spruce", 13, 0.60f);
+        lodZone(ids, REDWOOD, "spruce", 26, 0.75f);
+        lodZone(ids, JUNGLE, "jungle", 18, 0.85f);
+        lodZone(ids, CHERRY, "cherry", 8, 0.45f);
+        lodZone(ids, PALE, "pale_oak", 11, 0.60f);
+        lodZone(ids, SWAMP, "mangrove", 9, 0.35f);
+        lodZone(ids, SAVANNA, "acacia", 7, 0.12f);
+        lodZone(ids, FLOWER, "oak", 7, 0.12f);
+        lodZone(ids, PLAINS, "oak", 7, 0.04f);
+        lodZone(ids, MEADOW, "birch", 7, 0.04f);
+        lodZone(ids, ALPINE, "spruce", 10, 0.20f);
+        try {
+            lodLeaf[GLOW] = ids.defaultState("minecraft:red_mushroom_block");
+            lodTreeH[GLOW] = 12;
+            lodTreeD[GLOW] = 0.22f;
+        } catch (RuntimeException ignored) {}
+    }
+
+    private void lodZone(GenIds ids, int zone, String wood, int h, float d) {
+        int v = 0;
+        for (String st : new String[]{"minecraft:" + wood + "_leaves[distance=1,persistent=false,waterlogged=false]", "minecraft:" + wood + "_leaves"}) {
+            try { v = st.indexOf('[') >= 0 ? ids.state(st) : ids.defaultState(st); break; } catch (RuntimeException ignored) {}
+        }
+        if (v == 0) return;
+        lodLeaf[zone] = v;
+        lodTreeH[zone] = (byte) h;
+        lodTreeD[zone] = d;
+    }
+
+    /**
+     * Вид издалека: рельеф по точкам (центры ячеек) без сетки и кэша колонок, верх и зона — как у {@link Terrain#compute}
+     * (уклон — по соседним ячейкам), вода до моря, кроны лесов пятнами по доле зоны. Объекты (.hobj, великаны) не
+     * считаются — только их «лес». Чистая функция, потокобезопасна.
+     */
+    @Override
+    public boolean lod(LodTile o) {
+        int n = o.n, st = o.step, m = n + 2;
+        short[] hh = new short[m * m];
+        Terrain.S[] ss = new Terrain.S[n * n];
+        double[] f = new double[Terrain.NF];
+        Terrain.S tmp = new Terrain.S();
+        for (int j = -1; j <= n; j++) for (int i = -1; i <= n; i++) {
+            boolean in = i >= 0 && j >= 0 && i < n && j < n;
+            Terrain.S s = in ? new Terrain.S() : tmp;
+            t.lodSample(o.cx(i), o.cz(j), s, f);
+            hh[(j + 1) * m + i + 1] = (short) t.clampH(s.h);
+            if (in) ss[j * n + i] = s;
+        }
+        for (int j = 0; j < n; j++) for (int i = 0; i < n; i++) {
+            int k = (j + 1) * m + i + 1, h = hh[k];
+            int d = Math.max(Math.max(Math.abs(h - hh[k - 1]), Math.abs(h - hh[k + 1])), Math.max(Math.abs(h - hh[k - m]), Math.abs(h - hh[k + m])));
+            int s1 = (int) Math.round(d * 1.5 / st);                         // крупный шаг сглаживает уклон — с запасом
+            int x = o.cx(i), z = o.cz(j);
+            Terrain.S s = ss[j * n + i];
+            int cls = t.lodClass(x, z, s, h, s1);
+            byte top = (byte) (cls >> 8), zn = (byte) cls;
+            int state = topState[top], y = h;
+            boolean wet = h < sea && zn != RIFT;
+            int wy = wet ? sea : LodTile.NO_WATER;
+            if (!wet && lodLeaf[zn] != 0 && top != STONE && top != SNOW && top != ICE && !t.glade(x, z)) {
+                long r = GenRandom.hash(t.seed ^ LOD_SALT, x, st, z);
+                if ((r & 0xFFFF) < lodTreeD[zn] * 65536f) {
+                    state = lodLeaf[zn];
+                    y = h + lodTreeH[zn] - 2 + (int) ((r >>> 16) & 3);
+                }
+            }
+            o.set(i, j, y, state, wy, biomes[zn]);
+        }
+        return true;
     }
 
     // ───────────── для тестов (рефлексией) ─────────────

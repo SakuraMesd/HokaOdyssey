@@ -246,6 +246,7 @@ public final class SkyClientModule implements ClientModule {
             fog = fogColor(c, cam, dayK, twK, wet);
             applyFog(c, mc, lvl, cam, fog, pt);                                // до прохода: пишет в буферы
         } else fog = fogEnv.getBaseColor(lvl, cam, mc.options.getEffectiveRenderDistance(), pt) & 0xFFFFFF;
+        lodFogColor(fog);                                                   // 0.2.2: дальняя прорисовка тает в тот же цвет
 
         // 0.2.1: купол и дымка — свой буфер в видеопамяти, пересобирается, только когда сменились их входы (время суток
         // с шагом ~1/1000, погода, цвет тумана, настройки): на кадр — лишь солнце/луна (~120 вершин) и униформы.
@@ -414,7 +415,7 @@ public final class SkyClientModule implements ClientModule {
     private final net.minecraft.client.renderer.fog.FogData fogData = new net.minecraft.client.renderer.fog.FogData();
 
     private void applyFog(Cfg c, Minecraft mc, ClientLevel lvl, Camera cam, int rgb, float pt) {
-        float rd = mc.options.getEffectiveRenderDistance() * 16f;
+        float rd = lodFogChunks(mc.options.getEffectiveRenderDistance()) * 16f;   // 0.2.2: с дальней прорисовкой — до её края
         // ваниль (дождь, «туман босса») — чтобы погода по-прежнему сгущала
         FogDataHolder.fill(fogEnv, fogData, cam, lvl, rd, mc.getDeltaTracker());
         var probe = cam.attributeProbe();
@@ -442,6 +443,36 @@ public final class SkyClientModule implements ClientModule {
                          float rd, net.minecraft.client.DeltaTracker dt) {
             d.environmentalStart = 0; d.environmentalEnd = 1024; d.skyEnd = rd; d.cloudEnd = 2048;
             env.setupFog(d, cam, lvl, rd, dt);
+        }
+    }
+
+    /** Дальность тумана в чанках от ядра 0.64+ (дальняя прорисовка включена — её дальность); старое ядро — rd. */
+    private static java.lang.reflect.Method lodFog;
+    private static boolean lodTried;
+
+    private static java.lang.reflect.Method lodColor;
+
+    private static void lodFogColor(int rgb) {
+        try {
+            if (!lodTried) lodFogChunks(0);
+            if (lodColor == null && lodFog != null) lodColor = lodFog.getDeclaringClass().getMethod("skyFogColor", int.class);
+            if (lodColor != null) lodColor.invoke(null, rgb);
+        } catch (Throwable t) {
+            lodFog = null;
+        }
+    }
+
+    private static int lodFogChunks(int rd) {
+        try {
+            if (!lodTried) {
+                lodTried = true;
+                Class<?> c = Class.forName("ink.hoka.odyssey.client.lod.LodRenderer", false, SkyClientModule.class.getClassLoader());
+                lodFog = c.getMethod("fogChunks", int.class);
+            }
+            return lodFog == null ? rd : (Integer) lodFog.invoke(null, rd);
+        } catch (Throwable t) {
+            lodFog = null;
+            return rd;
         }
     }
 
