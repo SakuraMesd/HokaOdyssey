@@ -42,6 +42,7 @@ public final class CubeQueue {
         final long at;
         int next;
         boolean peeked;                          // 0.52: свет следом уже подсмотрен (lightAhead)
+        boolean[] done;                          // 0.63.2: кубы, применённые вне очереди (ближние, jumpNear)
         Entry(ClientLevel level, CubeReceiver.Parsed p, int[] gens, long at) { this.level = level; this.p = p; this.gens = gens; this.at = at; }
     }
 
@@ -194,6 +195,7 @@ public final class CubeQueue {
         cheapLeft = end == Long.MAX_VALUE ? 0 : CHEAP;
         try {
             Minecraft mc = Minecraft.getInstance();
+            if (stop == null && end != Long.MAX_VALUE) jumpNear(mc);
             // сплошной камень дёшев только со светом на клиенте (SolidCubes); иначе — ванильный свет с соседями, по бюджету
             boolean solidCheap = mc.level != null && LocalLight.on(mc.level);
             boolean first = true;
@@ -255,6 +257,7 @@ public final class CubeQueue {
                         if (!e.peeked && p.op != 4 && p.op != 21) { e.peeked = true; lightAhead(e); }
                         int n = p.pos.length, from = e.next;
                         while (e.next < n) {
+                            if (e.done != null && e.done[e.next]) { e.next++; continue; }   // 0.63.2: уже применён (ближний)
                             // 0.61: однородная метка (воздух / сплошной камень) дешёвая — сверх бюджета до CHEAP за кадр
                             int us = p.op == 21 ? p.uni[2 * e.next] : -1;
                             boolean cheap = cheapLeft > 0 && (us == 0 || us > 0 && solidCheap
@@ -279,6 +282,51 @@ public final class CubeQueue {
         } finally {
             draining = false;
             if (Q.isEmpty()) { GEN.clear(); pending = 0; COLS.clear(); SECS.clear(); vanilla = 0; }
+        }
+    }
+
+    /** 0.63.2: кубов в ±NEAR вокруг игрока, применённых вне очереди. */
+    public static long jumped;
+    private static final int NEAR = 2, NEAR_MAX = 96, SCAN_MAX = 65536;
+    private static long scanAt, scanSec = Long.MIN_VALUE;
+
+    /**
+     * 0.63.2: кубы (op 2/13/21) в ±2 по всем осям от игрока — сразу, вне FIFO и бюджета (до NEAR_MAX за кадр): под
+     * землёй вокруг игрока не висят дыры, пока впереди в очереди тысячи кубов полосы поверхности. Только безопасные:
+     * по этой секции в очереди больше ничего нет (SECS = 1: ни другого куба, ни ванильной правки), по столбцу нет
+     * отложенного ванильного пакета, столбец не заменён (current). В очереди куб помечается done и пропускается.
+     * Просмотр очереди — при смене куба игрока или раз в 50 мс, не больше SCAN_MAX кубов.
+     */
+    private static void jumpNear(Minecraft mc) {
+        if (pending == 0 || mc.player == null || mc.level == null || mc.level.getSectionsCount() <= 64) return;
+        long ps = SectionPos.asLong(mc.player.blockPosition());
+        long now = System.nanoTime();
+        if (ps == scanSec && now - scanAt < 50_000_000L) return;
+        scanSec = ps;
+        scanAt = now;
+        int px = SectionPos.x(ps), py = SectionPos.y(ps), pz = SectionPos.z(ps);
+        int scanned = 0, took = 0;
+        for (Entry e : Q) {
+            if (e.replay != null || e.level != mc.level) continue;
+            CubeReceiver.Parsed p = e.p;
+            if (p.pos == null || !(p.op == 2 || p.op == 13 || p.op == 21)) continue;
+            long[] pos = p.pos;
+            for (int i = e.next; i < pos.length; i++) {
+                if (++scanned > SCAN_MAX) return;
+                long q = pos[i];
+                if (Math.abs(SectionPos.x(q) - px) > NEAR || Math.abs(SectionPos.y(q) - py) > NEAR
+                        || Math.abs(SectionPos.z(q) - pz) > NEAR) continue;
+                if (e.done != null && e.done[i]) continue;
+                if (SECS.get(q) != 1 || waitsColumn(SectionPos.x(q), SectionPos.z(q)) || !current(e, i)) continue;
+                if (e.done == null) e.done = new boolean[pos.length];
+                e.done[i] = true;
+                cubeDone(e, i);
+                CubeReceiver.applyCube(e.level, p, i, false);
+                pending--;
+                applied++;
+                jumped++;
+                if (++took >= NEAR_MAX) return;
+            }
         }
     }
 
@@ -329,8 +377,11 @@ public final class CubeQueue {
             try { r.run(); } catch (RuntimeException ignored) {} finally { REPLAY = false; }
         }
         if (e.p.pos != null) {
-            pending -= e.p.pos.length - e.next;
-            for (int i = e.next; i < e.p.pos.length; i++) cubeDone(e, i);
+            for (int i = e.next; i < e.p.pos.length; i++) {
+                if (e.done != null && e.done[i]) continue;             // 0.63.2: уже применён и учтён
+                pending--;
+                cubeDone(e, i);
+            }
         }
     }
 
@@ -345,7 +396,7 @@ public final class CubeQueue {
     }
 
     public static String stats() {
-        return "очередь кубов " + pending + " (пакетов " + Q.size() + ", макс " + maxLen + "), устаревших " + stale
+        return "очередь кубов " + pending + " (пакетов " + Q.size() + ", макс " + maxLen + ", ближних вне очереди " + jumped + "), устаревших " + stale
                 + ", ванильных отложено " + deferred + " (ждут " + vanilla + ", повторено " + replayed
                 + (replayed > 0 ? String.format(", в среднем %.3f мс, макс %.2f мс", replayNs / 1e6 / replayed, replayMaxNs / 1e6) : "") + ")"
                 + ", " + ChunkRate.stats();

@@ -56,6 +56,7 @@ public final class GenPool {
 
     static final class Result {
         final Task t;
+        boolean near;                            // 0.63.2: взята из ближних колец — вставка вне очереди
         LevelChunkSection sec;
         long hash;
         int[] bes;                               // индексы y<<8|z<<4|x состояний с блок-сущностью (null — нет)
@@ -74,6 +75,11 @@ public final class GenPool {
     private static final List<Thread> THREADS = new ArrayList<>();
     private static volatile int active;
     private static final ArrayBlockingQueue<Result> RESULTS = new ArrayBlockingQueue<>(MAX_RESULTS);
+    /** 0.63.2: готовые ближние кубы (кольца 0..NEAR_RING) — без обратного давления, вставляются первыми. */
+    private static final java.util.concurrent.ConcurrentLinkedQueue<Result> NEAR = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    static final int NEAR_RING = 3;
+    /** 0.63.2: кольца полосы поверхности (вне окна ±V) — после всех колец окна. */
+    static final int BAND_RING = 48;
 
     // главный поток
     private static final Long2ObjectOpenHashMap<Task> PENDING = new Long2ObjectOpenHashMap<>();
@@ -174,6 +180,7 @@ public final class GenPool {
         BY_COL.clear();
         synchronized (LOCK) { for (ArrayDeque<Task> r : RING) r.clear(); queued = 0; }
         RESULTS.clear();
+        NEAR.clear();
     }
 
     /**
@@ -222,14 +229,24 @@ public final class GenPool {
     }
 
     /**
-     * 0.63: кольцо куба (dx, dy, dz от куба игрока). Расстояние — по горизонтали (Чебышёв), высота сжата втрое (±2
-     * куба — даром): гора над игроком (полоса поверхности, до ±128 кубов) не ждёт всего горизонта; позади взгляда —
-     * на треть дальше (не больше +8). Было: max(|dx|, |dy|, |dz|) до 64.
+     * 0.63.2: кольцо куба (dx, dy, dz от куба игрока). Куб в ±2 по всем осям — кольцо 0 (абсолютный приоритет, и под
+     * землёй тоже). Окно (|dy| ≤ V+1) — по 3D-расстоянию (Чебышёв), позади взгляда на треть дальше (не больше +8).
+     * Полоса поверхности (дальше окна по высоте) — после всех колец окна: BAND_RING + max(гориз., сверх окна/3).
+     * Было (0.63): гориз. расстояние, высота сжата втрое — кубы окна под землёй ждали за полосой поверхности.
      */
-    static int ring(int dx, int dy, int dz, boolean ahead) {
-        int h = Math.max(Math.abs(dx), Math.abs(dz)), ady = Math.abs(dy);
-        int ring = Math.max(h, ady <= 2 ? 0 : (ady + 2) / 3);
-        if (!ahead && ring > 2) ring += Math.min(8, ring / 3);
+    static int ring(int dx, int dy, int dz, boolean ahead) { return ring(dx, dy, dz, ahead, VerticalView.get()); }
+
+    static int ring(int dx, int dy, int dz, boolean ahead, int v) {
+        int adx = Math.abs(dx), ady = Math.abs(dy), adz = Math.abs(dz), h = Math.max(adx, adz);
+        if (h <= 2 && ady <= 2) return 0;
+        int ring;
+        if (ady <= v + 1) {
+            ring = Math.max(h, ady);
+            if (!ahead) ring += Math.min(8, ring / 3);
+            ring = Math.min(BAND_RING - 1, ring);
+        } else {
+            ring = BAND_RING + Math.max(h, (ady - v + 2) / 3);
+        }
         return Math.min(RINGS - 1, ring);
     }
 
@@ -248,14 +265,18 @@ public final class GenPool {
         GenArrayCube buf = new GenArrayCube(false);
         while (true) {
             Task t = null;
+            boolean near = false;
             try {
                 synchronized (LOCK) {
                     while (job == null || idx >= active || queued == 0) LOCK.wait(250);
-                    for (ArrayDeque<Task> r : RING) if ((t = r.pollFirst()) != null) break;
+                    int ri = 0;
+                    for (ArrayDeque<Task> r : RING) { if ((t = r.pollFirst()) != null) break; ri++; }
                     if (t != null) queued--;
+                    near = ri <= NEAR_RING;
                 }
                 if (t == null || t.cancelled || t.job != job) continue;
                 Result res = run(t, buf);
+                if (near) { res.near = true; NEAR.add(res); continue; }   // 0.63.2: ближний — мимо очереди готовых
                 while (!RESULTS.offer(res, 100, TimeUnit.MILLISECONDS)) if (t.cancelled || t.job != job) break;
             } catch (InterruptedException e) {
                 return;
@@ -397,7 +418,7 @@ public final class GenPool {
         ensureThreads(n);
         long avg = FrameWatch.avgFrameNs();
         boolean near;                                                  // ближние кубы ждут (телепорт, вход) — все потоки:
-        synchronized (LOCK) { near = !RING[0].isEmpty() || !RING[1].isEmpty() || !RING[2].isEmpty(); }   // кадры долгие как раз от прогрузки
+        synchronized (LOCK) { near = !RING[0].isEmpty() || !RING[3].isEmpty(); }   // кадры долгие как раз от прогрузки
         int a = near ? n : avg > 50_000_000L ? 1 : avg > 33_000_000L ? Math.max(1, n / 2) : n;   // долгие кадры — меньше потоков
         synchronized (THREADS) { a = Math.min(a, THREADS.size()); }
         if (a != active) { active = a; wake = true; }
@@ -406,6 +427,7 @@ public final class GenPool {
 
     /** Вставить готовые кубы до end (хотя бы один). */
     static void apply(long end) {
+        applyNear();
         if (RESULTS.isEmpty()) return;
         // свой бюджет (как у op 2): обычно доля кадра, потоки упёрлись в RESULTS — больше (они простаивают)
         int n = RESULTS.size();
@@ -416,6 +438,19 @@ public final class GenPool {
         boolean first = true;
         while ((first || System.nanoTime() < until) && (r = RESULTS.poll()) != null) {
             first = false;
+            Task t = r.t;
+            if (t.cancelled || PENDING.get(t.pos) != t) { dropped++; continue; }
+            cancel(t.pos);
+            finish(r);
+        }
+    }
+
+    /** 0.63.2: ближние готовые кубы — все сразу, вне бюджета (их мало: кольца 0..1). */
+    private static void applyNear() {
+        Result r;
+        int n = 0;
+        while (n < 256 && (r = NEAR.poll()) != null) {
+            n++;
             Task t = r.t;
             if (t.cancelled || PENDING.get(t.pos) != t) { dropped++; continue; }
             cancel(t.pos);
@@ -445,7 +480,7 @@ public final class GenPool {
     public static String stats() {
         return "сгенерировано " + generated + (generated > 0 ? String.format(" (%.0f мкс/куб, вставка %.0f мкс)", genNs / 1e3 / generated,
                 insertNs / 1e3 / Math.max(1, inserted)) : "") + (fromDisk > 0 ? ", с диска " + fromDisk : "")
-                + ", ждут " + PENDING.size() + ", готово " + RESULTS.size() + ", синхронно " + forced + ", отброшено " + dropped
+                + ", ждут " + PENDING.size() + ", готово " + RESULTS.size() + "+" + NEAR.size() + ", синхронно " + forced + ", отброшено " + dropped
                 + (errors > 0 ? ", ошибок " + errors : "");
     }
 }

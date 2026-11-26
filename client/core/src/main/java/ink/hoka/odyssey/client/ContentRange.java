@@ -37,6 +37,29 @@ public final class ContentRange {
     private static int total;
     /** Столбец → непустые Y. */
     private static final Long2ObjectOpenHashMap<IntOpenHashSet> COLS = new Long2ObjectOpenHashMap<>();
+    /**
+     * 0.63.2: секции, у которых сменилась «непустота» (ключ SectionPos), — для SodiumTallMixin: куб полосы поверхности
+     * вне окна Sodium заводится/убирается отдельной секцией. Копится, только пока {@link #track} (Sodium в высоком мире).
+     */
+    public static final it.unimi.dsi.fastutil.longs.LongArrayList DIRTY = new it.unimi.dsi.fastutil.longs.LongArrayList();
+    public static boolean track;
+    /** DIRTY переполнился (кадры не шли) — сверить все столбцы целиком. */
+    public static boolean overflow;
+
+    private static void dirty(int x, int y, int z) {
+        if (!track) return;
+        if (DIRTY.size() < 1 << 18) DIRTY.add(net.minecraft.core.SectionPos.asLong(x, y, z));
+        else overflow = true;
+    }
+
+    /** Непустой ли куб (по счёту). */
+    public static boolean has(int x, int y, int z) {
+        var s = COLS.get(ChunkPos.asLong(x, z));
+        return s != null && s.contains(y);
+    }
+
+    /** Непустые Y столбца (только читать; null — нет). */
+    public static IntOpenHashSet ys(int x, int z) { return COLS.get(ChunkPos.asLong(x, z)); }
 
     /** Можно ли считать этот мир: наш сервер, клиентский мир, высокий. */
     private static boolean accept(Level l) {
@@ -54,6 +77,7 @@ public final class ContentRange {
 
     private static void clear() {
         COLS.clear();
+        DIRTY.clear();
         count = new int[0];
         total = 0;
         level = null;
@@ -88,6 +112,7 @@ public final class ContentRange {
         int i = y - base;
         if (i < 0 || i >= count.length) return;
         if (!COLS.computeIfAbsent(ChunkPos.asLong(x, z), k -> new IntOpenHashSet(4)).add(y)) return;
+        dirty(x, y, z);
         total++;
         if (count[i]++ != 0) return;
         if (!cut) { cut = true; lo = hi = y; version++; }
@@ -100,6 +125,7 @@ public final class ContentRange {
         var s = COLS.get(ChunkPos.asLong(x, z));
         if (s == null || !s.remove(y)) return;
         if (s.isEmpty()) COLS.remove(ChunkPos.asLong(x, z));
+        dirty(x, y, z);
         drop(y);
     }
 
@@ -122,7 +148,7 @@ public final class ContentRange {
         if (l != level || level == null) return;
         var s = COLS.remove(ChunkPos.asLong(x, z));
         if (s == null) return;
-        for (IntIterator it = s.iterator(); it.hasNext(); ) drop(it.nextInt());
+        for (IntIterator it = s.iterator(); it.hasNext(); ) { int y = it.nextInt(); dirty(x, y, z); drop(y); }
     }
 
     /** Пакет столбца: всё прежнее забыть, непустые (не общие) секции — в счёт. */
