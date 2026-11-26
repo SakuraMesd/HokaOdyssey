@@ -3,6 +3,13 @@
 dependencies {
     compileOnly(project(":api"))
     compileOnly(project(":modules:clientmods"))   // ClientModsApi — раздача описаний и текстур моду
+    testImplementation(project(":api"))
+    testImplementation(project(":modules:clientmods"))
+    testImplementation(platform("org.junit:junit-bom:5.13.4"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
+
+tasks.test { useJUnitPlatform() }
 
 tasks.jar { archiveFileName.set("blocks.jar") }

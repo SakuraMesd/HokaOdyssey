@@ -5,6 +5,7 @@ import ink.hoka.odyssey.client.block.CustomItems;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.block.state.BlockState;
+import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -21,5 +22,12 @@ public class BlockItemMixin {
         if (id == null) return;
         BlockState st = CustomBlocks.placeState(id, ctx.getPlayer().getYRot());
         if (st != null) cir.setReturnValue(st);
+    }
+
+    /** Обычный предмет (листва, нотный блок, нить) не предсказывается в носитель своего блока — без мелькания «Ступки». */
+    @ModifyReturnValue(method = "getPlacementState", at = @At("RETURN"))
+    private BlockState hoka$notCarrier(BlockState st, BlockPlaceContext ctx) {
+        if (st == null || !ctx.getLevel().isClientSide() || CustomItems.blockId(ctx.getItemInHand()) != null) return st;
+        return CustomBlocks.foreign(st);
     }
 }

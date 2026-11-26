@@ -41,7 +41,10 @@ import java.util.OptionalInt;
 /**
  * Своё небо карты (настройки — раздел sky: в map.yml, шлёт серверный модуль sky). Рисуется в начале основного прохода
  * мира (Fabric START_MAIN: ванильное небо уже нарисовано, мир — ещё нет) поверх ванильного неба, без глубины — мир
- * потом ложится сверху. Слои: купол-градиент (зенит/горизонт по времени суток, закат со стороны солнца), узор (полосы
+ * потом ложится сверху. Порядок проходов кадра (LevelRenderer.renderLevel, граф кадра): clear → sky → main
+ * (START_MAIN — перед непрозрачной землёй) → частицы → облака → погода. Ванильные солнце/луна/звёзды скрыты тем, что
+ * купол непрозрачный и закрывает всю сферу. Свой RenderPass открываем только когда всё в видеопамять уже записано:
+ * любая запись в буфер (writeToBuffer, mapBuffer — в т.ч. writeTransform) при открытом проходе — IllegalStateException. Слои: купол-градиент (зенит/горизонт по времени суток, закат со стороны солнца), узор (полосы
  * или «кубики», медленно вращается), туманность и звёзды (ночью, вращаются с небом), кубическая луна с фазами,
  * кубическое солнце с квадратным ореолом, дымка у горизонта цветом тумана игры (чтобы дальний мир не «отрывался»).
  * Всё — свои RenderPipeline на ванильном шейдере position_color и GpuBuffer: узор/звёзды запекаются один раз
@@ -65,6 +68,11 @@ public final class SkyClientModule implements ClientModule {
     private volatile Baked pending;
     private Baked baked;
     private final AtmosphericFogEnvironment fogEnv = new AtmosphericFogEnvironment();
+    /** Обработчик Fabric повесили (снять нельзя — второй раз не вешаем). */
+    private boolean registered;
+    /** Ошибки отрисовки: не чаще лога раз в 10 с, после ошибки — пауза (растёт до 30 с), потом снова пробуем. */
+    private long retryAt, lastLog, backoff;
+    private int errors;
 
     @Override
     public void enable(ClientContext ctx) {
@@ -78,7 +86,8 @@ public final class SkyClientModule implements ClientModule {
         });
         ctx.onMessage(this::onMessage);
         ctx.onTick(this::tick);
-        WorldRenderEvents.START_MAIN.register(c -> { if (alive) render(); });
+        if (!registered) { registered = true; WorldRenderEvents.START_MAIN.register(c -> { if (alive) render(); }); }
+        retryAt = 0; backoff = 0; errors = 0;
     }
 
     @Override
@@ -185,13 +194,21 @@ public final class SkyClientModule implements ClientModule {
             if (baked != null) baked.release();
             baked = p;
         }
+        long now = System.currentTimeMillis();
+        if (now < retryAt) return;                                          // после ошибки — пауза, на это время ванильное небо
         Baked b = baked;
         if (b != null && !b.uploaded) b.upload();
         try {
             draw(c, b, mc, lvl, cam);
+            backoff = 0;
         } catch (Exception e) {
-            ctx.logger().warn("небо: ошибка отрисовки, выключаю: {}", e.toString());
-            cfg = null;
+            errors++;
+            backoff = backoff == 0 ? 1000 : Math.min(30_000, backoff * 2);
+            retryAt = now + backoff;
+            if (now - lastLog >= 10_000) {
+                lastLog = now;
+                ctx.logger().warn("небо: ошибка отрисовки (всего {}), повтор через {} мс", errors, backoff, e);
+            }
         }
     }
 
@@ -255,38 +272,65 @@ public final class SkyClientModule implements ClientModule {
         GpuBuffer ib = idx.getBuffer(maxQ * 6);
         float day = dayK, night = 1 - dayK;
 
-        try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "Hoka sky", color, OptionalInt.empty())) {
-            RenderSystem.bindDefaultUniforms(pass);
-            pass.setIndexBuffer(ib, idx.type());
+        // сначала все вызовы с их матрицами (writeTransform пишет в буфер — только вне прохода), потом один проход
+        ops = 0;
+        {
             // 1. купол
-            drawQ(pass, OPAQUE, vb, 0, domeQ, view, 1, 1, 1, 1);
+            drawQ(OPAQUE, vb, 0, domeQ, view, 1, 1, 1, 1);
             if (b != null && b.uploaded) {
                 // 2. узор: медленно вращается вокруг своей наклонной оси
                 if (b.pattern.vb != null && c.patStrength > 0) {
                     rot.identity().rotate((float) (time * 0.0105 * c.patSpeed), b.patAxis);
                     float a = c.patStrength * (0.6f + 0.4f * night) * (1 - wet * 0.8f);
-                    drawQ(pass, TRANS, b.pattern.vb, 0, b.pattern.n / 4, mv.set(view).mul(rot), 1, 1, 1, a);
+                    drawQ(TRANS, b.pattern.vb, 0, b.pattern.n / 4, mv.set(view).mul(rot), 1, 1, 1, a);
                 }
                 // 3. туманность и звёзды — вращаются с небом (как ванильные звёзды)
                 rot.set(celestial).rotateX(starA);
                 mv.set(view).mul(rot);
                 float clear = 1 - wet * 0.9f;
                 if (b.nebula.vb != null && c.nebStrength > 0)
-                    drawQ(pass, TRANS, b.nebula.vb, 0, b.nebula.n / 4, mv, 1, 1, 1, c.nebStrength * (float) Math.pow(night, 1.5) * clear);
+                    drawQ(TRANS, b.nebula.vb, 0, b.nebula.n / 4, mv, 1, 1, 1, c.nebStrength * (float) Math.pow(night, 1.5) * clear);
                 float sa = (night * night + c.starDay * day) * clear;
                 if (b.stars.vb != null && sa > 0.01f)
-                    drawQ(pass, ADD, b.stars.vb, 0, b.stars.n / 4, mv, 1, 1, 1, Math.min(1, sa));
+                    drawQ(ADD, b.stars.vb, 0, b.stars.n / 4, mv, 1, 1, 1, Math.min(1, sa));
             }
             // 4. луна и её свечение (днём бледная), 5. солнце и ореол
             float moonA2 = (0.35f + 0.65f * night) * (1 - wet * 0.7f);
-            drawQ(pass, TRANS, vb, moonStart, moonQ, view, 1, 1, 1, moonA2);
-            drawQ(pass, ADD, vb, moonHaloStart, moonHaloQ, view, 1, 1, 1, night * (1 - wet));
-            drawQ(pass, TRANS, vb, sunStart, sunQ, view, 1, 1, 1, 1 - wet * 0.85f);
-            drawQ(pass, ADD, vb, sunHaloStart, sunHaloQ, view, 1, 1, 1, (1 - wet * 0.9f) * smooth(-0.25f, 0.02f, sunH));
+            drawQ(TRANS, vb, moonStart, moonQ, view, 1, 1, 1, moonA2);
+            drawQ(ADD, vb, moonHaloStart, moonHaloQ, view, 1, 1, 1, night * (1 - wet));
+            drawQ(TRANS, vb, sunStart, sunQ, view, 1, 1, 1, 1 - wet * 0.85f);
+            drawQ(ADD, vb, sunHaloStart, sunHaloQ, view, 1, 1, 1, (1 - wet * 0.9f) * smooth(-0.25f, 0.02f, sunH));
             // 6. дымка у горизонта цветом тумана игры
-            drawQ(pass, TRANS, vb, fogStart, fogQ, view, 1, 1, 1, 1);
+            drawQ(TRANS, vb, fogStart, fogQ, view, 1, 1, 1, 1);
+        }
+        if (ops == 0) return;
+        try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "Hoka sky", color, OptionalInt.empty())) {
+            RenderSystem.bindDefaultUniforms(pass);
+            pass.setIndexBuffer(ib, idx.type());
+            for (int i = 0; i < ops; i++) {
+                Op o = opList[i];
+                pass.setPipeline(o.pipe);
+                pass.setUniform("DynamicTransforms", o.transform);
+                pass.setVertexBuffer(0, o.vb);
+                pass.drawIndexed(o.base, 0, o.quads * 6, 1);
+                o.vb = null; o.transform = null;
+            }
         }
     }
+
+    /** Вызов отрисовки кадра (собираются до открытия прохода). */
+    private static final class Op {
+        RenderPipeline pipe;
+        GpuBuffer vb;
+        com.mojang.blaze3d.buffers.GpuBufferSlice transform;
+        int base, quads;
+    }
+
+    private final Op[] opList = new Op[16];
+    private int ops;
+    private final Vector4f tint = new Vector4f();
+    private static final Vector3f ZERO3 = new Vector3f();
+    private static final Matrix4f IDENT = new Matrix4f();
 
     private static void celPos(Matrix4f celestial, float angle, Vector3f out) {
         // (0,1,0), повёрнутый на angle вокруг X: (0, cos, sin); затем небесный поворот
@@ -294,14 +338,15 @@ public final class SkyClientModule implements ClientModule {
         celestial.transformDirection(out).normalize();
     }
 
-    private static void drawQ(RenderPass pass, RenderPipeline pipe, GpuBuffer vb, int baseVertex, int quads, Matrix4f mv,
-                              float r, float g, float b, float a) {
-        if (quads <= 0 || a <= 0.003f) return;
-        var transform = RenderSystem.getDynamicUniforms().writeTransform(mv, new Vector4f(r, g, b, Math.min(1, a)), new Vector3f(), new Matrix4f());
-        pass.setPipeline(pipe);
-        pass.setUniform("DynamicTransforms", transform);
-        pass.setVertexBuffer(0, vb);
-        pass.drawIndexed(baseVertex, 0, quads * 6, 1);
+    /** Запомнить вызов: матрица и цвет пишутся в буфер униформ сейчас (вне прохода), рисуется потом. */
+    private void drawQ(RenderPipeline pipe, GpuBuffer vb, int baseVertex, int quads, Matrix4f mv,
+                       float r, float g, float b, float a) {
+        if (quads <= 0 || a <= 0.003f || ops >= opList.length) return;
+        Op o = opList[ops];
+        if (o == null) o = opList[ops] = new Op();
+        o.transform = RenderSystem.getDynamicUniforms().writeTransform(mv, tint.set(r, g, b, Math.min(1, a)), ZERO3, IDENT);
+        o.pipe = pipe; o.vb = vb; o.base = baseVertex; o.quads = quads;
+        ops++;
     }
 
     // ───────────────────────── купол ─────────────────────────

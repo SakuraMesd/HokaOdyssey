@@ -121,6 +121,16 @@ public final class CustomBlocks {
         return !m.isEmpty() && m.containsKey(s);
     }
 
+    /**
+     * Обычный блок (не наш предмет) встал бы в состояние-носитель — тогда как сервер (BlocksModule.foreign):
+     * состояние по умолчанию (листва persistent=false, нотный блок «арфа», нить без связей). Иначе — как есть.
+     */
+    public static BlockState foreign(BlockState s) {
+        if (s == null || !isCustom(s)) return s;
+        BlockState d = s.getBlock().defaultBlockState();
+        return isCustom(d) ? s : d;
+    }
+
     static void listen(String path) {
         if (LISTENING.add(path)) source.listen(path, b -> dirty = true);
     }

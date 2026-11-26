@@ -209,6 +209,28 @@ public final class BlocksModule extends OdysseyModule {
         return out;
     }
 
+    /** Все состояния-носители (всех типов, и занятые, и свободные). */
+    private static final Set<Integer> CARRIERS = carriers();
+
+    private static Set<Integer> carriers() {
+        Set<Integer> s = new HashSet<>();
+        for (Kind k : Kind.values()) for (Block b : pool(k)) s.add(b.stateId());
+        return Set.copyOf(s);
+    }
+
+    static boolean carrier(Block b) { return b != null && CARRIERS.contains(b.stateId()); }
+
+    /**
+     * Обычный (не наш) блок, попавший в состояние-носитель, → состояние по умолчанию того же блока: листва
+     * distance=7,persistent=false (на сервере не опадает), нотный блок «арфа», нить без связей. Так носители
+     * в мире — только свои блоки. Мод у игрока предсказывает установку так же (BlockItemMixin/LeavesBlockMixin).
+     */
+    static Block foreign(Block b) {
+        if (!carrier(b)) return b;
+        Block d = Block.fromKey(b.key());
+        return d != null && !carrier(d) ? d : b;
+    }
+
     // ───────────────────────── моду ─────────────────────────
 
     private void publish() {
@@ -286,7 +308,12 @@ public final class BlocksModule extends OdysseyModule {
     private void onPlace(PlayerBlockPlaceEvent e) {
         ItemStack hand = e.getPlayer().getItemInHand(e.getHand());
         String id = hand.getTag(ITEM_TAG);
-        if (id == null) return;
+        if (id == null) {
+            // обычный блок (листва, нотный блок, нить) не встаёт в состояние-носитель — иначе у игроков с модом это «Ступка»
+            Block n = foreign(e.getBlock());
+            if (n != e.getBlock()) e.setBlock(n);
+            return;
+        }
         Def def = defs.get(id);
         Map<Integer, Block> m = blockOf.get(id);
         if (def == null || m == null || m.isEmpty()) { e.setCancelled(true); return; }
