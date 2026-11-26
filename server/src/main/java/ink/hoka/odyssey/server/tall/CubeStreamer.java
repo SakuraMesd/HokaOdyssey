@@ -936,7 +936,8 @@ public final class CubeStreamer {
                             if (g != null && zone(p, c.getChunkX(), i + min, c.getChunkZ())) genSecrets(p, g, c, i, mask);
                             continue;
                         }
-                        if ((i == from - 1 || i == to + 1) && ho && !mask.get(HALO + i) && !halo.contains(i) && c.ready(i)) { halo.add(i); continue; }   // кольцо ±1 (0.56)
+                        // 0.63.5: куб кольца, который входит в полосу поверхности, — обычный куб полосы (блоки), не только свет
+                        if ((i == from - 1 || i == to + 1) && !sp.has(i) && ho && !mask.get(HALO + i) && !halo.contains(i) && c.ready(i)) { halo.add(i); continue; }   // кольцо ±1 (0.56)
                         if (!sp.has(i) || mask.get(LIT + i) || lit.contains(i) || !c.ready(i)) continue;   // успели выгрузить — не слать
                         lit.add(i);
                         if (secs.get(i).blockPalette().count() > 0) add.add(i);
@@ -1326,6 +1327,7 @@ public final class CubeStreamer {
         BitSet haloNow = new BitSet();
         if (haloOp(p)) for (int h : new int[]{from - 1, to + 1}) {
             if (h < 0 || h >= secs.size() || !c.ready(h)) continue;        // не в памяти — свет придёт с drainReady
+            if (sp.has(h)) continue;                                        // 0.63.5: в полосе — обычный куб (блоки и свет выше)
             haloNow.set(h);
             if (!mask.get(LIT + h) && !mask.get(HALO + h) && (sun || CubeLight.active(c) && CubeLight.blockLit((CubeColumn) c, h))) halo.add(h);
         }

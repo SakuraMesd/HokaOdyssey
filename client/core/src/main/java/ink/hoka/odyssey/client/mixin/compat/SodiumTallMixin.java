@@ -49,7 +49,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Pseudo
 @Mixin(targets = "net.caffeinemc.mods.sodium.client.render.chunk.RenderSectionManager", remap = false)
-public abstract class SodiumTallMixin {
+public abstract class SodiumTallMixin implements ink.hoka.odyssey.client.SodiumProbe.Probe {
 
     /** Гистерезис сдвига окна (секции). */
     @Unique private static final int HOKA_HYST = 4;
@@ -295,6 +295,7 @@ public abstract class SodiumTallMixin {
         ContentRange.bind(level);                                      // и в обычном мире: старый диапазон не годится
         if (!hoka$tall()) { ContentRange.track = false; return; }
         if (!ContentRange.track) { ContentRange.track = true; ContentRange.overflow = true; }   // включили — сверка всего
+        ink.hoka.odyssey.client.SodiumProbe.probe = this;                // 0.63.5: F3 «под прицелом»
         hoka$drainDirty();
         int v = ContentRange.version;
         if (v == hoka$graphVer) return;
@@ -544,18 +545,62 @@ public abstract class SodiumTallMixin {
                                net.caffeinemc.mods.sodium.client.render.chunk.lists.RenderSectionVisitor visitor,
                                net.caffeinemc.mods.sodium.client.render.viewport.Viewport viewport, float dist, boolean occlusion,
                                int frame, com.llamalad7.mixinextras.injector.wrapoperation.Operation<Void> original) {
-        original.call(culler, visitor, viewport, dist, occlusion, frame);
-        if (hoka$bandTree == null || hoka$extra.isEmpty() || !hoka$tall() || hoka$lo > hoka$hi) return;
         var t = viewport.getTransform();
-        if (level.getBrightness(net.minecraft.world.level.LightLayer.SKY, new net.minecraft.core.BlockPos(t.intX, t.intY, t.intZ)) == 0
-                && level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING, t.intX, t.intZ) > t.intY + 32) return;
-        hoka$bandTree.prepareForTraversal();
+        if (hoka$bandTree == null || hoka$extra.isEmpty() || !hoka$tall() || hoka$lo > hoka$hi
+                || level.getBrightness(net.minecraft.world.level.LightLayer.SKY, new net.minecraft.core.BlockPos(t.intX, t.intY, t.intZ)) == 0
+                && level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING, t.intX, t.intZ) > t.intY + 32) {
+            original.call(culler, visitor, viewport, dist, occlusion, frame);
+            return;
+        }
         var v = hoka$bandVisitor;
+        // 0.63.5: граф — через учёт «что он нарисовал вне окна» (SodiumBand.Graph): отмеченную им в очереди, но
+        // отброшенную по высоте секцию полосы (ряд winHi+1 / winLo-1) рисует полоса, а не никто
+        try {
+            original.call(culler, v.graph.begin(visitor, hoka$lo, hoka$hi), viewport, dist, occlusion, frame);
+        } finally {
+            v.graph.end();
+        }
+        hoka$bandTree.prepareForTraversal();
         v.begin(sectionByPosition, visitor, frame, hoka$lo, hoka$hi, t.intX, t.intZ, dist);
         try {
             hoka$bandTree.traverse(v, viewport, dist);
         } finally {
             v.end();
         }
+    }
+
+    /**
+     * 0.63.5, F3 «под прицелом»: что Sodium знает о секции. Окно столбца / полоса / вне, есть ли секция, построена ли,
+     * с геометрией ли, и что с ней в последнем кадре: нарисована графом, нарисована полосой, отмечена графом и брошена
+     * (дыра), не в кадре.
+     */
+    @Override
+    public String hoka$describe(int x, int y, int z) {
+        if (!hoka$tall()) return null;
+        long col = ChunkPos.asLong(x, z);
+        StringBuilder b = new StringBuilder();
+        long w = hoka$colWin.get(col);
+        int wl = (int) (w >> 32), wh = (int) w;
+        boolean inWin = hoka$columns.contains(col) && y >= wl && y <= wh, extra = hoka$isExtra(x, y, z);
+        if (!hoka$columns.contains(col)) b.append("столбца у Sodium нет");
+        else if (inWin) b.append("в окне столбца ").append(wl).append("..").append(wh);
+        else if (extra) b.append("в полосе (окно столбца ").append(wl).append("..").append(wh).append(')');
+        else b.append("вне окна столбца ").append(wl).append("..").append(wh).append(" и вне полосы");
+        if (wl != hoka$lo || wh != hoka$hi) b.append(", столбец догоняет окно ").append(hoka$lo).append("..").append(hoka$hi);
+        RenderSection s = sectionByPosition.get(SectionPos.asLong(x, y, z));
+        if (s == null || s.isDisposed()) return b.append("; Sodium: секции нет").toString();
+        b.append("; Sodium: ").append(s.isBuilt() ? "построена" : "не построена");
+        if (s.isBuilt() && s.getFlags() == 0) b.append(" (без геометрии)");
+        if (s.getPendingUpdate() != 0) b.append(", ждёт сборки ").append(s.getPendingUpdate());
+        var v = hoka$bandVisitor;
+        int f = v.lastFrame;
+        boolean row = y >= hoka$lo && y <= hoka$hi;
+        if (f == Integer.MIN_VALUE) b.append(", полосы не было");
+        if (s.getLastVisibleFrame() != f) b.append(", в кадре не видна");
+        else if (row) b.append(", в кадре: граф (ряд окна)");
+        else if (v.graph.drawn.contains(s)) b.append(", в кадре: нарисована графом");
+        else if (v.drawnBand.contains(s)) b.append(", в кадре: нарисована полосой");
+        else b.append(extra ? ", в кадре: отмечена, полосой не взята" : ", в кадре: отмечена графом, НЕ нарисована");
+        return b.toString();
     }
 }

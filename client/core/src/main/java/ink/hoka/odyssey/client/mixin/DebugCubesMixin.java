@@ -19,6 +19,8 @@ public abstract class DebugCubesMixin {
         if (s != null) out.addLine(s);
         String f = ContentRange.feetLine();
         if (f != null) out.addLine(f);
+        String aim = ink.hoka.odyssey.client.AimProbe.line();             // 0.63.5: секция под прицелом
+        if (aim != null) out.addLine(aim);
         String k = ink.hoka.odyssey.client.CubeCache.debugLine();           // 0.51: кэш кубов
         if (k != null) out.addLine(k);
         String l = ink.hoka.odyssey.client.LocalLight.debugLine();         // 0.57: свет на клиенте
