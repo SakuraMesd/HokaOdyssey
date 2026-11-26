@@ -71,6 +71,9 @@ public final class OdysseyServer implements OdysseyServerApi {
         // дальность обзора чанков (столбцов) — 32; -Dminestom.chunk-view-distance=N в строке запуска важнее. До init:
         // Minestom читает её в ServerFlag один раз. Клиент берёт min(свою дальность, эту)
         if (System.getProperty("minestom.chunk-view-distance") == null) System.setProperty("minestom.chunk-view-distance", "32");
+        // keepalive раз в 2 с (у Minestom 10 с): сетевой пинг в TAB свежее. Новый шлётся только после ответа на прежний —
+        // кика за «чужой id» нет; кик без ответа — как был (minestom.keep-alive-kick, 15 с)
+        if (System.getProperty("minestom.keep-alive-delay") == null) System.setProperty("minestom.keep-alive-delay", "2000");
         Path eula = Path.of("eula.txt");                                    // как у Paper; Minestom её не требует
         if (!Files.exists(eula)) Files.writeString(eula, "eula=true\n", StandardCharsets.UTF_8);
 

@@ -40,9 +40,15 @@ public abstract class SparseLevelChunkMixin {
         hoka$readSparse = TallWorld.net;
         if (!hoka$readSparse) return;
         LevelChunk self = (LevelChunk) (Object) this;
-        ink.hoka.odyssey.client.CubeQueue.columnChanged(self.getPos().x, self.getPos().z);   // ждущие кубы старого столбца — устарели
+        // ждущие кубы старого столбца — устарели (0.57: пакет из очереди CubeQueue — уже при постановке)
+        if (!ink.hoka.odyssey.client.CubeQueue.REPLAY) ink.hoka.odyssey.client.CubeQueue.columnChanged(self.getPos().x, self.getPos().z);
         var f = self.getLevel().palettedContainerFactory();
         LevelChunkSection[] secs = self.getSections();
+        // 0.57 (1а): секции уже разобраны в сетевом потоке
+        var hp = SparseSections.pending;
+        SparseSections.pending = null;
+        LevelChunkSection[] pre = hp == null ? null : hp.hoka$take(f, secs.length);
+        if (pre != null) SparseSections.PRE_USED.incrementAndGet();
         // 0.50.1: столбец прислан повторно (подстраховка сервера / переотправка) — скелет затирает кубы с блоками. У
         // соседей грани к ним ОТКРЫВАЮТСЯ (дыра, пока кубы не придут снова): сам куб и соседи — обязательной пометкой.
         // Раньше это покрывала пометка 3×3 в TallLight.enable, с 0.50 там только свой столбец.
@@ -52,13 +58,14 @@ public abstract class SparseLevelChunkMixin {
             // 0.51: повторный скелет живого столбца — его кубы с блоками в кэш (сервер пришлёт их ссылкой)
             if (tall && old != null && !(old instanceof SparseSections.Shared) && !old.hasOnlyAir())
                 ink.hoka.odyssey.client.CubeCache.captureSection(self, i, old);
-            secs[i] = SparseSections.read(f, buf);
+            secs[i] = pre != null ? pre[i] : SparseSections.read(f, buf);
             if (tall && old != null && !(old instanceof SparseSections.Shared) && !old.hasOnlyAir())
                 ink.hoka.odyssey.client.SectionDirty.mark(self.getPos().x, self.getSectionYFromSectionIndex(i), self.getPos().z,
                         ink.hoka.odyssey.client.SectionDirty.blockFaces(old, secs[i]));
         }
         ink.hoka.odyssey.client.ContentRange.column(self.getLevel(), self.getPos().x, self.getPos().z, secs);   // слои с геометрией
         if (tall) ink.hoka.odyssey.client.CubeCache.label(self);         // 0.51: столбец — под текущим ключом карты
+        if (tall && self.getLevel() instanceof net.minecraft.client.multiplayer.ClientLevel cl) ink.hoka.odyssey.client.LocalLight.column(cl, self);   // 0.57: движку света
     }
 
     /** Ванильный цикл чтения секций: уже прочитано выше — пропускаем. */

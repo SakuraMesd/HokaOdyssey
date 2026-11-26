@@ -19,7 +19,8 @@ public abstract class ServerLightForgetMixin {
     /** 0.49 (E): в высоком мире своя задача забывания — только слои с состоянием (TallLight), дальше то же, что в TAIL. */
     @Inject(method = "queueLightRemoval", at = @At("HEAD"), cancellable = true)
     private void hoka$fastForget(ClientboundForgetLevelChunkPacket p, CallbackInfo ci) {
-        ink.hoka.odyssey.client.CubeQueue.columnChanged(p.pos().x, p.pos().z);
+        if (!ink.hoka.odyssey.client.CubeQueue.REPLAY) ink.hoka.odyssey.client.CubeQueue.columnChanged(p.pos().x, p.pos().z);   // 0.57: отложенный — уже при постановке
+        ink.hoka.odyssey.client.LocalLight.columnGone(level, p.pos().x, p.pos().z);
         if (!ink.hoka.odyssey.client.TallLight.forget(level, p.pos())) return;
         hoka$after(p);
         ci.cancel();

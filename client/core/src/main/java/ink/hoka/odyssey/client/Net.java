@@ -61,7 +61,11 @@ public final class Net {
         @Override public Type<W> type() { return TYPE; }
     }
 
-    /** Кубические чанки, клиент → сервер (CUBIC-CHUNKS.md §5.2 C2S): op 2 VIEW — дальность по высоте (VerticalView). */
+    /**
+     * Кубические чанки, клиент → сервер (CUBIC-CHUNKS.md §5.2 C2S): op 2 VIEW — дальность по высоте (VerticalView);
+     * 3–6 — кэш кубов (CubeCache); 0.57: op 7 LAG — varint задержка клиента (мс, последняя), varint наибольшая за 5 с
+     * (мс), varint длина очереди кубов (LagReport), раз в секунду.
+     */
     public record WC(byte[] data) implements CustomPacketPayload {
         public static final Type<WC> TYPE = new Type<>(Identifier.fromNamespaceAndPath(NS, "wc"));
         @Override public Type<WC> type() { return TYPE; }

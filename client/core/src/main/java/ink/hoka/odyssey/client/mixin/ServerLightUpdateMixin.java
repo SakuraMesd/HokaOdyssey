@@ -20,7 +20,8 @@ public abstract class ServerLightUpdateMixin {
 
     @Inject(method = "onLightUpdate", at = @At("HEAD"), cancellable = true)
     private void hoka$skyUpdate(LightLayer layer, SectionPos pos, CallbackInfo ci) {
-        if (layer != LightLayer.SKY || ServerLight.level == null || ServerLight.yard(pos.x())) return;
+        if (ServerLight.level == null || ServerLight.yard(pos.x())) return;
+        if (layer != LightLayer.SKY && !ServerLight.local()) return;   // 0.57: свет блоков тоже наш — помечает apply
         if (ServerLight.owns((ClientChunkCache) (Object) this)) ci.cancel();
     }
 }

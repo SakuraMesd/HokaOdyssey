@@ -30,6 +30,10 @@ public final class SparseSections {
     private static final Logger LOG = LoggerFactory.getLogger("HokaOdyssey");
     /** Отладка: сколько общих секций выдано и сколько настоящих создано из пакетов (F3 / лог). */
     public static final AtomicLong SHARED_USED = new AtomicLong(), REAL = new AtomicLong(), COPIED = new AtomicLong(), MISUSE = new AtomicLong();
+    /** 0.57: скелетов, разобранных в сетевом потоке (ChunkPacketPreparseMixin), и взятых готовыми. */
+    public static final AtomicLong PREPARSED = new AtomicLong(), PRE_USED = new AtomicLong();
+    /** 0.57: пакет столбца, который сейчас применяет главный поток (PacketDeferMixin.updateLevelChunk). */
+    public static HokaPreparsed pending;
 
     /** Общая секция «весь воздух»: менять нельзя (запись — ошибка мода, логируем и игнорируем). */
     public static final class Shared extends LevelChunkSection {
@@ -156,6 +160,6 @@ public final class SparseSections {
     }
 
     public static String stats() {
-        return "общих " + SHARED_USED.get() + ", настоящих " + REAL.get() + ", копий " + COPIED.get() + (MISUSE.get() > 0 ? ", ошибок записи " + MISUSE.get() : "");
+        return "скелетов разобрано в сети " + PREPARSED.get() + " (взято " + PRE_USED.get() + "), общих " + SHARED_USED.get() + ", настоящих " + REAL.get() + ", копий " + COPIED.get() + (MISUSE.get() > 0 ? ", ошибок записи " + MISUSE.get() : "");
     }
 }

@@ -206,6 +206,7 @@ public final class CubeCache {
 
     private static void putLight(Ns ns, int x, int y, int z, ServerLight.Cube l) {
         if (shortLight(l)) return;                                      // запись ≤ 24 Б сервер шлёт целиком — не держать
+        if (ServerLight.local()) return;                                // 0.57: свет считает клиент — не кэшировать
         Col c = col(ns, x, z, true);
         Ent e = c.cubes.get(y);
         if (e == null) c.cubes.put(y, e = new Ent());
@@ -503,7 +504,7 @@ public final class CubeCache {
             for (var ce : c.cubes.int2ObjectEntrySet()) {
                 int k = ce.getIntKey() - lo;
                 if (ce.getValue().sec != null) bm[k >> 3] |= (byte) (1 << (k & 7));
-                if (ce.getValue().light != null) lm[k >> 3] |= (byte) (1 << (k & 7));
+                if (ce.getValue().light != null && !ServerLight.local()) lm[k >> 3] |= (byte) (1 << (k & 7));   // 0.57: в local — без света
             }
             FriendlyByteBuf b = new FriendlyByteBuf(Unpooled.buffer(16 + bm.length * 2));
             b.writeInt(e.getKey().x());

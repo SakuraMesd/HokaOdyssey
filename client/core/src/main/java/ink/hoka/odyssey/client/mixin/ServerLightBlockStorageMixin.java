@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Свет от сервера (§3.3), L3 для света блоков: слой, который игра заводит сама, — из последнего op 11. */
+/** Свет от сервера (§3.3), L3 для света блоков: слой, который игра заводит сама, — из последнего op 11 (0.57: от движка клиента, нет записи — 0). */
 @Mixin(LayerLightSectionStorage.class)
 public abstract class ServerLightBlockStorageMixin {
 
@@ -17,7 +17,7 @@ public abstract class ServerLightBlockStorageMixin {
     private void hoka$create(long sec, CallbackInfoReturnable<DataLayer> cir) {
         if (ServerLight.level == null || (Object) this instanceof SkyLightSectionStorage) return;
         var st = (LightStorageAccessor) (Object) this;
-        if (!ServerLight.owns(st.hoka$src()) || st.hoka$queued().get(sec) != null) return;
+        if (!ServerLight.owns(st.hoka$src()) || st.hoka$queued().get(sec) != null || ServerLight.yard(net.minecraft.core.SectionPos.x(sec))) return;
         DataLayer d = ServerLight.layer(sec, false);
         if (d != null) cir.setReturnValue(d);
     }

@@ -89,7 +89,11 @@ public final class TallChunk extends DynamicChunk implements TallColumn {
         super.setBlock(x, y, z, block, placement, destroy);
         if (block.isAir() && i >= 0 && i < sections.size()) sparse.release(i);   // секция опустела — память назад
         boolean in = i >= 0 && i < sections.size();
-        if (in) st.heights.update(sections, MIN_SECTION, x, y, z, block.stateId());
+        if (in) {
+            int mv = st.heights.motionVer, sv = st.heights.skyVer;
+            st.heights.update(sections, MIN_SECTION, x, y, z, block.stateId());
+            if (mv != st.heights.motionVer || sv != st.heights.skyVer) CubeStreamer.heightsChanged(this);   // op 17/18 (кубовая карта)
+        }
         st.changed(this, in ? i : -1, true);
     }
 

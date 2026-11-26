@@ -32,6 +32,8 @@ public final class HeightIndex {
     private final short[] sky = new short[256], motion = new short[256], surface = new short[256];
     /** Счётчик правок высот MOTION (update/fix): сменился — разослать op 17 (CubeStreamer.heightsChanged). */
     int motionVer;
+    /** Счётчик правок skyTop (update/fix): сменился — разослать op 18 ядрам со светом на клиенте (0.57). */
+    int skyVer;
 
     public HeightIndex() {
         Arrays.fill(sky, (short) NONE);
@@ -190,7 +192,7 @@ public final class HeightIndex {
             int cur = a[c], cand = contrib(inf, k, y);
             if (cand > cur) a[c] = (short) cand;
             else if (cand < cur && (cur == y || cur == y - 1)) a[c] = (short) descend(secs, minSection, x & 15, y + 1, z & 15, k, u);
-            if (k == Kind.MOTION && a[c] != cur) motionVer++;
+            if (a[c] != cur) { if (k == Kind.MOTION) motionVer++; else if (k == Kind.SKY) skyVer++; }
         }
     }
 
@@ -213,7 +215,7 @@ public final class HeightIndex {
                 if (t != NONE) nv = t;                                        // в кубе есть блок не ниже верха — он и верх
                 else if (cur >= y0) nv = descend(secs, minSection, c & 15, y0 - 1, c >> 4, k, u);   // верх был в кубе (с запасом) — ниже
                 else continue;
-                if (nv != cur) { a[c] = (short) nv; ch = true; if (k == Kind.MOTION) motionVer++; }
+                if (nv != cur) { a[c] = (short) nv; ch = true; if (k == Kind.MOTION) motionVer++; else if (k == Kind.SKY) skyVer++; }
             }
         }
         return ch;

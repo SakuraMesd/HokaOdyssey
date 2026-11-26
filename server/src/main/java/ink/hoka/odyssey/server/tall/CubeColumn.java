@@ -442,13 +442,13 @@ public final class CubeColumn extends Chunk implements TallColumn {
             if (CubeCacheModel.anyActive() && cubes.isReal(i)) storeHash(i, CubeHash.of(cubes.get(i)));   // кэш клиентов: версия куба — здесь, в рабочем потоке
             int[] top0 = new int[256];
             for (int c = 0; c < 256; c++) top0[c] = st.heights.skyTop(c);
-            int mv = st.heights.motionVer;
+            int mv = st.heights.motionVer, sv = st.heights.skyVer;
             if (st.heights.fix(cubes, MIN_SECTION, i, unknown)) {           // шаг 13: skyTop уточнился — пересвет полосы
                 skyOld = new int[256];
                 skyNew = new int[256];
                 for (int c = 0; c < 256; c++) { skyOld[c] = top0[c]; skyNew[c] = st.heights.skyTop(c); }
             }
-            if (mv != st.heights.motionVer) CubeStreamer.heightsChanged(this);   // op 17 (0.56): верх для дождя уточнился
+            if (mv != st.heights.motionVer || sv != st.heights.skyVer) CubeStreamer.heightsChanged(this);   // op 17/18: верх для дождя/неба уточнился
             int y0 = (i + MIN_SECTION) << 4;
             int was = CubeMark.rel(d.mark());
             stale = was != CubeMark.NONE && was != CubeMark.rel(y0, st.heights::skyTop);   // высоты сдвинулись, пока куб лежал на диске
@@ -654,7 +654,10 @@ public final class CubeColumn extends Chunk implements TallColumn {
         st.heights.update(cubes, MIN_SECTION, x, y, z, block.stateId(), lazy ? unknown : null);
         if (block.isAir()) cubes.release(i);                               // куб опустел — память назад
         if (m0 != st.heights.get(HeightIndex.Kind.MOTION, x, z)) { skeleton.invalidate(); CubeStreamer.heightsChanged(this); }   // op 17 (0.56)
-        else if (s0 != st.heights.get(HeightIndex.Kind.SURFACE, x, z)) skeleton.invalidate();
+        else {
+            if (s0 != st.heights.get(HeightIndex.Kind.SURFACE, x, z)) skeleton.invalidate();
+            if (t0 != st.heights.get(HeightIndex.Kind.SKY, x, z)) CubeStreamer.heightsChanged(this);   // op 18 (0.57): skyTop сменился
+        }
         boolean cubeLight = CubeLight.active(this);
         st.changed(this, i, !cubeLight);
         if (cubeLight)                                                      // шаг 12: свет кубами — 3×3×3 (+ полоса skyTop)

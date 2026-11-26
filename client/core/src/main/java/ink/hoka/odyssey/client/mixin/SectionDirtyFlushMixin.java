@@ -18,4 +18,11 @@ public abstract class SectionDirtyFlushMixin {
     private void hoka$flushDirty(CallbackInfo ci) {
         SectionDirty.flush();
     }
+
+    /** 0.57: свет на клиенте — готовый свет движка (своя правка — в этом же кадре) до переноса слоёв игрой. */
+    @Inject(method = "renderLevel", require = 0, at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/level/lighting/LevelLightEngine;runLightUpdates()I"))
+    private void hoka$localLight(CallbackInfo ci) {
+        ink.hoka.odyssey.client.LocalLight.frame();
+    }
 }

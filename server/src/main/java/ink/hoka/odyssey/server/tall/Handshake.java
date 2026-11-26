@@ -28,6 +28,8 @@ public final class Handshake {
 
     private static final Logger LOG = LoggerFactory.getLogger("cubes");
     static final long WAIT_MS = 2000;
+    /** С какой версии ядро само считает свет (небо и блоки) в своём окне: сервер свет не шлёт (CubeStreamer.clientLight). */
+    public static final int[] CLIENT_LIGHT_CORE = {0, 57, 0};
 
     /** Что сообщил клиент. core = null — ответа не было (ядро старше 0.29 или без мода). */
     public record Hi(String core, boolean sodium, String sodiumVersion, long ms) {
@@ -45,6 +47,9 @@ public final class Handshake {
         if (hi == null || hi.core() == null) return false;
         return CMP.computeIfAbsent(hi.core() + "|" + java.util.Arrays.toString(min), k -> atLeast(hi.core(), min));
     }
+
+    /** Тесты: ответ ядра без рукопожатия. */
+    static void putForTest(UUID u, String core) { HI.put(u, new Hi(core, false, "", 0)); }
 
     /** Разобранные сравнения версий (версий ядра у игроков — единицы). */
     private static final Map<String, Boolean> CMP = new ConcurrentHashMap<>();

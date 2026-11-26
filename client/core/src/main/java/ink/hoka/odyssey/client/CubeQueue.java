@@ -19,6 +19,11 @@ import java.util.List;
  * столбца на момент прихода пакета: столбец за это время заменили/забыли — куб (и его свет) пропускается, как если бы
  * его применили сразу, а скелет потом затёр. Ванильная правка блока (BlockUpdate и т.п.) сначала дожимает очередь —
  * старый куб не ляжет поверх новой правки. Только главный поток.</p>
+ * <p>0.57 (задача 1): ванильные пакеты столбца (скелет 1876 секций) тоже идут сюда — запись «повтор пакета»
+ * ({@link #defer}), применяется по тому же бюджету и в том же порядке, что кубы; правки блоков / Forget / биомы /
+ * свет столбца, у которого что-то ждёт, — следом в очередь (PacketDeferMixin). Повтор вызывает packet.handle с
+ * флагом {@link #REPLAY} — работают все чужие инъекции (Sodium, Fabric). Поколение столбца растёт при постановке
+ * скелета/Forget в очередь, а не при повторе.</p>
  */
 public final class CubeQueue {
 
@@ -27,6 +32,12 @@ public final class CubeQueue {
     private static final class Entry {
         final ClientLevel level;
         final CubeReceiver.Parsed p;
+        /** 0.57: отложенный ванильный пакет (иначе null); столбцы и секция, которые он держит. */
+        Runnable replay;
+        long[] cols;
+        long sec = Long.MIN_VALUE;
+        /** 0.57: выполнить и при смене мира (ChunkBatchFinished: без ответа сервер перестанет слать столбцы). */
+        boolean always;
         final int[] gens;
         final long at;
         int next;
@@ -42,6 +53,12 @@ public final class CubeQueue {
     public static long stale, applied, maxLen;
     /** Кубов в очереди (для F3/лога). */
     private static int pending;
+    /** 0.57: идёт повтор отложенного пакета (миксины не откладывают его снова). */
+    public static boolean REPLAY;
+    /** 0.57: ждущие в очереди: столбец → отложенных ванильных пакетов; секция → кубов и правок; всего ванильных. */
+    private static final Long2IntOpenHashMap COLS = new Long2IntOpenHashMap(), SECS = new Long2IntOpenHashMap();
+    private static int vanilla, replayFails;
+    public static long deferred, replayed, replayNs, replayMaxNs;
 
     /** Пакет пришёл (главный поток). */
     static void add(ClientLevel level, CubeReceiver.Parsed p) {
@@ -51,6 +68,7 @@ public final class CubeQueue {
             if (!GEN.isEmpty())
                 for (int i = 0; i < gens.length; i++) gens[i] = GEN.get(col(p.pos[i]));
             pending += p.pos.length;
+            if (p.op == 2 || p.op == 4 || p.op == 13) for (long q : p.pos) SECS.addTo(q, 1);
         }
         Q.add(new Entry(level, p, gens, System.nanoTime()));
         if (Q.size() > maxLen) maxLen = Q.size();
@@ -65,6 +83,63 @@ public final class CubeQueue {
         GEN.put(ChunkPos.asLong(x, z), ++counter);
     }
 
+    // ───────────── 0.57: отложенные ванильные пакеты ─────────────
+
+    /** Есть ли что-то ждущее по столбцу (скелет, Forget, правка…). */
+    public static boolean waitsColumn(int x, int z) { return !COLS.isEmpty() && COLS.get(ChunkPos.asLong(x, z)) > 0; }
+
+    /** Ждёт ли столбец или куб/правка секции sec. */
+    public static boolean waits(long sec) {
+        return (!SECS.isEmpty() && SECS.get(sec) > 0) || waitsColumn(SectionPos.x(sec), SectionPos.z(sec));
+    }
+
+    public static boolean hasVanilla() { return vanilla > 0; }
+
+    public static boolean isEmpty() { return Q.isEmpty(); }
+
+    public static int size() { return pending + vanilla; }
+
+    /**
+     * Отложить ванильный пакет (главный поток): повтор r — в порядке очереди, по бюджету. cols — столбцы, sec —
+     * секция правки (Long.MIN_VALUE — нет).
+     */
+    public static void defer(ClientLevel level, Runnable r, long[] cols, long sec) { defer(level, r, cols, sec, false); }
+
+    /** always — повторить и если мир сменился (запись не выбрасывается). */
+    public static void defer(ClientLevel level, Runnable r, long[] cols, long sec, boolean always) {
+        CubeReceiver.Parsed p = new CubeReceiver.Parsed(-1, null);
+        Entry e = new Entry(level, p, null, System.nanoTime());
+        e.replay = r;
+        e.cols = cols;
+        e.sec = sec;
+        e.always = always;
+        if (cols != null) for (long c : cols) COLS.addTo(c, 1);
+        if (sec != Long.MIN_VALUE) SECS.addTo(sec, 1);
+        vanilla++;
+        deferred++;
+        Q.add(e);
+        if (Q.size() > maxLen) maxLen = Q.size();
+    }
+
+    private static void release(Entry e) {
+        if (e.replay == null) return;
+        if (e.cols != null) for (long c : e.cols) dec(COLS, c);
+        if (e.sec != Long.MIN_VALUE) dec(SECS, e.sec);
+        vanilla--;
+        e.replay = null;
+    }
+
+    private static void dec(Long2IntOpenHashMap m, long k) {
+        int v = m.addTo(k, -1) - 1;
+        if (v <= 0) m.remove(k);
+    }
+
+    /** Куб i записи e больше не ждёт (применён / пропущен / мир сменился). */
+    private static void cubeDone(Entry e, int i) {
+        CubeReceiver.Parsed p = e.p;
+        if (p.pos != null && (p.op == 2 || p.op == 4 || p.op == 13)) dec(SECS, p.pos[i]);
+    }
+
     /** Каждый кадр: применять, пока не вышел бюджет. */
     public static void run() {
         if (Q.isEmpty()) return;
@@ -73,7 +148,10 @@ public final class CubeQueue {
         // ждёт дольше 300 мс (поток пакетов больше бюджета) — бюджет больше: задержка не растёт без предела
         // ждёт дольше 2 с (окно не в фокусе, 1–30 FPS) — почти всё: задержка и память очереди ограничены
         long wait = now - head.at;
-        long budget = wait > 2_000_000_000L ? 50_000_000L
+        // 0.57: в фокусе — не больше 8 мс (иначе снова всплески кадров); не в фокусе — почти всё
+        boolean focus = Minecraft.getInstance().isWindowActive();
+        long budget = wait > 2_000_000_000L ? (focus ? 8_000_000L : 50_000_000L)
+                : wait > 1_000_000_000L ? 6_000_000L
                 : wait > 300_000_000L ? 4_000_000L : FrameWatch.budgetNs(0.25, 300_000L, 1_500_000L);
         drain(now + budget, null);
     }
@@ -110,8 +188,29 @@ public final class CubeQueue {
                 Entry e = Q.peek();
                 if (e.level != mc.level) { drop(e); if (e == stop) return; continue; }   // мир сменился
                 CubeReceiver.Parsed p = e.p;
+                if (e.replay != null) {                                    // 0.57: отложенный ванильный пакет
+                    Runnable r = e.replay;
+                    Q.poll();
+                    release(e);
+                    long t0 = System.nanoTime();
+                    REPLAY = true;
+                    try {
+                        r.run();
+                    } catch (RuntimeException ex) {
+                        if (replayFails++ < 5) org.slf4j.LoggerFactory.getLogger("HokaOdyssey").warn("отложенный пакет: сбой ({})", ex.toString(), ex);
+                    } finally {
+                        REPLAY = false;
+                    }
+                    long dt = System.nanoTime() - t0;
+                    replayed++;
+                    replayNs += dt;
+                    if (dt > replayMaxNs) replayMaxNs = dt;
+                    first = false;
+                    if (e == stop || System.nanoTime() >= end) return;
+                    continue;
+                }
                 switch (p.op) {
-                    case 5, 6, 15, 16, 17 -> { CubeReceiver.applySimple(e.level, p); Q.poll(); }
+                    case 5, 6, 15, 16, 17, 18 -> { CubeReceiver.applySimple(e.level, p); Q.poll(); }
                     case 14 -> {                                       // 0.51: свет из кэша (как op 11)
                         List<Long> ps = new ArrayList<>(p.pos.length);
                         List<ServerLight.Cube> cs = new ArrayList<>(p.pos.length);
@@ -146,6 +245,7 @@ public final class CubeQueue {
                             if (!first && System.nanoTime() >= end) break;
                             first = false;
                             int i = e.next++;
+                            cubeDone(e, i);
                             CubeReceiver.applyCube(e.level, p, i, !current(e, i));
                             pending--;
                             applied++;
@@ -160,7 +260,7 @@ public final class CubeQueue {
             }
         } finally {
             draining = false;
-            if (Q.isEmpty()) { GEN.clear(); pending = 0; }
+            if (Q.isEmpty()) { GEN.clear(); pending = 0; COLS.clear(); SECS.clear(); vanilla = 0; }
         }
     }
 
@@ -204,17 +304,31 @@ public final class CubeQueue {
 
     private static void drop(Entry e) {
         Q.poll();
-        if (e.p.pos != null) pending -= e.p.pos.length - e.next;
+        Runnable r = e.always ? e.replay : null;
+        release(e);
+        if (r != null) {                                               // ответ серверу о пачке — всегда (Minestom ждёт его)
+            REPLAY = true;
+            try { r.run(); } catch (RuntimeException ignored) {} finally { REPLAY = false; }
+        }
+        if (e.p.pos != null) {
+            pending -= e.p.pos.length - e.next;
+            for (int i = e.next; i < e.p.pos.length; i++) cubeDone(e, i);
+        }
     }
 
     /** Мир сменился / вышли. */
     public static void clear() {
         Q.clear();
         GEN.clear();
+        COLS.clear();
+        SECS.clear();
+        vanilla = 0;
         pending = 0;
     }
 
     public static String stats() {
-        return "очередь кубов " + pending + " (пакетов " + Q.size() + ", макс " + maxLen + "), устаревших " + stale;
+        return "очередь кубов " + pending + " (пакетов " + Q.size() + ", макс " + maxLen + "), устаревших " + stale
+                + ", ванильных отложено " + deferred + " (ждут " + vanilla + ", повторено " + replayed
+                + (replayed > 0 ? String.format(", в среднем %.3f мс, макс %.2f мс", replayNs / 1e6 / replayed, replayMaxNs / 1e6) : "") + ")";
     }
 }

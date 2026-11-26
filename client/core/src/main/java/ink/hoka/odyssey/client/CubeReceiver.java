@@ -20,6 +20,9 @@ import org.slf4j.LoggerFactory;
  * в лог на код, блок-сущности не трогаем.</p>
  * <p>0.51, кэш кубов (CubeCache): op 12 CACHE — ключ карты (сразу, по порядку со скелетами), op 13 CUBES_REF — куб из
  * кэша (как op 2, блок-энтити в пакете), op 14 LIGHT_REF — свет из кэша (как op 11), op 15 HASH_CHECK — сверка.</p>
+ * <p>0.57, свет на клиенте: op 19 LIGHT_MODE (byte 1 — свет считает клиент, LocalLight; сразу, до скелетов), op 18
+ * HEIGHTS2 (вместо op 17: MOTION_BLOCKING и skyTop+1 столбца, флаги сжатия — CubeStreamer сервера). В этом режиме
+ * сервер шлёт блоки окна ±1 куб (кольцо — для света края), op 11/14/16 не шлёт.</p>
  */
 public final class CubeReceiver {
 
@@ -59,7 +62,8 @@ public final class CubeReceiver {
         int a, b;                                // op 5: from, to
         int[] yard;                              // op 6: пары x, z
         int[] floor;                             // op 16: тройки cx, cz, пол неба (секция)
-        int[] heights;                           // op 17: на столбец 258 чисел — cx, cz, 256 высот (z*16+x)
+        int[] heights;                           // op 17 / op 18: на столбец 258 чисел — cx, cz, 256 высот (z*16+x)
+        int[] sky;                               // op 18: так же — cx, cz, 256 × skyTop+1
         long[] pos;                              // op 2 / op 4 / op 11 / op 13 / op 14: кубы
         long[] hash;                             // op 13: версии H; op 14: L; op 15: H
         long[] check;                            // op 15: позиции (не очередь кубов — без поколений)
@@ -113,6 +117,25 @@ public final class CubeReceiver {
                 }
                 return r;
             }
+            case 18 -> {                                                // 0.57: HEIGHTS2 — MOTION_BLOCKING и skyTop+1
+                int m = buf.readVarInt();
+                Parsed r = new Parsed(op, null);
+                r.heights = new int[m * 258];
+                r.sky = new int[m * 258];
+                for (int c = 0; c < m; c++) {
+                    int b = c * 258;
+                    r.heights[b] = r.sky[b] = buf.readInt();
+                    r.heights[b + 1] = r.sky[b + 1] = buf.readInt();
+                    int fl = buf.readByte() & 0xFF;
+                    if ((fl & 1) != 0) java.util.Arrays.fill(r.heights, b + 2, b + 258, buf.readShort());
+                    else for (int i = 0; i < 256; i++) r.heights[b + 2 + i] = buf.readShort();
+                    if ((fl & 4) != 0) System.arraycopy(r.heights, b + 2, r.sky, b + 2, 256);
+                    else if ((fl & 2) != 0) java.util.Arrays.fill(r.sky, b + 2, b + 258, buf.readShort());
+                    else for (int i = 0; i < 256; i++) r.sky[b + 2 + i] = buf.readShort();
+                }
+                return r;
+            }
+            case 19 -> { Parsed r = new Parsed(op, null); r.a = buf.readableBytes() > 0 ? buf.readByte() : 0; return r; }
             case 12 -> { Parsed r = new Parsed(op, null); r.map = buf.readLong(); return r; }
             case 14, 15 -> {
                 int n = buf.readVarInt();
@@ -184,7 +207,8 @@ public final class CubeReceiver {
         ClientLevel level = mc.level;
         CubeCache.sync(level);                                          // мир сменился — прежний в кэш (до света/кубов нового)
         if (level == null) {                                            // op 12 может прийти и без мира
-            if (data.length > 0 && data[0] == 12) try { CubeCache.onKey(parse(data, null).map); } catch (Exception ignored) {}
+            if (data.length > 0 && data[0] == 12) try { LocalLight.instanceEntry(); CubeCache.onKey(parse(data, null).map); } catch (Exception ignored) {}
+            if (data.length > 0 && data[0] == 19) try { LocalLight.mode(parse(data, null).a); } catch (Exception ignored) {}
             return;
         }
         Parsed p;
@@ -196,8 +220,9 @@ public final class CubeReceiver {
             return;
         }
         if (p == null) return;
-        if (p.op == 12) { CubeCache.onKey(p.map); return; }            // сразу: по порядку со скелетами (метки столбцов)
-        if (p.op != 2 && p.op != 4 && p.op != 5 && p.op != 6 && p.op != 11 && p.op != 13 && p.op != 14 && p.op != 15 && p.op != 16 && p.op != 17) {   // незнакомая операция (сервер новее): пропустить,
+        if (p.op == 12) { LocalLight.instanceEntry(); CubeCache.onKey(p.map); return; }   // 0.57: вход в инстанс — режим света ждёт op 19 заново            // сразу: по порядку со скелетами (метки столбцов)
+        if (p.op == 19) { LocalLight.mode(p.a); return; }              // 0.57: сразу (до скелетов) — кто считает свет
+        if (p.op != 2 && p.op != 4 && p.op != 5 && p.op != 6 && p.op != 11 && p.op != 13 && p.op != 14 && p.op != 15 && p.op != 16 && p.op != 17 && p.op != 18) {   // незнакомая операция (сервер новее): пропустить,
             if (UNKNOWN.add(p.op)) LOG.warn("кубы: незнакомая операция {} — пропускаю (ядро старше сервера)", p.op);   // блок-энтити не трогать
             return;
         }
@@ -205,9 +230,10 @@ public final class CubeReceiver {
         CubeQueue.add(level, p);
     }
 
-    /** Применить op 5 / op 6 / op 15 / op 16 / op 17 (главный поток, по очереди CubeQueue). */
+    /** Применить op 5 / op 6 / op 15 / op 16 / op 17 / op 18 (главный поток, по очереди CubeQueue). */
     static void applySimple(ClientLevel level, Parsed p) {
-        if (p.op == 5) { windowLevel = level; from = p.a; to = p.b; serverLight(level); return; }
+        if (p.op == 5) { windowLevel = level; from = p.a; to = p.b; serverLight(level); LocalLight.window(level, p.a, p.b); return; }
+        if (p.op == 18) { TallHeight.heights(level, p.heights); LocalLight.tops(level, p.sky); return; }
         if (p.op == 15) { CubeCache.hashCheck(level, p.check, p.hash); return; }
         if (p.op == 16) { ServerLight.floor(level, p.floor); return; }
         if (p.op == 17) { TallHeight.heights(level, p.heights); return; }
@@ -219,6 +245,7 @@ public final class CubeReceiver {
      * заливала слои неба 15 и считала небо по столбцу (вход, смена мира).
      */
     private static void serverLight(ClientLevel level) {
+        if (LocalLight.active() && !LocalLight.on(level)) LocalLight.reset();   // мир сменился — движок прежнего не нужен
         if (TallWorld.net && level.getSectionsCount() > 64 && ServerLight.level != level) ServerLight.activate(level);
     }
 
@@ -294,7 +321,12 @@ public final class CubeReceiver {
             TallHeight.cube(level, c, y, sec, gone);               // 0.56: карта высот для дождя/снега
             // высокий мир: сам куб + соседи только за изменившимися гранями (закрывшиеся — мягко), слияние за кадр (SectionDirty)
             ContentRange.set(level, x, y, z, sec);
-            SectionDirty.mark(x, y, z, SectionDirty.blockFaces(old, sec));
+            int code = SectionDirty.blockFaces(old, sec);
+            // 0.57: свет на клиенте — пометку сетки придержать до света куба (одна сборка); ушедший куб — сразу
+            if (LocalLight.on(level) && !YardColumns.isYard(x)) {
+                LocalLight.cube(level, x, y, z, gone);
+                if (gone || !LocalLight.hold(x, y, z, code)) SectionDirty.mark(x, y, z, code);
+            } else SectionDirty.mark(x, y, z, code);
         } else {
             level.setSectionDirtyWithNeighbors(x, y, z);
         }

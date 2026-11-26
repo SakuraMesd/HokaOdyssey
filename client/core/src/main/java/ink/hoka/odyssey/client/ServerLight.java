@@ -140,9 +140,13 @@ public final class ServerLight {
 
     public static boolean yard(int sectionX) { return YardColumns.isYard(sectionX); }
 
+    /** 0.57: свет этого мира считает клиент (LocalLight), записи CUBES — от движка клиента. */
+    public static boolean local() { ClientLevel l = level; return l != null && LocalLight.on(l); }
+
     private static Cube get(long sec) {
         var m = CUBES.get(ChunkPos.asLong(SectionPos.x(sec), SectionPos.z(sec)));
         Cube c = m == null ? null : m.get(SectionPos.y(sec));
+        if (local()) return c != null ? c : LocalLight.cubeF(sec);     // 0.57: нет записи — формула F по верхам
         // 0.52: свет мог прийти, но ещё ждать очереди света (apply) — тогда последний по порядку пакетов (LATEST)
         if (c != null) return c;
         c = latest(level, sec);
@@ -182,6 +186,11 @@ public final class ServerLight {
 
     /** L2: небо в точке куба без слоя; -1 — не знаем (пусть решит игра). */
     public static int sky(long sec, int x, int y, int z) {
+        if (local()) {                                                  // 0.57: без выделений на каждый запрос
+            var m = CUBES.get(ChunkPos.asLong(SectionPos.x(sec), SectionPos.z(sec)));
+            Cube r = m == null ? null : m.get(SectionPos.y(sec));
+            return r != null ? r.sky(x & 15, y & 15, z & 15) : LocalLight.skyF(x, y, z);
+        }
         Cube c = get(sec);
         return c == null ? -1 : c.sky(x & 15, y & 15, z & 15);
     }
@@ -195,7 +204,7 @@ public final class ServerLight {
     public static DataLayer layer(long sec, boolean sky) {
         Cube c = get(sec);
         if (c != null) return sky ? c.skyLayer() : c.blockLayer();
-        if (!sky) return null;
+        if (!sky) return local() ? new DataLayer() : null;               // 0.57: свет блоков считает клиент — нет записи = 0
         Cube up = get(SectionPos.offset(sec, 0, 1, 0));
         if (up != null) return row(up, 0);
         Cube dn = get(SectionPos.offset(sec, 0, -1, 0));
@@ -291,7 +300,34 @@ public final class ServerLight {
         lvl.queueLightUpdate(() -> apply(lvl, pos, cubes));            // в порядке с остальным светом мира (как ваниль)
     }
 
-    private static void apply(ClientLevel lvl, List<long[]> pos, List<Cube> cubes) {
+    private static void apply(ClientLevel lvl, List<long[]> pos, List<Cube> cubes) { apply0(lvl, pos, cubes, false); }
+
+    /**
+     * 0.57: свет от движка клиента (LocalLight.frame) — сразу, не через очередь света мира (своя правка — тень в этом
+     * же кадре). cube null — запись снять (куб стал неизвестным). Столбец не загружен — пропуск (его уже забыли).
+     */
+    static void applyLocal(ClientLevel lvl, long[] ps, Cube[] cs) {
+        if (lvl != level || Minecraft.getInstance().level != lvl) return;
+        List<long[]> pos = new ArrayList<>(ps.length);
+        List<Cube> cubes = new ArrayList<>(ps.length);
+        var src = lvl.getChunkSource();
+        for (int i = 0; i < ps.length; i++) {
+            long p = ps[i];
+            int x = SectionPos.x(p), z = SectionPos.z(p);
+            if (src.getChunk(x, z, net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false) == null) continue;
+            if (cs[i] == null) {
+                var m = CUBES.get(ChunkPos.asLong(x, z));
+                if (m != null) { m.remove(SectionPos.y(p)); if (m.isEmpty()) CUBES.remove(ChunkPos.asLong(x, z)); }
+                continue;
+            }
+            pos.add(new long[]{p});
+            cubes.add(cs[i]);
+        }
+        received += pos.size();
+        if (!pos.isEmpty()) apply0(lvl, pos, cubes, true);
+    }
+
+    private static void apply0(ClientLevel lvl, List<long[]> pos, List<Cube> cubes, boolean local) {
         if (lvl != level || Minecraft.getInstance().level != lvl) return;
         LevelLightEngine e = lvl.getChunkSource().getLightEngine();
         var acc = (LevelLightEngineAccessor) e;
@@ -300,14 +336,14 @@ public final class ServerLight {
             long p = pos.get(i)[0];
             Cube c = cubes.get(i);
             // 0.54: после этой записи пришла новее (её задача уже в очереди) — эту не применять: без лишнего слоя и пометок
-            Cube last = latest(lvl, p);
+            Cube last = local ? null : latest(lvl, p);
             if (last != null && last != c) { staleSkipped++; continue; }
             int x = SectionPos.x(p), y = SectionPos.y(p), z = SectionPos.z(p);
             Cube was = CUBES.computeIfAbsent(ChunkPos.asLong(x, z), k -> new Int2ObjectOpenHashMap<>()).put(y, c);
             // 0.56: запись куба вне окна — сервер сам держит его свет (кольцо за окном): не выводить его по краю
-            boolean outside = CubeReceiver.unloadedY(lvl, y);
-            if (outside) RING_REAL.add(p); else RING_REAL.remove(p);
-            if (!outside && was != null && lvl.getSectionsCount() > 64 && !was.same(c)) ring(lvl, e, sky, x, y, z, c);
+            boolean outside = !local && CubeReceiver.unloadedY(lvl, y);
+            if (!local) { if (outside) RING_REAL.add(p); else RING_REAL.remove(p); }
+            if (!local && !outside && was != null && lvl.getSectionsCount() > 64 && !was.same(c)) ring(lvl, e, sky, x, y, z, c);
             SectionPos sp = SectionPos.of(x, y, z);
             // 0.52: что видела сетка (очередь движка, иначе видимый слой) — до постановки нового в очередь
             DataLayer oldSky = sky == null ? null : seen(sky, p), oldBlk = blk == null ? null : seen(blk, p);
@@ -482,6 +518,9 @@ public final class ServerLight {
         if (lvl == latestLevel) { LATEST.remove(pos.toLong()); FLOOR.remove(pos.toLong()); }   // кэш (0.51) уже унёс при выгрузке столбца
         if (lvl != level) return;
         long k = pos.toLong();
+        // 0.57, свет на клиенте: записи кладёт applyLocal сразу (не задачей света) — и снимать сразу, иначе задача
+        // Forget в runLightUpdates сотрёт свежий свет столбца, присланного заново в этом же кадре
+        if (local()) { CUBES.remove(k); return; }
         lvl.queueLightUpdate(() -> {
             CUBES.remove(k);
             if (!RING_REAL.isEmpty()) RING_REAL.removeIf((java.util.function.LongPredicate) q -> SectionPos.x(q) == pos.x && SectionPos.z(q) == pos.z);
@@ -491,6 +530,7 @@ public final class ServerLight {
     /** Мир сменился / вышли — всё забыть. */
     public static void reset() {
         level = null;
+        LocalLight.reset();
         CUBES.clear();
         RING_REAL.clear();
         LATEST.clear();
@@ -533,6 +573,6 @@ public final class ServerLight {
         for (var m : CUBES.values()) n += m.size();
         return "свет от сервера: " + (level != null ? "вкл" : "выкл") + ", кубов принято " + received + ", в движок " + queued
                 + ", только в памяти " + kept + ", свет без перестройки " + sameLight + ", устаревших пропущено " + staleSkipped
-                + ", кольцо за окном: выведено " + ringFixed + ", от сервера " + RING_REAL.size() + ", держим " + n + ", пол неба: столбцов " + FLOOR.size() + " (записей " + floors + ")";
+                + (local() ? " (считает клиент)" : "") + ", кольцо за окном: выведено " + ringFixed + ", от сервера " + RING_REAL.size() + ", держим " + n + ", пол неба: столбцов " + FLOOR.size() + " (записей " + floors + ")";
     }
 }

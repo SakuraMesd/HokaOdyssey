@@ -14,6 +14,8 @@ public abstract class FrameWatchMixin {
     private void hokaOdyssey$frame(boolean advanceGameTime, CallbackInfo ci) {
         FrameWatch.frameStart();
         ink.hoka.odyssey.client.CubeQueue.run();                       // 0.49: кубы по бюджету кадра (до сброса пометок)
+        ink.hoka.odyssey.client.LocalLight.frame();                    // 0.57: свет движка клиента (основное — перед runLightUpdates)
+        ink.hoka.odyssey.client.LagReport.frame();                     // 0.57: задержка клиента → серверу (op 7)
         ink.hoka.odyssey.client.CubeCache.frame();                     // 0.51: кэш кубов — смена мира, WANT, EVICT
         ink.hoka.odyssey.client.SectionDirty.flush();                  // запасной сброс пометок (без Sodium / до отрисовки)
     }
