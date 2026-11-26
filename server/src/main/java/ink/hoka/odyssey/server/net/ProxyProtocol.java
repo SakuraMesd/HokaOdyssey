@@ -67,6 +67,21 @@ public final class ProxyProtocol {
     public static void configureFromSystem() {
         String spec = System.getProperty("hoka.proxy.trusted");
         if (spec == null) spec = System.getenv("HOKA_PROXY_TRUSTED");
+        if (spec == null) {                                              // без флага — файл в папке сервера (строки IP/CIDR, # — комментарий)
+            java.nio.file.Path f = java.nio.file.Path.of("trusted-proxies.txt");
+            if (java.nio.file.Files.isRegularFile(f)) {
+                try {
+                    StringBuilder sb = new StringBuilder();
+                    for (String line : java.nio.file.Files.readAllLines(f)) {
+                        int h = line.indexOf('#');
+                        sb.append(h >= 0 ? line.substring(0, h) : line).append(',');
+                    }
+                    spec = sb.toString();
+                } catch (java.io.IOException e) {
+                    throw new IllegalStateException("trusted-proxies.txt не читается: " + e, e);
+                }
+            }
+        }
         long timeout = Long.getLong("hoka.proxy.timeout-ms", 3000L);
         configure(TrustedProxies.parse(spec), timeout);
     }
