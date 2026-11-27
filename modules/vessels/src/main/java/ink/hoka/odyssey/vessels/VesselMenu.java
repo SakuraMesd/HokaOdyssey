@@ -130,7 +130,8 @@ final class VesselMenu {
             syncing = true;
             try { inv.setItemStack(slot, keep); } finally { syncing = false; }
             it = keep;
-            giveBack(extra);
+            ItemStack back = extra;
+            mod.scheduler().run(() -> giveBack(back));                          // после клика: Minestom ещё дописывает слоты
         }
         Cargo c = vessel.cargo;
         switch (r) {
@@ -162,7 +163,11 @@ final class VesselMenu {
         ItemStack cursor = p.getInventory().getCursorItem();
         if (e.getInventory() == inv) {
             if (c instanceof Click.Drag d) {
-                for (int s : d.slots()) if (s < inv.getSize() && !accepts(role(s), cursor)) { e.setCancelled(true); return; }
+                for (int s : d.slots()) {
+                    if (s >= inv.getSize()) continue;
+                    Role r = role(s);
+                    if (!accepts(r, cursor) || (r == Role.UPGRADE && cursor.amount() > 1)) { e.setCancelled(true); return; }
+                }
                 return;
             }
             int slot = e.getSlot();
@@ -171,7 +176,10 @@ final class VesselMenu {
             switch (c) {
                 case Click.Left l -> { if (!accepts(r, cursor)) e.setCancelled(true); else if (r == Role.UPGRADE) oneUpgrade(e, p, slot, cursor); }
                 case Click.Right rr -> { if (!accepts(r, cursor)) e.setCancelled(true); }
-                case Click.HotbarSwap h -> { if (!accepts(r, p.getInventory().getItemStack(h.hotbarSlot()))) e.setCancelled(true); }
+                case Click.HotbarSwap h -> {
+                    ItemStack hb = p.getInventory().getItemStack(h.hotbarSlot());
+                    if (!accepts(r, hb) || (!hb.isAir() && hb.amount() > maxIn(r, hb))) e.setCancelled(true);
+                }
                 case Click.OffhandSwap o -> { if (!accepts(r, p.getItemInOffHand())) e.setCancelled(true); }
                 default -> { }
             }

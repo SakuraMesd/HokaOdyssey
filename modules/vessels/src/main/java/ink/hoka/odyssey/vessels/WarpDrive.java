@@ -54,6 +54,8 @@ final class WarpDrive {
         if (t < minJump()) { mod.client.message(p, "Варп: впереди граница карты", true); return; }
         double[] raw = {v.x + fwd[0] * t, v.y + fwd[1] * t, v.z + fwd[2] * t};
         v.warpTarget = raw;
+        v.warpFrom = v.pos();
+        v.warpDir = fwd;
         mod.server().loadCubes(inst, corner(raw, k, -1), corner(raw, k, 1));     // пока заряжается — грузится точка прыжка
         v.warpPhase = CHARGING;
         v.warpAt = now + chargeTicks();
@@ -90,8 +92,8 @@ final class WarpDrive {
             if (now > v.warpWaitUntil) cancel(v, "Варп: точка прыжка не загрузилась");
             return;
         }
-        double[] fwd = v.rot.rotate(0, 0, 1);
-        WarpMath.Result r = WarpMath.target(v.pos(), fwd, distance(), bounds(inst, k), minJump(), maxShift(), 1,
+        if (v.warpFrom == null || v.warpDir == null) { cancel(v, "Варп сорвался"); return; }
+        WarpMath.Result r = WarpMath.target(v.warpFrom, v.warpDir, distance(), bounds(inst, k), minJump(), maxShift(), 1,
                 (x, y, z) -> free(inst, k, new double[]{x, y, z}, v.rot));
         if (r.at() == null) { cancel(v, "Варп: " + r.why()); return; }
         VesselsModule.Status s = mod.status(v);

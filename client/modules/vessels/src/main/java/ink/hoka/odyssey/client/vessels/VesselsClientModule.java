@@ -227,6 +227,7 @@ public final class VesselsClientModule implements ClientModule {
                         && java.util.Arrays.equals(was.center, k.center)) {
                     k.tris = was.tris;
                     k.hull = was.hull;
+                    k.fine = was.fine;
                     System.arraycopy(was.hullLo, 0, k.hullLo, 0, 3);
                     System.arraycopy(was.hullHi, 0, k.hullHi, 0, 3);
                 } else {

@@ -26,6 +26,8 @@ final class Vessel {
     transient int warpPhase;
     transient long warpAt, warpReady, warpWaitUntil;
     transient double[] warpTarget;
+    /** Откуда и куда (нос) прыгаем — запомнено при R: точка ищется у загруженной цели, даже если пилот довернул. */
+    transient double[] warpFrom, warpDir;
     /** Набежавший расход топлива в полёте (доли штуки). */
     transient double burn;
     /** Меню корабля (пока открыто кем-то). */
