@@ -112,7 +112,15 @@ public final class Laser {
         if (p == null) return null;
         HeldModels.Def d = HeldModels.find(p.getMainHandItem());
         if (d == null) return null;
-        return p.pick(range(d), pt, false).getLocation();
+        var mc = Minecraft.getInstance();
+        if (mc.options.getCameraType() != CameraType.FIRST_PERSON) return p.pick(range(d), pt, false).getLocation();
+        // от первого лица — из камеры: её высота при приседании меняется плавно (у игрока — рывком), луч не прыгает
+        var cam = mc.gameRenderer.getMainCamera();
+        Vec3 from = cam.position();
+        var f = cam.forwardVector();
+        Vec3 to = from.add(f.x() * range(d), f.y() * range(d), f.z() * range(d));
+        return mc.level.clip(new net.minecraft.world.level.ClipContext(from, to, net.minecraft.world.level.ClipContext.Block.OUTLINE,
+                net.minecraft.world.level.ClipContext.Fluid.NONE, p)).getLocation();
     }
 
     static void muzzle(int entity, Vec3 world) { MUZZLE.put(entity, world); }
@@ -185,7 +193,7 @@ public final class Laser {
     private static Vector3f[] path(Vector3f a, Vector3f b, float amp, float t, float phase) {
         Vector3f dir = new Vector3f(b).sub(a);
         float len = dir.length();
-        int n = Math.max(6, Math.min(48, (int) (len * 5)));
+        int n = Math.max(8, Math.min(96, (int) (len * 12)));
         Vector3f d = new Vector3f(dir).normalize();
         Vector3f n1 = Math.abs(d.y) > 0.95f ? new Vector3f(1, 0, 0).cross(d) : new Vector3f(0, 1, 0).cross(d);
         n1.normalize();
@@ -205,10 +213,16 @@ public final class Laser {
     /** Лента вдоль точек лицом к глазу: середина — цвет, края — прозрачные (мягкое свечение). */
     private static void ribbon(PoseStack.Pose pose, VertexConsumer vc, Vector3f[] p, Vector3f eye, float w, int r, int g, int bl, int al) {
         Vector3f[] side = new Vector3f[p.length];
+        Vector3f prev = null;
         for (int i = 0; i < p.length; i++) {
-            Vector3f tan = new Vector3f(p[Math.min(p.length - 1, i + 1)]).sub(p[Math.max(0, i - 1)]);
-            Vector3f s = tan.cross(new Vector3f(p[i]).sub(eye), new Vector3f());
-            side[i] = s.lengthSquared() < 1e-12f ? new Vector3f() : s.normalize(w);
+            Vector3f tan = new Vector3f(p[Math.min(p.length - 1, i + 1)]).sub(p[Math.max(0, i - 1)]).normalize();
+            Vector3f view = new Vector3f(p[i]).sub(eye);
+            Vector3f s = tan.cross(view, new Vector3f());
+            if (s.lengthSquared() < 1e-6f * Math.max(1e-6f, view.lengthSquared())) s = prev != null ? new Vector3f(prev) : new Vector3f(0, 1, 0).cross(tan);
+            if (prev != null && s.dot(prev) < 0) s.negate();                      // не перекручивать ленту
+            s.normalize(w);
+            side[i] = s;
+            prev = s;
         }
         for (int i = 0; i + 1 < p.length; i++) {
             quad(pose, vc, new Vector3f(p[i]).sub(side[i]), p[i], p[i + 1], new Vector3f(p[i + 1]).sub(side[i + 1]), r, g, bl, 0, al, al, 0);
@@ -239,17 +253,36 @@ public final class Laser {
         for (int i = 0; i < 8; i++) vc.addVertex(pose, q[i].x, q[i].y, q[i].z).setColor(r, g, b, al[i]);
     }
 
+    /** Ребро рамки: лента лицом к глазу (камера — в 0), концы продлены на полширины — углы без щелей. */
+    private static void edge(PoseStack.Pose pose, VertexConsumer vc, Vector3f a, Vector3f b, int alpha) {
+        float w = 0.012f + 0.0025f * a.length();                                   // вдали толще — видно одинаково
+        Vector3f d = new Vector3f(b).sub(a).normalize(w);
+        Vector3f a2 = new Vector3f(a).sub(d), b2 = new Vector3f(b).add(d);
+        Vector3f side = new Vector3f(b2).sub(a2).cross(new Vector3f(a2).add(b2).mul(0.5f), new Vector3f());
+        if (side.lengthSquared() < 1e-12f) return;
+        side.normalize(w);
+        int c = 0x6FD3FF;
+        Vector3f[] q = {new Vector3f(a2).sub(side), new Vector3f(a2).add(side), new Vector3f(b2).add(side), new Vector3f(b2).sub(side)};
+        for (Vector3f v : q) vc.addVertex(pose, v.x, v.y, v.z).setColor((c >> 16) & 255, (c >> 8) & 255, c & 255, alpha);
+    }
+
     /** Обводка блока, который ломает луч (в проходе рамки игры). true — нарисована (рамку игры не рисуем). */
     public static boolean outline(PoseStack ps, MultiBufferSource buffers, Vec3 cam) {
         var mc = Minecraft.getInstance();
         if (!active || target == null || mc.level == null) return false;
         VoxelShape sh = mc.level.getBlockState(target).getShape(mc.level, target);
         if (sh.isEmpty()) sh = Shapes.block();
-        int alpha = (int) (110 + 30 * Math.sin(System.currentTimeMillis() / 160.0));          // ~50%, мягко пульсирует
-        ShapeRenderer.renderShape(ps, buffers.getBuffer(RenderTypes.linesTranslucent()), sh,
-                target.getX() - cam.x, target.getY() - cam.y, target.getZ() - cam.z, (alpha << 24) | 0x6FD3FF,
-                mc.getWindow().getAppropriateLineWidth() * 1.5f);
-        if (buffers instanceof MultiBufferSource.BufferSource bs) bs.endBatch(RenderTypes.linesTranslucent());
+        int alpha = (int) (120 + 25 * Math.sin(System.currentTimeMillis() / 160.0));          // ~50%, мягко пульсирует
+        var bb = sh.bounds().inflate(0.004).move(target.getX() - cam.x, target.getY() - cam.y, target.getZ() - cam.z);
+        float[] xs = {(float) bb.minX, (float) bb.maxX}, ys = {(float) bb.minY, (float) bb.maxY}, zs = {(float) bb.minZ, (float) bb.maxZ};
+        VertexConsumer vc = buffers.getBuffer(RenderTypes.debugQuads());
+        PoseStack.Pose pose = ps.last();
+        for (int i = 0; i < 2; i++) for (int j = 0; j < 2; j++) {
+            edge(pose, vc, new Vector3f(xs[0], ys[i], zs[j]), new Vector3f(xs[1], ys[i], zs[j]), alpha);
+            edge(pose, vc, new Vector3f(xs[i], ys[0], zs[j]), new Vector3f(xs[i], ys[1], zs[j]), alpha);
+            edge(pose, vc, new Vector3f(xs[i], ys[j], zs[0]), new Vector3f(xs[i], ys[j], zs[1]), alpha);
+        }
+        if (buffers instanceof MultiBufferSource.BufferSource bs) bs.endBatch(RenderTypes.debugQuads());
         return true;
     }
 }
