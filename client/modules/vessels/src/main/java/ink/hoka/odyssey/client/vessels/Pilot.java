@@ -11,6 +11,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import ink.hoka.odyssey.client.vessels.hud.Compass;
+import ink.hoka.odyssey.client.vessels.hud.Hints;
+import ink.hoka.odyssey.client.vessels.hud.HudView;
+import ink.hoka.odyssey.client.vessels.hud.McGfx;
+import ink.hoka.odyssey.client.vessels.hud.PilotHud;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
@@ -53,6 +58,13 @@ final class Pilot {
     private boolean msgWarn;
     private long msgAt;
     private boolean hudHidden;
+    /** Ход в этом тике: 1 вперёд, 0 нет, −1 назад (тяга в HUD). */
+    private int throttle;
+    /** Подсказки клавиш: 10 с после посадки, потом — пока зажата H. */
+    private final Hints hints = new Hints();
+    /** Маркер попадания: когда пришло (мс, 0 — не было) и убийство ли. */
+    private long hitAt;
+    private boolean hitKill;
 
     Pilot(ClientContext ctx, int vessel, Kind kind, JsonObject common, double x, double y, double z, Quaternionf rot, ShipState state, Effects fx) {
         this.ctx = ctx;
@@ -71,6 +83,7 @@ final class Pilot {
         cameraBefore = mc.options.getCameraType();
         mc.options.setCameraType(CameraType.FIRST_PERSON);
         ctx.hideHand(true);
+        hints.board(System.currentTimeMillis());
         if (c("hud", "hide-vanilla", 1) != 0) {
             try {                                                               // ядро 0.79+: свой HUD вместо ванильного
                 ctx.hideHud(true);
@@ -181,6 +194,8 @@ final class Pilot {
         int fwd = (fwdK ? 1 : 0) - (backK ? 1 : 0);
         int vert = (o.keyJump.isDown() && free ? 1 : 0) - (o.keyShift.isDown() && free ? 1 : 0);
         boost = fwdK && o.keySprint.isDown() && free;
+        throttle = fwd;
+        hints.hold(free && com.mojang.blaze3d.platform.InputConstants.isKeyDown(mc.getWindow(), org.lwjgl.glfw.GLFW.GLFW_KEY_H), System.currentTimeMillis());
         double mul = state.known ? state.speedMul : 1;                         // улучшения «Двигатель+», аварийный ход
         double max = kind.speed * mul / 20.0, maxBoost = kind.boostSpeed * mul / 20.0;
         Vector3f f = nq.transform(new Vector3f(0, 0, 1)), r = nq.transform(new Vector3f(-1, 0, 0)), u = nq.transform(new Vector3f(0, 1, 0));
@@ -406,8 +421,18 @@ final class Pilot {
 
     // ───────────────────────── HUD ─────────────────────────
 
-    /** HUD: прицел и нос, панели {@link PilotHud} (скорость, топливо, орудие, варп, подсказки). */
-    void hud(GuiGraphics g, DeltaTracker d) {
+    /** Сервер: попадание (1 — по цели, 2 — убийство, 3 — по кораблю) — маркер у прицела. */
+    void hit(int what) {
+        hitAt = System.currentTimeMillis();
+        hitKill = what == 2;
+    }
+
+    /**
+     * HUD ({@link PilotHud}): прицел и нос (проекция по камере кадра), курс носа, лесенка тангажа по камере (каждая
+     * ступень — проекцией направления «курс камеры, угол a» и бокового вектора: знак крена не нужен), скорость и тяга,
+     * высота (Y середины корабля), топливо, орудие, варп, сообщение, подсказки, маркер попадания.
+     */
+    void hud(GuiGraphics g, DeltaTracker d, PilotHud hudDraw, McGfx gfx) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.options.hideGui || mc.level == null) return;
         try {
@@ -420,36 +445,55 @@ final class Pilot {
         Vector3f noseDir = o.transform(new Vector3f(0, 0, 1));
         Vector3f aimDir = new Quaternionf(o).rotateY((float) Math.toRadians(-offYaw)).rotateX((float) Math.toRadians(offPitch)).transform(new Vector3f(0, 0, 1));
         float[] nose = project(noseDir, w, h), aim = project(aimDir, w, h);
-        if (nose != null) ring(g, Math.round(nose[0]), Math.round(nose[1]), 0xA0FFFFFF);
-        boolean ready = tickNo >= gunReadyAt;
-        if (aim != null) {
-            int ax = Math.round(aim[0]), ay = Math.round(aim[1]);
-            cross(g, ax, ay, ready ? 0xFF6CE0FF : 0xA06CE0FF);
-            if (!ready) {                                                       // перезарядка — тонкая полоска под прицелом
-                float k = 1 - (gunReadyAt - tickNo) / (float) Math.max(1, state.gunReload);
-                g.fill(ax - 6, ay + 8, ax + 7, ay + 9, 0x60000000);
-                g.fill(ax - 6, ay + 8, ax - 6 + Math.round(13 * k), ay + 9, 0xFFFFB040);
-            }
+
+        // лесенка: ступени через 10° по курсу камеры
+        float camYaw = euler(camView)[0];
+        double yr = Math.toRadians(camYaw);
+        Vector3f fwd = new Vector3f((float) -Math.sin(yr), 0, (float) Math.cos(yr)), right = new Vector3f((float) -Math.cos(yr), 0, (float) -Math.sin(yr));
+        float[] rungs = new float[19 * 5];
+        int n = 0;
+        for (int a = -90; a <= 90; a += 10) {
+            double ar = Math.toRadians(a);
+            Vector3f dir = new Vector3f(fwd).mul((float) Math.cos(ar)).add(0, (float) Math.sin(ar), 0);
+            float[] p0 = project(dir, w, h), p1 = project(new Vector3f(dir).add(new Vector3f(right).mul(0.02f)), w, h);
+            if (p0 == null || p1 == null) continue;
+            float dx = p1[0] - p0[0], dy = p1[1] - p0[1], len = (float) Math.hypot(dx, dy);
+            if (len < 1e-4f || Math.abs(p0[0]) > 1e5f || Math.abs(p0[1]) > 1e5f) continue;
+            rungs[n++] = a; rungs[n++] = p0[0]; rungs[n++] = p0[1]; rungs[n++] = dx / len; rungs[n++] = dy / len;
         }
+        rungs = java.util.Arrays.copyOf(rungs, n);
+
         double spd = Math.sqrt(vx * vx + vy * vy + vz * vz) * 20;
         double mul = state.known ? state.speedMul : 1;
-        float age = (System.currentTimeMillis() - msgAt) / 1000f;
+        long now = System.currentTimeMillis();
+        float age = (now - msgAt) / 1000f;
         float alpha = msg == null ? 0 : age < 2.5f ? 1 : Math.max(0, 1 - (age - 2.5f) / 0.8f);
-        PilotHud.draw(g, new PilotHud.View(spd, kind.boostSpeed * mul, boost, state, tickNo, gunReadyAt, fx.charge(), msg, msgWarn, alpha));
-    }
-
-    private static void cross(GuiGraphics g, int x, int y, int color) {
-        g.fill(x - 5, y, x - 1, y + 1, color);
-        g.fill(x + 2, y, x + 6, y + 1, color);
-        g.fill(x, y - 5, x + 1, y - 1, color);
-        g.fill(x, y + 2, x + 1, y + 6, color);
-    }
-
-    private static void ring(GuiGraphics g, int x, int y, int color) {
-        g.fill(x - 4, y - 4, x + 5, y - 3, color);
-        g.fill(x - 4, y + 4, x + 5, y + 5, color);
-        g.fill(x - 4, y - 3, x - 3, y + 4, color);
-        g.fill(x + 4, y - 3, x + 5, y + 4, color);
+        long gunLeft = Math.max(0, gunReadyAt - tickNo);
+        float gunK = gunLeft <= 0 ? 1 : 1 - gunLeft / (float) Math.max(1, state.gunReload);
+        float charge = fx.charge();
+        long reloadLeft = Math.max(0, state.warpReloadEnd - tickNo);
+        int warp = HudView.warpState(charge, state.warpPhase, reloadLeft, state.known, state.fuel, state.warpCost);
+        float warpK = switch (warp) {
+            case HudView.WARP_CHARGING -> charge;
+            case HudView.WARP_RELOAD -> 1 - reloadLeft / (float) Math.max(1, state.warpReload);
+            case HudView.WARP_NO_FUEL -> state.fuel / (float) Math.max(1, state.warpCost);
+            default -> 1;
+        };
+        float hitA = hitAt == 0 ? 0 : 1 - (now - hitAt) / (hitKill ? 700f : 420f);
+        Vector3d pos = new Vector3d();
+        poseAt(pt, pos, new Quaternionf());
+        HudView v = new HudView(
+                nose != null ? nose[0] : 0, nose != null ? nose[1] : 0, nose != null, aim != null ? aim[0] : 0, aim != null ? aim[1] : 0, aim != null,
+                Compass.heading(euler(o)[0]), rungs,
+                spd, kind.speed * mul, kind.boostSpeed * mul, throttle, boost,
+                pos.y, (y - py) * 20,
+                state.known, state.fuel, state.capacity, state.warpCost, state.empty,
+                gunK, gunLeft / 20f,
+                warp, warpK, (int) ((reloadLeft + 19) / 20),
+                msg, msgWarn, alpha,
+                hints.alpha(now), Math.max(0, hitA), hitKill,
+                kind.id, kind.tris);
+        hudDraw.draw(gfx.frame(g), v, now);
     }
 
     /** Направление (мир) → точка экрана по камере последнего кадра, или null — за спиной. */

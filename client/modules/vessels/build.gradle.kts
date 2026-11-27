@@ -11,4 +11,9 @@ dependencies {
 tasks.named<net.fabricmc.loom.task.RemapJarTask>("remapJar") {
     archiveFileName.set("vessels.jar")
 }
-tasks.named<Test>("test") { useJUnitPlatform() }
+tasks.named<Test>("test") {
+    useJUnitPlatform()
+    // превью HUD и окна в PNG: по умолчанию build/preview; для отчёта — -PvesselsPreview=../tasks/vessels-3-preview
+    systemProperty("vessels.preview", (findProperty("vesselsPreview") as String?)?.let { rootProject.file(it).absolutePath }
+        ?: layout.buildDirectory.dir("preview").get().asFile.absolutePath)
+}

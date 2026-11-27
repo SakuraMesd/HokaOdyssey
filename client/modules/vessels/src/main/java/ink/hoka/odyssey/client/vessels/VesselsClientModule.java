@@ -7,6 +7,10 @@ import ink.hoka.odyssey.client.api.ClientContext;
 import ink.hoka.odyssey.client.api.ClientModule;
 import ink.hoka.odyssey.client.api.ModelHandle;
 import ink.hoka.odyssey.client.model.BbModel;
+import ink.hoka.odyssey.client.vessels.hud.McGfx;
+import ink.hoka.odyssey.client.vessels.hud.MenuInfo;
+import ink.hoka.odyssey.client.vessels.hud.MenuLayout;
+import ink.hoka.odyssey.client.vessels.hud.PilotHud;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.phys.HitResult;
@@ -41,6 +45,12 @@ public final class VesselsClientModule implements ClientModule {
     private final Decks decks = new Decks();
     private final Effects fx = new Effects();
     private ShipState state = new ShipState();
+    /** HUD пилота (холсты) и его картинки в видеокарте. */
+    private final PilotHud hud = new PilotHud();
+    private final McGfx hudGfx = new McGfx("hud");
+    /** Окно корабля: сводка последнего S2C MENU (по номеру окна и заголовку узнаём окно) и картинки фона. */
+    private MenuInfo menuInfo;
+    private final McGfx menuGfx = new McGfx("menu");
     /** Клавиши G и R в прошлом тике (нажатие — по фронту). */
     private boolean gWas, rWas;
 
@@ -121,8 +131,13 @@ public final class VesselsClientModule implements ClientModule {
             }
             return !attack && !held && clickBoard();
         });
+        try {                                                                   // окно корабля в стиле HUD (ядро 0.80+)
+            ctx.onContainer(this::skin);
+        } catch (LinkageError old) {
+            ctx.logger().warn("ядро мода старше 0.80 — меню корабля в виде обычного сундука до обновления мода");
+        }
         ctx.onHud((g, d) -> {
-            if (pilot != null) pilot.hud(g, d);
+            if (pilot != null) pilot.hud(g, d, hud, hudGfx);
             fx.tunnel(g);                                                       // варп: туннель и у пилота, и у стоящих на корабле
         });
     }
@@ -132,6 +147,9 @@ public final class VesselsClientModule implements ClientModule {
         stopPilot();
         decks.clear();
         fx.clear();
+        hudGfx.release();
+        menuGfx.release();
+        menuInfo = null;
         for (Ship s : ships.values()) s.remove();
         ships.clear();
     }
@@ -201,6 +219,17 @@ public final class VesselsClientModule implements ClientModule {
                     else Minecraft.getInstance().gui.setOverlayMessage(net.minecraft.network.chat.Component.literal(text)
                             .withStyle(warn ? net.minecraft.ChatFormatting.RED : net.minecraft.ChatFormatting.AQUA), false);
                 }
+                case 11 -> {                                                    // MENU
+                    JsonObject o = JsonParser.parseString(in.readUTF()).getAsJsonObject();
+                    MenuInfo m = new MenuInfo();
+                    m.read(o);
+                    if (menuInfo != null && menuInfo.window == m.window && menuInfo.title.equals(m.title)) menuInfo.read(o);   // открытое окно — на лету
+                    else menuInfo = m;
+                }
+                case 12 -> {                                                    // HIT
+                    int what = in.readUnsignedByte();
+                    if (pilot != null) pilot.hit(what);
+                }
                 default -> { }
             }
         } catch (IOException | RuntimeException e) {
@@ -256,6 +285,15 @@ public final class VesselsClientModule implements ClientModule {
         } catch (RuntimeException e) {
             ctx.logger().warn("модель корабля {} не разобрана: {}", path, e.toString());
         }
+    }
+
+    /** Окно игры открывается: это окно корабля (S2C MENU пришёл до него) — своё оформление. */
+    private ShipMenu skin(net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> screen, int containerId) {
+        MenuInfo m = menuInfo;
+        if (m == null || !m.matches(containerId, screen.getTitle().getString())) return null;
+        if (!(screen.getMenu() instanceof net.minecraft.world.inventory.ChestMenu cm) || cm.getRowCount() != 5
+                || cm.slots.size() != MenuLayout.SLOTS) return null;
+        return new ShipMenu(m, cm, menuGfx, () -> { });
     }
 
     // ───────────────────────── ПКМ — посадка ─────────────────────────
