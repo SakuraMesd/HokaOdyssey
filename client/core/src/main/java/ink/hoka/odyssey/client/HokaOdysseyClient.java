@@ -62,6 +62,7 @@ public final class HokaOdysseyClient implements ClientModInitializer {
         });
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { if (TallWorld.net) org.slf4j.LoggerFactory.getLogger("HokaOdyssey").info("высокий мир, секции: {}", SparseSections.stats() + "; " + CubeReceiver.stats() + "; " + ServerLight.stats() + "; " + LocalLight.stats() + "; " + LagReport.stats() + "; " + TallLight.stats() + "; " + TallHeight.stats() + "; " + ClientGen.stats()); TallWorld.net = false; client.execute(ModuleManager::unloadAll); client.execute(() -> { CubeCache.sync(null); CubeCache.disconnected(); }); client.execute(ServerLight::reset); client.execute(LocalLight::disconnected); client.execute(ContentRange::reset); client.execute(SectionDirty::clear); client.execute(CubeQueue::clear); client.execute(ColumnHeal::reset); client.execute(ClientGen::disconnected); client.execute(TallLight::reset); VerticalView.reset(); });
         ClientTickEvents.END_CLIENT_TICK.register(c -> Hooks.tick());
+        ClientTickEvents.END_CLIENT_TICK.register(c -> HitPredict.tick());   // 0.66: мгновенный отклик на урон
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(Net.NS, "modules"), Hooks::hud);
         ink.hoka.odyssey.client.model.Models.init(new ink.hoka.odyssey.client.model.Models.Source() {
             @Override public byte[] get(String path) { return FileStore.get(path).orElse(null); }

@@ -70,6 +70,7 @@ public final class SurvivalModule extends OdysseyModule {
         float lastHurt;
         long lastAttackTick = -1000;
         Instance lastInst;
+        long nextLava, nextFire, nextBurn, nextMagma, nextWall, nextVoid;   // кулдауны: первый удар сразу, дальше по периоду
         boolean loaded;                         // данные применены
         String gameMode;                        // выбран /gm (null — по умолчанию)
     }
@@ -101,6 +102,7 @@ public final class SurvivalModule extends OdysseyModule {
         events().addListener(PlayerDeathEvent.class, this::onDeath);
         events().addListener(PlayerRespawnEvent.class, this::onRespawn);
         events().addListener(PlayerBlockBreakEvent.class, this::onBreak);
+        events().addListener(net.minestom.server.event.player.PlayerMoveEvent.class, this::onMove);
         scheduler().repeat(this::tickAll, 1, 1);
         int every = Math.max(1, config().getInt("save.interval-minutes", 5)) * 60 * 20;
         scheduler().repeat(this::saveAll, every, every);
@@ -151,6 +153,7 @@ public final class SurvivalModule extends OdysseyModule {
         Player p = e.getPlayer();
         St s = st(p);
         s.lastInst = p.getInstance();
+        if (p.getInstance() != null) mapAttributes(p, p.getInstance());
         s.fallTop = Double.NaN;
         s.lastY = Double.NaN;
         if (e.isFirstSpawn() && !s.loaded) join(p, true);
@@ -213,7 +216,7 @@ public final class SurvivalModule extends OdysseyModule {
         St s = st(p);
         s.tick++;
         Pos pos = p.getPosition();
-        if (s.lastInst != inst) { s.lastInst = inst; s.fallTop = Double.NaN; s.lastY = Double.NaN; }
+        if (s.lastInst != inst) { s.lastInst = inst; s.fallTop = Double.NaN; s.lastY = Double.NaN; mapAttributes(p, inst); }
         boolean live = affected(p);
         // телепорт (скачок за тик) — не падение и не бег
         boolean jump = !Double.isNaN(s.lastY) && (Math.abs(pos.y() - s.lastY) > 12 || Math.abs(pos.x() - s.lastX) + Math.abs(pos.z() - s.lastZ) > 12);
@@ -225,21 +228,6 @@ public final class SurvivalModule extends OdysseyModule {
                 || feet.key().asString().contains("vines");
         boolean ground = p.isOnGround();
 
-        // ── падение ──
-        if (!live || p.isFlying() || p.getVehicle() != null || inWater || climbing || feet.compare(Block.COBWEB)) s.fallTop = Double.NaN;
-        else if (!ground) { if (Double.isNaN(s.fallTop) || pos.y() > s.fallTop) s.fallTop = pos.y(); }
-        else {
-            if (!Double.isNaN(s.fallTop) && fallOn) {
-                double dist = s.fallTop - pos.y();
-                float mul = fallMul(inst) * (float) p.getAttributeValue(Attribute.FALL_DAMAGE_MULTIPLIER);
-                double free = Math.max(fallFree, p.getAttributeValue(Attribute.SAFE_FALL_DISTANCE));
-                if (below.compare(Block.HAY_BLOCK)) mul *= 0.2f;
-                if (below.compare(Block.SLIME_BLOCK) || below.key().asString().endsWith("_bed")) mul = 0;
-                float dmg = (float) Math.ceil((dist - free) * mul);
-                if (dmg > 0) p.damage(new Damage(DamageType.FALL, null, null, null, dmg));
-            }
-            s.fallTop = Double.NaN;
-        }
         // прыжок (с земли вверх) — усталость
         if (live && hunger && s.lastGround && !ground && !Double.isNaN(s.lastY) && pos.y() > s.lastY && !jump && !inWater)
             s.exhaustion += p.isSprinting() ? 0.2f : 0.05f;
@@ -253,22 +241,32 @@ public final class SurvivalModule extends OdysseyModule {
         if (!live) return;
 
         // ── мир: лава, огонь, магма, удушье, пустота ──
+        // первый удар — сразу при касании, дальше по периоду (раньше ждали «круглого» тика — до 0.5–1 с)
         if (inLava) {
             p.setFireTicks(Math.max(p.getFireTicks(), 300));
-            if (s.tick % 10 == 0) p.damage(new Damage(DamageType.LAVA, null, null, null, lava));
+            if (s.tick >= s.nextLava) { p.damage(new Damage(DamageType.LAVA, null, null, null, lava)); s.nextLava = s.tick + 10; }
         } else if (feet.compare(Block.FIRE) || feet.compare(Block.SOUL_FIRE)) {
             p.setFireTicks(Math.max(p.getFireTicks(), 160));
-            if (s.tick % 10 == 0) p.damage(new Damage(DamageType.IN_FIRE, null, null, null, inFire));
+            if (s.tick >= s.nextFire) { p.damage(new Damage(DamageType.IN_FIRE, null, null, null, inFire)); s.nextFire = s.tick + 10; }
         }
         if (inWater && p.getFireTicks() > 0) p.setFireTicks(0);
-        if (p.getFireTicks() > 0 && !inLava && s.tick % 20 == 0) p.damage(new Damage(DamageType.ON_FIRE, null, null, null, burning));
-        if (ground && below.compare(Block.MAGMA_BLOCK) && !p.isSneaking() && s.tick % 20 == 0)
+        if (p.getFireTicks() > 0 && !inLava) {
+            if (s.nextBurn == 0) s.nextBurn = s.tick + 20;
+            if (s.tick >= s.nextBurn) { p.damage(new Damage(DamageType.ON_FIRE, null, null, null, burning)); s.nextBurn = s.tick + 20; }
+        } else s.nextBurn = 0;
+        if (ground && below.compare(Block.MAGMA_BLOCK) && !p.isSneaking() && s.tick >= s.nextMagma) {
             p.damage(new Damage(DamageType.HOT_FLOOR, null, null, null, magma));
-        if (head.isSolid() && head.registry().occludes() && s.tick % 10 == 0)
+            s.nextMagma = s.tick + 20;
+        }
+        if (head.isSolid() && head.registry().occludes() && s.tick >= s.nextWall) {
             p.damage(new Damage(DamageType.IN_WALL, null, null, null, suffocation));
+            s.nextWall = s.tick + 10;
+        }
         Integer bottom = mapBottom(inst);
-        if (bottom != null && pos.y() < bottom - voidBelow && s.tick % 10 == 0)
+        if (bottom != null && pos.y() < bottom - voidBelow && s.tick >= s.nextVoid) {
             p.damage(new Damage(DamageType.OUT_OF_WORLD, null, null, null, voidDmg));
+            s.nextVoid = s.tick + 10;
+        }
 
         // ── голод и лечение ──
         if (!hunger) return;
@@ -299,6 +297,46 @@ public final class SurvivalModule extends OdysseyModule {
                 s.foodTimer = 0;
             }
         } else s.foodTimer = 0;
+    }
+
+    /**
+     * Падение — в момент прихода движения от клиента (не ждём тик сервера). Множитель карты и «безопасная высота» —
+     * атрибуты игрока (fall_damage_multiplier, safe_fall_distance): их видит и клиент, мод предсказывает тот же урон.
+     */
+    private void onMove(net.minestom.server.event.player.PlayerMoveEvent e) {
+        Player p = e.getPlayer();
+        Instance inst = p.getInstance();
+        if (inst == null) return;
+        St s = st(p);
+        Pos pos = e.getNewPosition(), old = p.getPosition();
+        boolean live = affected(p), ground = e.isOnGround();
+        if (Math.abs(pos.y() - old.y()) > 12 || Math.abs(pos.x() - old.x()) + Math.abs(pos.z() - old.z()) > 12) { s.fallTop = Double.NaN; return; }
+        Block feet = inst.getBlock(pos), below = inst.getBlock(pos.add(0, -0.2, 0));
+        boolean inWater = feet.compare(Block.WATER) || inst.getBlock(pos.add(0, p.getEyeHeight(), 0)).compare(Block.WATER)
+                || "true".equals(feet.getProperty("waterlogged"));
+        boolean climbing = feet.compare(Block.LADDER) || feet.compare(Block.VINE) || feet.compare(Block.SCAFFOLDING) || feet.key().asString().contains("vines");
+        if (!live || p.isFlying() || p.getVehicle() != null || inWater || climbing || feet.compare(Block.COBWEB)) { s.fallTop = Double.NaN; return; }
+        if (!ground) {
+            double top = Math.max(pos.y(), old.y());
+            if (Double.isNaN(s.fallTop) || top > s.fallTop) s.fallTop = top;
+            return;
+        }
+        if (!Double.isNaN(s.fallTop) && fallOn) {
+            double dist = s.fallTop - pos.y();
+            float mul = (float) p.getAttributeValue(Attribute.FALL_DAMAGE_MULTIPLIER);
+            double free = p.getAttributeValue(Attribute.SAFE_FALL_DISTANCE);
+            if (below.compare(Block.HAY_BLOCK)) mul *= 0.2f;
+            if (below.compare(Block.SLIME_BLOCK) || below.key().asString().endsWith("_bed")) mul = 0;
+            float dmg = (float) Math.ceil((dist - free) * mul);
+            if (dmg > 0) p.damage(new Damage(DamageType.FALL, null, null, null, dmg));
+        }
+        s.fallTop = Double.NaN;
+    }
+
+    /** Атрибуты падения карты: множитель (maps.&lt;карта&gt;.fall) и высота без урона. */
+    private void mapAttributes(Player p, Instance inst) {
+        p.getAttribute(Attribute.FALL_DAMAGE_MULTIPLIER).setBaseValue(fallMul(inst));
+        p.getAttribute(Attribute.SAFE_FALL_DISTANCE).setBaseValue(fallFree);
     }
 
     private final Map<Instance, Float> fallMulCache = new ConcurrentHashMap<>();

@@ -74,7 +74,9 @@
     "HeightmapAccessor",
     "WeatherTallMixin",
     "LodLevelRendererMixin",
-    "LodFogMixin"
+    "LodFogMixin",
+    "HitPredictAttackMixin",
+    "HitPredictDamageMixin"
   ],
   "injectors": {
     "defaultRequire": 1
