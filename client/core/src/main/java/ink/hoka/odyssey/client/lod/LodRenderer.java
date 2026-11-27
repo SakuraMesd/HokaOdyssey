@@ -373,9 +373,11 @@ public final class LodRenderer {
         Minecraft mc = Minecraft.getInstance();
         ClientLevel lvl = mc.level;
         PlanetGenerator g = ClientGen.lodGenerator();
-        int distChunks = LodSetting.distance();
-        // 0.75: космос — тела видны всегда (настройка 0 — только без рельефа: его тут и нет), не ближе 4096 блоков
-        if (SpaceLod.supports(g)) distChunks = Math.max(distChunks, 256);
+        // 0.76: космос — рельефа нет (плитки не строим: генератор перебирал бы кубы по всей высоте), только тела со
+        // своей дальностью из настроек («Дальность астероидов»)
+        boolean space = SpaceLod.supports(g);
+        int distChunks = space ? LodSetting.bodyDistance() : LodSetting.distance();
+        if (space && !NODES.isEmpty()) { for (Node n : NODES.values()) release(n); NODES.clear(); draws.clear(); }
         if (lvl == null || g == null || distChunks <= 0) {
             active = false;
             if (!NODES.isEmpty()) { clearAll(); gen = null; genKey = 0; }
@@ -403,8 +405,8 @@ public final class LodRenderer {
         SpaceLod.uploads(now(), pos.x, pos.y, pos.z, dist);
         float qk = SPLIT_K[LodSetting.quality()];
         voxelR = Math.min(dist, cutoff + VOXEL_RING[LodSetting.quality()]);
-        if (dirty != 0 || selVersion != LodSetting.version() || selDistance != dist || selCutoff != cutoff
-                || Double.isNaN(selX) || Math.abs(pos.x - selX) + Math.abs(pos.z - selZ) > 8 || frame % 20 == 0) {
+        if (!space && (dirty != 0 || selVersion != LodSetting.version() || selDistance != dist || selCutoff != cutoff
+                || Double.isNaN(selX) || Math.abs(pos.x - selX) + Math.abs(pos.z - selZ) > 8 || frame % 20 == 0)) {
             dirty = 0;
             selVersion = LodSetting.version();
             selDistance = dist;
@@ -415,7 +417,7 @@ public final class LodRenderer {
             evict();
         }
         // под землёй (глубже поверхности) — LOD не нужен
-        if (--surfaceCheckIn <= 0) {
+        if (!space && --surfaceCheckIn <= 0) {
             surfaceCheckIn = 20;
             int bx = (int) Math.floor(pos.x), bz = (int) Math.floor(pos.z);
             // одна ячейка LOD (точка рельефа, без объектов) — дёшево; highest() тянул объекты соседей (40 мс в кадре)
@@ -426,7 +428,7 @@ public final class LodRenderer {
             } catch (Throwable ignored) {}
             underground = sy != Integer.MIN_VALUE && pos.y < sy - 24;
         }
-        if (underground || !haveMatrices || (draws.isEmpty() && SpaceLod.count() == 0)) { lastDrawn = 0; lastQuads = 0; return; }
+        if ((!space && underground) || !haveMatrices || (draws.isEmpty() && SpaceLod.count() == 0)) { lastDrawn = 0; lastQuads = 0; return; }
         if (cam.getFluidInCamera() != FogType.NONE) { lastDrawn = 0; lastQuads = 0; return; }
         draw(mc, cam, lvl, dist, cutoff);
         if (now() - lastLog > 30_000) { lastLog = now(); LOG.info("[LOD] {}", debugLine()); }

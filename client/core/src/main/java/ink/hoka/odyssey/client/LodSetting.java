@@ -37,6 +37,37 @@ public final class LodSetting {
 
     public static int version() { return version; }
 
+    // ───── 0.76: тела в космосе (астероиды) — своя дальность и детализация ─────
+    public static final int B_STEP = 32, B_MAX = 1024, B_DEFAULT = 256, BQ_DEFAULT = 2;
+    private static int bodyDistance = loadInt("lodBodyDistance", B_DEFAULT, 0, B_MAX);
+    private static int bodyQuality = loadInt("lodBodyQuality", BQ_DEFAULT, Q_MIN, Q_MAX);
+
+    /** Дальность тел в чанках (0 — выкл). */
+    public static int bodyDistance() { return bodyDistance; }
+    public static void setBodyDistance(int v) { bodyDistance = v <= 0 ? 0 : Math.max(B_STEP, Math.min(B_MAX, v)); version++; }
+    public static void saveBodyDistance() { VerticalView.put("lodBodyDistance", bodyDistance); }
+    public static int bodyQuality() { return bodyQuality; }
+    public static void setBodyQuality(int v) { bodyQuality = Math.max(Q_MIN, Math.min(Q_MAX, v)); version++; }
+    public static void saveBodyQuality() { VerticalView.put("lodBodyQuality", bodyQuality); }
+    /** Ячеек поперёк тела по детализации: низкая 12 … ультра 32. */
+    public static int bodyCells() { return switch (bodyQuality) { case 1 -> 12; case 2 -> 18; case 3 -> 24; default -> 32; }; }
+
+    public static OptionInstance<Integer> bodyDistanceOption() {
+        return new OptionInstance<>("options.hoka_odyssey.lod_body",
+                OptionInstance.cachedConstantTooltip(Component.translatable("options.hoka_odyssey.lod_body.tooltip")),
+                (caption, v) -> Options.genericValueLabel(caption, distanceText(v * B_STEP)),
+                new OptionInstance.IntRange(0, B_MAX / B_STEP, false), bodyDistance / B_STEP,
+                v -> { setBodyDistance(v * B_STEP); saveBodyDistance(); });
+    }
+
+    public static OptionInstance<Integer> bodyQualityOption() {
+        return new OptionInstance<>("options.hoka_odyssey.lod_body_quality",
+                OptionInstance.cachedConstantTooltip(Component.translatable("options.hoka_odyssey.lod_body_quality.tooltip")),
+                (caption, v) -> Options.genericValueLabel(caption, qualityText(v)),
+                new OptionInstance.IntRange(Q_MIN, Q_MAX, false), bodyQuality,
+                v -> { setBodyQuality(v); saveBodyQuality(); });
+    }
+
     private static int loadInt(String key, int def, int min, int max) {
         try {
             JsonObject o = VerticalView.read();

@@ -29,5 +29,9 @@
   "options.hoka_odyssey.lod_quality.1": "Низкое",
   "options.hoka_odyssey.lod_quality.2": "Среднее",
   "options.hoka_odyssey.lod_quality.3": "Высокое",
-  "options.hoka_odyssey.lod_quality.4": "Ультра"
+  "options.hoka_odyssey.lod_quality.4": "Ультра",
+  "options.hoka_odyssey.lod_body": "Дальность астероидов",
+  "options.hoka_odyssey.lod_body.tooltip": "В космосе астероиды дальше обычной прорисовки видны упрощёнными (своя форма, руды и текстуры), без обрывов по краю. Выкл — только обычная прорисовка.",
+  "options.hoka_odyssey.lod_body_quality": "Детализация астероидов",
+  "options.hoka_odyssey.lod_body_quality.tooltip": "Насколько подробно строятся дальние астероиды. Выше — точнее форма, но больше памяти и работы видеокарты."
 }

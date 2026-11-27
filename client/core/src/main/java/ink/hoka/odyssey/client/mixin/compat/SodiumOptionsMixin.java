@@ -93,6 +93,24 @@ public abstract class SodiumOptionsMixin {
                         .setValueFormatter(ink.hoka.odyssey.client.LodSetting::qualityText)
                         .setImpact(OptionImpact.MEDIUM)
                         .setBinding(ink.hoka.odyssey.client.LodSetting::setQuality, ink.hoka.odyssey.client.LodSetting::quality)
-                        .setStorageHandler(ink.hoka.odyssey.client.LodSetting::saveQuality)));
+                        .setStorageHandler(ink.hoka.odyssey.client.LodSetting::saveQuality))
+                .addOption(builder.createIntegerOption(Identifier.fromNamespaceAndPath("hoka_odyssey", "lod_body"))   // 0.76
+                        .setName(Component.translatable("options.hoka_odyssey.lod_body"))
+                        .setTooltip(Component.translatable("options.hoka_odyssey.lod_body.tooltip"))
+                        .setRange(0, ink.hoka.odyssey.client.LodSetting.B_MAX, ink.hoka.odyssey.client.LodSetting.B_STEP)
+                        .setDefaultValue(ink.hoka.odyssey.client.LodSetting.B_DEFAULT)
+                        .setValueFormatter(ink.hoka.odyssey.client.LodSetting::distanceText)
+                        .setImpact(OptionImpact.MEDIUM)
+                        .setBinding(ink.hoka.odyssey.client.LodSetting::setBodyDistance, ink.hoka.odyssey.client.LodSetting::bodyDistance)
+                        .setStorageHandler(ink.hoka.odyssey.client.LodSetting::saveBodyDistance))
+                .addOption(builder.createIntegerOption(Identifier.fromNamespaceAndPath("hoka_odyssey", "lod_body_quality"))
+                        .setName(Component.translatable("options.hoka_odyssey.lod_body_quality"))
+                        .setTooltip(Component.translatable("options.hoka_odyssey.lod_body_quality.tooltip"))
+                        .setRange(ink.hoka.odyssey.client.LodSetting.Q_MIN, ink.hoka.odyssey.client.LodSetting.Q_MAX, 1)
+                        .setDefaultValue(ink.hoka.odyssey.client.LodSetting.BQ_DEFAULT)
+                        .setValueFormatter(ink.hoka.odyssey.client.LodSetting::qualityText)
+                        .setImpact(OptionImpact.LOW)
+                        .setBinding(ink.hoka.odyssey.client.LodSetting::setBodyQuality, ink.hoka.odyssey.client.LodSetting::bodyQuality)
+                        .setStorageHandler(ink.hoka.odyssey.client.LodSetting::saveBodyQuality)));
     }
 }

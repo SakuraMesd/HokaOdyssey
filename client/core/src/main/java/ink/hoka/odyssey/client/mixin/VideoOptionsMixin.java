@@ -18,7 +18,7 @@ public abstract class VideoOptionsMixin {
         OptionInstance<?>[] a = cir.getReturnValue();
         int at = a.length;
         for (int i = 0; i < a.length; i++) if (a[i] == options.renderDistance()) { at = i + 1; break; }
-        OptionInstance<?>[] r = new OptionInstance<?>[a.length + 7];
+        OptionInstance<?>[] r = new OptionInstance<?>[a.length + 9];
         System.arraycopy(a, 0, r, 0, at);
         r[at] = VerticalView.option();
         r[at + 1] = VerticalView.surfaceOption();                         // 0.62: горы целиком
@@ -27,7 +27,9 @@ public abstract class VideoOptionsMixin {
         r[at + 4] = ink.hoka.odyssey.client.GenSetting.diskOption();     // 0.63: кэш генерации на диске
         r[at + 5] = ink.hoka.odyssey.client.LodSetting.distanceOption(); // 0.64: дальняя прорисовка
         r[at + 6] = ink.hoka.odyssey.client.LodSetting.qualityOption();
-        System.arraycopy(a, at, r, at + 7, a.length - at);
+        r[at + 7] = ink.hoka.odyssey.client.LodSetting.bodyDistanceOption();   // 0.76: астероиды в космосе
+        r[at + 8] = ink.hoka.odyssey.client.LodSetting.bodyQualityOption();
+        System.arraycopy(a, at, r, at + 9, a.length - at);
         cir.setReturnValue(r);
     }
 }

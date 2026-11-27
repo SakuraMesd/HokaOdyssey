@@ -32,8 +32,10 @@ final class SpaceLod {
     static final class Body {
         final double x, y, z, ext;
         int x0, y0, z0, size;
-        volatile ByteBuffer pending;
-        volatile boolean built;
+        final java.util.concurrent.atomic.AtomicReference<ByteBuffer> pending = new java.util.concurrent.atomic.AtomicReference<>();
+        volatile boolean built, building;
+        /** Детализация, с которой построена/строится сетка: 0 — полная, 1 — ½, 2 — ¼ ячеек. */
+        volatile int level = -1;
         GpuBuffer vb;
         int quads;
         long seen;
@@ -46,6 +48,7 @@ final class SpaceLod {
     private static volatile boolean querying;
     private static PlanetGenerator gen;
     private static long genKey, lastQuery;
+    private static int settingsVer = -1;
     static volatile boolean supported;
 
     private static ExecutorService pool() {
@@ -60,7 +63,9 @@ final class SpaceLod {
 
     /** Раз в секунду: тела в радиусе dist вокруг камеры; новые — строить. На потоке отрисовки. */
     static void update(PlanetGenerator g, long key, double cx, double cy, double cz, int dist, long now) {
-        if (g != gen || key != genKey) { clear(); gen = g; genKey = key; supported = true; }
+        if (g != gen || key != genKey || settingsVer != ink.hoka.odyssey.client.LodSetting.version()) {
+            clear(); gen = g; genKey = key; supported = true; settingsVer = ink.hoka.odyssey.client.LodSetting.version();
+        }
         if (!supported || querying || now - lastQuery < 1000) return;
         lastQuery = now;
         querying = true;
@@ -75,10 +80,17 @@ final class SpaceLod {
                     if (body == null) {
                         body = new Body(b[i], b[i + 1], b[i + 2], b[i + 3]);
                         BODIES.put(k, body);
-                        Body fb = body;
-                        pool().execute(() -> build(g, fb));
                     }
                     body.seen = now;
+                    // детализация по расстоянию: ближе 1500 — полная, до 3500 — ½, дальше — ¼; сменилась — перестроить
+                    double dx = body.x - cx, dy = body.y - cy, dz = body.z - cz, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    int want = d < 1500 ? 0 : d < 3500 ? 1 : 2;
+                    if (want != body.level && !body.building) {
+                        body.building = true;
+                        body.level = want;
+                        Body fb = body;
+                        pool().execute(() -> build(g, fb, want));
+                    }
                 }
             } catch (Throwable e) {
                 LOG.warn("LOD тел: {}", e.toString());
@@ -93,9 +105,10 @@ final class SpaceLod {
     }
 
     /** Сетка тела: ячейки шага s, грань — где сосед пуст. */
-    private static void build(PlanetGenerator g, Body b) {
+    private static void build(PlanetGenerator g, Body b, int level) {
         try {
-            int s = Math.max(1, (int) Math.ceil(b.ext * 2 / 28));
+            int cells = Math.max(6, ink.hoka.odyssey.client.LodSetting.bodyCells() >> level);
+            int s = Math.max(1, (int) Math.ceil(b.ext * 2 / cells));
             int x0 = (int) Math.floor(b.x - b.ext), y0 = (int) Math.floor(b.y - b.ext), z0 = (int) Math.floor(b.z - b.ext);
             int n = (int) Math.ceil(b.ext * 2 / s) + 1;
             int[] st = new int[n * n * n];
@@ -121,11 +134,15 @@ final class SpaceLod {
                 }
             }
             b.x0 = x0; b.y0 = y0; b.z0 = z0; b.size = n * s;
-            b.pending = q.finish();
+            ByteBuffer nb = q.finish();
+            ByteBuffer old = b.pending.getAndSet(nb);
+            if (old != null) MemoryUtil.memFree(old);
             b.built = true;
         } catch (Throwable e) {
             LOG.warn("LOD тела: {}", e.toString());
             b.built = true;
+        } finally {
+            b.building = false;
         }
     }
 
@@ -147,9 +164,9 @@ final class SpaceLod {
         double far = dist * 1.3 + 256;
         for (var it = BODIES.values().iterator(); it.hasNext(); ) {
             Body b = it.next();
-            ByteBuffer p = b.pending;
-            if (p != null && up < 6) {
-                b.pending = null;
+            ByteBuffer p = up < 6 ? b.pending.getAndSet(null) : null;
+            if (p != null) {
+                if (b.vb != null) b.vb.close();                                  // перестроили с другой детализацией
                 b.quads = p.remaining() / LodQuads.QUAD;
                 b.vb = RenderSystem.getDevice().createBuffer(() -> "Hoka LOD body", GpuBuffer.USAGE_VERTEX, p);
                 MemoryUtil.memFree(p);
@@ -158,8 +175,8 @@ final class SpaceLod {
             double dx = b.x - cx, dy = b.y - cy, dz = b.z - cz;
             if (dx * dx + dy * dy + dz * dz > far * far && now - b.seen > 5000) {
                 if (b.vb != null) b.vb.close();
-                ByteBuffer q = b.pending;
-                if (q != null) { b.pending = null; MemoryUtil.memFree(q); }
+                ByteBuffer q = b.pending.getAndSet(null);
+                if (q != null) MemoryUtil.memFree(q);
                 it.remove();
             }
         }
@@ -174,7 +191,9 @@ final class SpaceLod {
         for (Body b : BODIES.values()) {
             if (b.vb == null || b.quads == 0) continue;
             double dx = b.x - cx, dy = b.y - cy, dz = b.z - cz;
-            if (dx * dx + dy * dy + dz * dz > (double) dist * dist) continue;
+            double d2 = dx * dx + dy * dy + dz * dz;
+            if (d2 > (double) dist * dist) continue;
+            if (b.ext * b.ext < d2 * 0.004 * 0.004) continue;                     // меньше ~пикселя-двух — не рисуем
             double hor = Math.max(Math.abs(dx), Math.abs(dz)) + b.ext, ver = Math.abs(dy) + b.ext;
             if (hor < rdBlocks - 24 && ver < vBlocks - 24) continue;              // целиком загружено — настоящие блоки
             l.add(b);
@@ -185,8 +204,8 @@ final class SpaceLod {
     static void clear() {
         for (Body b : BODIES.values()) {
             if (b.vb != null) b.vb.close();
-            ByteBuffer q = b.pending;
-            if (q != null) { b.pending = null; MemoryUtil.memFree(q); }
+            ByteBuffer q = b.pending.getAndSet(null);
+            if (q != null) MemoryUtil.memFree(q);
         }
         BODIES.clear();
         supported = true;

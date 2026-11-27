@@ -21,7 +21,7 @@
     round: 256
     seed: 20261124
     color: "#4f8f4a"
-    atmosphere: "#7fb4ff70"
+    atmosphere: "#7fb4ff00"
     approach: 50
     target: hoka23
     tx: 0.5
@@ -37,7 +37,7 @@
     round: 180
     seed: 1618
     color: "#3a2a24"
-    atmosphere: "#ff6a2a50"
+    atmosphere: "#ff6a2a00"
     approach: 50
   dune:
     map: cosmos
@@ -49,7 +49,7 @@
     round: 220
     seed: 3141
     color: "#d8a860"
-    atmosphere: "#ffcf8a50"
+    atmosphere: "#ffcf8a00"
     approach: 50
   glacia:
     map: cosmos
@@ -61,7 +61,7 @@
     round: 240
     seed: 2718
     color: "#cfe6f5"
-    atmosphere: "#bfe8ff60"
+    atmosphere: "#bfe8ff00"
     approach: 50
   jovis:
     map: cosmos
@@ -73,5 +73,5 @@
     round: 450
     seed: 4242
     color: "#c99a6a"
-    atmosphere: "#ffd8a040"
+    atmosphere: "#ffd8a000"
     approach: 80

@@ -29,5 +29,9 @@
   "options.hoka_odyssey.lod_quality.1": "Low",
   "options.hoka_odyssey.lod_quality.2": "Medium",
   "options.hoka_odyssey.lod_quality.3": "High",
-  "options.hoka_odyssey.lod_quality.4": "Ultra"
+  "options.hoka_odyssey.lod_quality.4": "Ultra",
+  "options.hoka_odyssey.lod_body": "Distant Asteroids",
+  "options.hoka_odyssey.lod_body.tooltip": "In space, asteroids beyond Render Distance are shown simplified (shape, ores, textures) without cut edges. Off — normal rendering only.",
+  "options.hoka_odyssey.lod_body_quality": "Distant Asteroid Detail",
+  "options.hoka_odyssey.lod_body_quality.tooltip": "How detailed distant asteroids are. Higher — more accurate shape, more memory and GPU work."
 }
