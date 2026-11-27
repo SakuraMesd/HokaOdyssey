@@ -53,6 +53,11 @@ public final class Hooks {
 
     public static boolean hideHand() { return !HIDE_HAND.isEmpty(); }
 
+    /** 0.79 Модули, которые просят спрятать HUD игрока (хотбар, сердца, еда, броня, опыт, прицел; кабина корабля). */
+    static final java.util.Set<String> HIDE_HUD = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    public static boolean hideHud() { return !HIDE_HUD.isEmpty(); }
+
     /** Крен текущего кадра, радианы (миксин камеры подставляет его в поворот). */
     public static float roll;
 
@@ -82,6 +87,7 @@ public final class Hooks {
         OUTLINE.removeIf(o -> o.owner().equals(owner));
         COLLISION.removeIf(o -> o.owner().equals(owner));
         HIDE_HAND.remove(owner);
+        HIDE_HUD.remove(owner);
     }
 
     static void clear() {
@@ -108,6 +114,7 @@ public final class Hooks {
         rotation = null;
         COLLISION.clear();
         HIDE_HAND.clear();
+        HIDE_HUD.clear();
         roll = 0;
     }
 

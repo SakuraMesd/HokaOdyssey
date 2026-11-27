@@ -42,6 +42,9 @@ public final class HokaHud {
         HudElementRegistry.replaceElement(VanillaHudElements.AIR_BAR, v -> wrap(v, null));
         HudElementRegistry.replaceElement(VanillaHudElements.INFO_BAR, v -> wrap(v, null));          // полоса опыта
         HudElementRegistry.replaceElement(VanillaHudElements.EXPERIENCE_LEVEL, v -> wrap(v, null));
+        // 0.79: модуль спрятал HUD (ClientContext.hideHud) — ещё прицел и подпись предмета
+        HudElementRegistry.replaceElement(VanillaHudElements.CROSSHAIR, v -> (g, dt) -> { if (!ink.hoka.odyssey.client.Hooks.hideHud()) v.render(g, dt); });
+        HudElementRegistry.replaceElement(VanillaHudElements.HELD_ITEM_TOOLTIP, v -> (g, dt) -> { if (!ink.hoka.odyssey.client.Hooks.hideHud()) v.render(g, dt); });
     }
 
     private static boolean active() {
@@ -52,6 +55,7 @@ public final class HokaHud {
     /** Наш HUD вместо ванильного элемента (null — просто скрыть). */
     private static HudElement wrap(HudElement vanilla, HudElement ours) {
         return (g, dt) -> {
+            if (ink.hoka.odyssey.client.Hooks.hideHud()) return;               // 0.79: модуль рисует свой HUD (кабина корабля)
             if (!active()) { vanilla.render(g, dt); return; }
             if (ours != null) ours.render(g, dt);
         };

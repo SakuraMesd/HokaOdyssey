@@ -43,9 +43,21 @@ final class Pilot {
     private final CameraType cameraBefore;
     private Quaternionf chase;
     private final Quaternionf camView = new Quaternionf();
+    /** Сводка корабля от сервера (топливо, перезарядки, варп) — общая с модулем. */
+    final ShipState state;
+    private final Effects fx;
+    /** Тики полёта (часы клиента для перезарядок) и когда орудие снова готово. */
+    private long tickNo, gunReadyAt;
+    /** Строка от сервера в HUD и когда пришла (мс). */
+    private String msg;
+    private boolean msgWarn;
+    private long msgAt;
+    private boolean hudHidden;
 
-    Pilot(ClientContext ctx, int vessel, Kind kind, JsonObject common, double x, double y, double z, Quaternionf rot) {
+    Pilot(ClientContext ctx, int vessel, Kind kind, JsonObject common, double x, double y, double z, Quaternionf rot, ShipState state, Effects fx) {
         this.ctx = ctx;
+        this.state = state;
+        this.fx = fx;
         this.vessel = vessel;
         this.kind = kind;
         this.common = common;
@@ -59,10 +71,20 @@ final class Pilot {
         cameraBefore = mc.options.getCameraType();
         mc.options.setCameraType(CameraType.FIRST_PERSON);
         ctx.hideHand(true);
+        if (c("hud", "hide-vanilla", 1) != 0) {
+            try {                                                               // ядро 0.79+: свой HUD вместо ванильного
+                ctx.hideHud(true);
+                hudHidden = true;
+            } catch (LinkageError old) {
+                ctx.logger().warn("ядро мода старше 0.79 — ванильный HUD в кабине не прячется до обновления мода");
+            }
+        }
     }
 
     void end() {
         ctx.hideHand(false);
+        if (hudHidden) try { ctx.hideHud(false); } catch (LinkageError ignored) { }
+        fx.stopWarp();
         Minecraft mc = Minecraft.getInstance();
         if (mc.player != null) {                                                // взгляд — туда же, куда смотрела камера
             Vector3f f = camView.transform(new Vector3f(0, 0, 1));
@@ -81,6 +103,8 @@ final class Pilot {
     private double c(String section, String key, double def) {
         try {
             JsonObject s = common.getAsJsonObject(section);
+            if (s != null && s.has(key) && s.get(key).isJsonPrimitive() && s.get(key).getAsJsonPrimitive().isBoolean())
+                return s.get(key).getAsBoolean() ? 1 : 0;
             return s != null && s.has(key) ? s.get(key).getAsDouble() : def;
         } catch (Exception e) {
             return def;
@@ -136,6 +160,7 @@ final class Pilot {
         }
         px = x; py = y; pz = z;
         pq.set(q);
+        tickNo++;
 
         // поворот носа к прицелу — в осях корабля
         double turnMax = kind.turnSpeed / 20.0, turnAcc = c("control", "turn-accel", 360) / 400.0, k = c("control", "turn-smoothing", 0.08);
@@ -156,7 +181,8 @@ final class Pilot {
         int fwd = (fwdK ? 1 : 0) - (backK ? 1 : 0);
         int vert = (o.keyJump.isDown() && free ? 1 : 0) - (o.keyShift.isDown() && free ? 1 : 0);
         boost = fwdK && o.keySprint.isDown() && free;
-        double max = kind.speed / 20.0, maxBoost = kind.boostSpeed / 20.0;
+        double mul = state.known ? state.speedMul : 1;                         // улучшения «Двигатель+», аварийный ход
+        double max = kind.speed * mul / 20.0, maxBoost = kind.boostSpeed * mul / 20.0;
         Vector3f f = nq.transform(new Vector3f(0, 0, 1)), r = nq.transform(new Vector3f(-1, 0, 0)), u = nq.transform(new Vector3f(0, 1, 0));
         double tF = fwd > 0 ? (boost ? maxBoost : max) : fwd < 0 ? -max * c("control", "reverse", 0.3) : 0;
         double tU = vert * max * c("control", "lift", 0.3);
@@ -282,6 +308,33 @@ final class Pilot {
         ctx.send(bo.toByteArray());
     }
 
+    // ───────────────────────── орудие ─────────────────────────
+
+    /** Направление прицела (мир): нос, повёрнутый на отклонение прицела мыши. */
+    Vector3f aimDir() {
+        return new Quaternionf(q).rotateY((float) Math.toRadians(-offYaw)).rotateX((float) Math.toRadians(offPitch)).transform(new Vector3f(0, 0, 1));
+    }
+
+    /** ЛКМ (и зажатая ЛКМ — каждый тик): орудие готово — выстрел по прицелу (попадание считает сервер). */
+    void fire() {
+        if (tickNo < gunReadyAt) return;
+        gunReadyAt = tickNo + Math.max(1, state.gunReload);
+        Vector3f d = aimDir();
+        ctx.send(new byte[]{5, b(d.x, 24), b(d.x, 16), b(d.x, 8), b(d.x, 0), b(d.y, 24), b(d.y, 16), b(d.y, 8), b(d.y, 0),
+                b(d.z, 24), b(d.z, 16), b(d.z, 8), b(d.z, 0)});
+    }
+
+    private static byte b(float f, int shift) { return (byte) (Float.floatToIntBits(f) >>> shift); }
+
+    /** Строка от сервера (S2C MSG) — в HUD на 3 с. */
+    void message(String text, boolean warn) {
+        msg = text;
+        msgWarn = warn;
+        msgAt = System.currentTimeMillis();
+    }
+
+    long tickNo() { return tickNo; }
+
     /** Сервер не принял позу — вернуться. */
     void correct(double cx, double cy, double cz, Quaternionf rot) {
         x = px = cx; y = py = cy; z = pz = cz;
@@ -353,7 +406,7 @@ final class Pilot {
 
     // ───────────────────────── HUD ─────────────────────────
 
-    /** Простой HUD: прицел и нос, скорость (форсаж), подсказки клавиш. */
+    /** HUD: прицел и нос, панели {@link PilotHud} (скорость, топливо, орудие, варп, подсказки). */
     void hud(GuiGraphics g, DeltaTracker d) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.options.hideGui || mc.level == null) return;
@@ -368,13 +421,21 @@ final class Pilot {
         Vector3f aimDir = new Quaternionf(o).rotateY((float) Math.toRadians(-offYaw)).rotateX((float) Math.toRadians(offPitch)).transform(new Vector3f(0, 0, 1));
         float[] nose = project(noseDir, w, h), aim = project(aimDir, w, h);
         if (nose != null) ring(g, Math.round(nose[0]), Math.round(nose[1]), 0xA0FFFFFF);
-        if (aim != null) cross(g, Math.round(aim[0]), Math.round(aim[1]), 0xFF6CE0FF);
-        var font = mc.font;
+        boolean ready = tickNo >= gunReadyAt;
+        if (aim != null) {
+            int ax = Math.round(aim[0]), ay = Math.round(aim[1]);
+            cross(g, ax, ay, ready ? 0xFF6CE0FF : 0xA06CE0FF);
+            if (!ready) {                                                       // перезарядка — тонкая полоска под прицелом
+                float k = 1 - (gunReadyAt - tickNo) / (float) Math.max(1, state.gunReload);
+                g.fill(ax - 6, ay + 8, ax + 7, ay + 9, 0x60000000);
+                g.fill(ax - 6, ay + 8, ax - 6 + Math.round(13 * k), ay + 9, 0xFFFFB040);
+            }
+        }
         double spd = Math.sqrt(vx * vx + vy * vy + vz * vz) * 20;
-        String sp = "Скорость: " + Math.round(spd) + " бл/с" + (boost ? "  ФОРСАЖ" : "");
-        g.drawString(font, sp, w / 2 - font.width(sp) / 2, h - 44, boost ? 0xFFFFB040 : 0xFFE0F0FF, true);
-        String keys = "F — выйти  ·  F5 — вид  ·  Ctrl+W — форсаж";
-        g.drawString(font, keys, w / 2 - font.width(keys) / 2, h - 32, 0xFFA0B0C0, true);
+        double mul = state.known ? state.speedMul : 1;
+        float age = (System.currentTimeMillis() - msgAt) / 1000f;
+        float alpha = msg == null ? 0 : age < 2.5f ? 1 : Math.max(0, 1 - (age - 2.5f) / 0.8f);
+        PilotHud.draw(g, new PilotHud.View(spd, kind.boostSpeed * mul, boost, state, tickNo, gunReadyAt, fx.charge(), msg, msgWarn, alpha));
     }
 
     private static void cross(GuiGraphics g, int x, int y, int color) {

@@ -38,15 +38,26 @@ public final class VesselsClientModule implements ClientModule {
     private final Map<Integer, Ship> ships = new HashMap<>();
     private final Set<String> watched = new HashSet<>();
     private Pilot pilot;
+    private final Decks decks = new Decks();
+    private final Effects fx = new Effects();
+    private ShipState state = new ShipState();
+    /** Клавиши G и R в прошлом тике (нажатие — по фронту). */
+    private boolean gWas, rWas;
 
     /** Корабль, который видит игрок: носитель, вид, модель. */
-    private final class Ship {
+    private final class Ship implements Decks.Ship {
         final int id;
         int carrier;
         Kind kind;
         ModelHandle handle;
 
         Ship(int id) { this.id = id; }
+
+        @Override public int id() { return id; }
+
+        @Override public Kind kind() { return kind; }
+
+        @Override public boolean poseNow(Vector3d pos, Quaternionf rot) { return pose(1f, pos, rot); }
 
         /** Поза корабля (середина модели в мире, поворот «система корабля → мир») на кадр; нет носителя — false. */
         boolean pose(float pt, Vector3d pos, Quaternionf rot) {
@@ -89,20 +100,42 @@ public final class VesselsClientModule implements ClientModule {
             Minecraft mc = Minecraft.getInstance();
             if (pilot != null && (mc.player == null || mc.level == null)) stopPilot();
             if (pilot != null) pilot.tick();
+            fx.tick();
+            keys();
         });
+        ctx.onWorld(fx::render);
+        try {                                                                   // твёрдый корпус: столкновения и перенос (ядро 0.21+)
+            ctx.onLocalTravel(p -> {
+                decks.own = pilot != null ? pilot.vessel : -1;
+                decks.sample(ships.values());
+                decks.travel(p);
+            });
+            ctx.onLocalTravelEnd(decks::travelEnd);
+            ctx.onCollision(decks::collide);
+        } catch (LinkageError old) {
+            ctx.logger().warn("ядро мода без столкновений с телами — корабли проходимы насквозь до обновления мода");
+        }
         ctx.onMouse((dy, dp) -> pilot != null && pilot.mouse(dy, dp));
         ctx.onCamera((s, pt) -> { if (pilot != null) pilot.camera(s, pt); });
         ctx.onInput(in -> { if (pilot != null) ctx.setMove(in, 0, 0); });       // пилот не ходит — клавиши читает Pilot
         ctx.onClick((attack, held) -> {
-            if (pilot != null) return true;                                     // из кабины ничего не ставим и не ломаем
+            if (pilot != null) {                                                // из кабины ничего не ставим и не ломаем; ЛКМ — огонь
+                if (attack) pilot.fire();
+                return true;
+            }
             return !attack && !held && clickBoard();
         });
-        ctx.onHud((g, d) -> { if (pilot != null) pilot.hud(g, d); });
+        ctx.onHud((g, d) -> {
+            if (pilot != null) pilot.hud(g, d);
+            fx.tunnel(g);                                                       // варп: туннель и у пилота, и у стоящих на корабле
+        });
     }
 
     @Override
     public void disable() {
         stopPilot();
+        decks.clear();
+        fx.clear();
         for (Ship s : ships.values()) s.remove();
         ships.clear();
     }
@@ -141,13 +174,36 @@ public final class VesselsClientModule implements ClientModule {
                     Ship s = ships.get(id);
                     if (s == null || s.kind == null) { ctx.logger().warn("корабль {}: нет вида — полёт не начат", id); return; }
                     stopPilot();
-                    pilot = new Pilot(ctx, id, s.kind, common, x, y, z, q);
+                    state = new ShipState();
+                    pilot = new Pilot(ctx, id, s.kind, common, x, y, z, q, state, fx);
                 }
                 case 5 -> stopPilot();                                          // END
                 case 6 -> {                                                     // CORRECT
                     double x = in.readDouble(), y = in.readDouble(), z = in.readDouble();
                     Quaternionf q = new Quaternionf(in.readFloat(), in.readFloat(), in.readFloat(), in.readFloat());
                     if (pilot != null) pilot.correct(x, y, z, q);
+                }
+                case 7 -> {                                                     // STATE
+                    JsonObject o = JsonParser.parseString(in.readUTF()).getAsJsonObject();
+                    state.read(o, pilot != null ? pilot.tickNo() : 0);
+                }
+                case 8 -> {                                                     // SHOT
+                    in.readInt();
+                    Vec3 from = new Vec3(in.readDouble(), in.readDouble(), in.readDouble());
+                    Vec3 to = new Vec3(in.readDouble(), in.readDouble(), in.readDouble());
+                    fx.shot(from, to, in.readUnsignedByte());
+                }
+                case 9 -> {                                                     // WARP
+                    in.readInt();
+                    int what = in.readUnsignedByte(), ticks = in.readInt();
+                    fx.warp(what, ticks);
+                }
+                case 10 -> {                                                    // MSG
+                    String text = in.readUTF();
+                    boolean warn = in.readUnsignedByte() == 1;
+                    if (pilot != null) pilot.message(text, warn);
+                    else Minecraft.getInstance().gui.setOverlayMessage(net.minecraft.network.chat.Component.literal(text)
+                            .withStyle(warn ? net.minecraft.ChatFormatting.RED : net.minecraft.ChatFormatting.AQUA), false);
                 }
                 default -> { }
             }
@@ -160,6 +216,9 @@ public final class VesselsClientModule implements ClientModule {
     private void kinds(JsonObject all) {
         JsonObject c = all.getAsJsonObject("_");
         common = c != null ? c : new JsonObject();
+        decks.solid = flag("hull", "solid", true);
+        decks.carry = flag("hull", "carry", true);
+        try { fx.boltSpeed = common.getAsJsonObject("gun").get("bolt-speed").getAsDouble(); } catch (Exception ignored) { }
         Map<String, Kind> old = new HashMap<>(kinds);
         kinds.clear();
         for (Map.Entry<String, JsonElement> e : all.entrySet()) {
@@ -208,13 +267,48 @@ public final class VesselsClientModule implements ClientModule {
         try { return common.has("board-reach") ? common.get("board-reach").getAsDouble() : 6; } catch (Exception e) { return 6; }
     }
 
+    private boolean flag(String section, String key, boolean def) {
+        try { return common.getAsJsonObject(section).get(key).getAsBoolean(); } catch (Exception e) { return def; }
+    }
+
+    private double menuReach() {
+        try { return common.has("menu-reach") ? common.get("menu-reach").getAsDouble() : 6; } catch (Exception e) { return 6; }
+    }
+
+    /** G — меню корабля (пилот — своего, иначе — на который смотрит); R — варп (пилот). По нажатию, без экранов. */
+    private void keys() {
+        Minecraft mc = Minecraft.getInstance();
+        boolean free = mc.screen == null && mc.player != null;
+        var win = mc.getWindow();
+        boolean g = free && com.mojang.blaze3d.platform.InputConstants.isKeyDown(win, org.lwjgl.glfw.GLFW.GLFW_KEY_G);
+        boolean r = free && com.mojang.blaze3d.platform.InputConstants.isKeyDown(win, org.lwjgl.glfw.GLFW.GLFW_KEY_R);
+        if (g && !gWas) {
+            int id = pilot != null ? pilot.vessel : -1;
+            if (id < 0) { Ship s = looked(menuReach()); if (s != null) id = s.id; }
+            if (id >= 0) ctx.send(new byte[]{4, (byte) (id >>> 24), (byte) (id >>> 16), (byte) (id >>> 8), (byte) id});   // MENU
+        }
+        if (r && !rWas && pilot != null) ctx.send(new byte[]{6});                // WARP
+        gWas = g;
+        rWas = r;
+    }
+
     /** Луч от глаз по взгляду против кораблей; ближе блока мира — запрос посадки. */
     private boolean clickBoard() {
+        Ship best = looked(reach());
+        if (best == null) return false;
+        int id = best.id;
+        ctx.send(new byte[]{2, (byte) (id >>> 24), (byte) (id >>> 16), (byte) (id >>> 8), (byte) id});   // BOARD
+        Minecraft.getInstance().player.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+        return true;
+    }
+
+    /** Корабль под взглядом (по треугольникам модели) не дальше reach и ближе блока мира, или null. */
+    private Ship looked(double reach) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || mc.level == null || ships.isEmpty()) return false;
+        if (mc.player == null || mc.level == null || ships.isEmpty()) return null;
         float pt = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
         Vec3 eye = mc.player.getEyePosition(pt), look = mc.player.getViewVector(pt);
-        double max = reach();
+        double max = reach;
         HitResult hr = mc.hitResult;
         if (hr != null && hr.getType() != HitResult.Type.MISS) max = Math.min(max, hr.getLocation().distanceTo(eye));
         Ship best = null;
@@ -229,11 +323,7 @@ public final class VesselsClientModule implements ClientModule {
             double t = MeshRay.hit(new double[]{o.x, o.y, o.z}, new double[]{d.x, d.y, d.z}, max, s.kind.half, s.kind.tris);
             if (t >= 0 && t < bestT) { bestT = t; best = s; }
         }
-        if (best == null) return false;
-        int id = best.id;
-        ctx.send(new byte[]{2, (byte) (id >>> 24), (byte) (id >>> 16), (byte) (id >>> 8), (byte) id});   // BOARD
-        mc.player.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
-        return true;
+        return best;
     }
 
 }

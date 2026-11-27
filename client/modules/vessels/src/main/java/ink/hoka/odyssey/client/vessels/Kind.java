@@ -30,6 +30,12 @@ final class Kind {
     volatile float[] hull = new float[0];
     /** Габарит клеток корпуса (система корабля) — грубая проверка «вокруг пусто». */
     final float[] hullLo = new float[3], hullHi = new float[3];
+    /**
+     * Мелкие клетки корпуса — по полблока (ключ {@link #fineKey} индексов floor(x·2)…): твёрдый корпус для игроков
+     * (стоять, упираться — ступенька 0.5 меньше шага игрока 0.6, по корпусу можно ходить). Те же, что на сервере
+     * (VesselKind.fine).
+     */
+    volatile java.util.Set<Long> fine = java.util.Set.of();
 
     Kind(String id, JsonObject o) {
         this.id = id;
@@ -77,7 +83,53 @@ final class Kind {
             t[i + 2] = v.z;
         }
         hull = hullOf(t, hullLo, hullHi);
+        fine = fineOf(t);
         tris = t;
+    }
+
+    static long fineKey(int ix, int iy, int iz) {
+        return ((long) (ix & 0x1FFFFF) << 42) | ((long) (iy & 0x1FFFFF) << 21) | (iz & 0x1FFFFF);
+    }
+
+    /** Мелкая клетка с точкой (система корабля) — корпус? */
+    boolean fineAt(double x, double y, double z) {
+        return fine.contains(fineKey((int) Math.floor(x * 2), (int) Math.floor(y * 2), (int) Math.floor(z * 2)));
+    }
+
+    /** Ноги (система корабля) на корпусе: под ступнями (0.6 × 0.6) в пределах below вниз есть мелкая клетка. */
+    boolean standsOn(double x, double y, double z, double below) {
+        for (double dx : new double[]{-0.29, 0, 0.29}) for (double dz : new double[]{-0.29, 0, 0.29}) {
+            for (double d = 0.05; d <= below + 1e-9; d += 0.25) if (fineAt(x + dx, y - d, z + dz)) return true;
+        }
+        return false;
+    }
+
+    /** Есть ли мелкие клетки в коробке (система корабля). */
+    boolean fineIn(double x0, double y0, double z0, double x1, double y1, double z1) {
+        java.util.Set<Long> f = fine;
+        if (f.isEmpty()) return false;
+        int ax = (int) Math.floor(x0 * 2), ay = (int) Math.floor(y0 * 2), az = (int) Math.floor(z0 * 2);
+        int bx = (int) Math.floor(x1 * 2), by = (int) Math.floor(y1 * 2), bz = (int) Math.floor(z1 * 2);
+        if ((long) (bx - ax + 1) * (by - ay + 1) * (bz - az + 1) > 4096) return false;
+        for (int x = ax; x <= bx; x++) for (int y = ay; y <= by; y++) for (int z = az; z <= bz; z++)
+            if (f.contains(fineKey(x, y, z))) return true;
+        return false;
+    }
+
+    /** Клетки по полблока, которых касаются треугольники (точки по поверхности через ~1/6 блока). */
+    static java.util.Set<Long> fineOf(float[] t) {
+        java.util.Set<Long> out = new HashSet<>();
+        for (int i = 0; i + 8 < t.length; i += 9) {
+            double len = Math.max(dist(t, i, i + 3), Math.max(dist(t, i + 3, i + 6), dist(t, i, i + 6)));
+            int n = Math.max(1, (int) Math.ceil(len * 6));
+            for (int u = 0; u <= n; u++) for (int w = 0; u + w <= n; w++) {
+                double fu = (double) u / n, fv = (double) w / n, fw = 1 - fu - fv;
+                out.add(fineKey((int) Math.floor((t[i] * fw + t[i + 3] * fu + t[i + 6] * fv) * 2),
+                        (int) Math.floor((t[i + 1] * fw + t[i + 4] * fu + t[i + 7] * fv) * 2),
+                        (int) Math.floor((t[i + 2] * fw + t[i + 5] * fu + t[i + 8] * fv) * 2)));
+            }
+        }
+        return java.util.Collections.unmodifiableSet(out);
     }
 
     /** Клетки, которых касаются треугольники (точки по поверхности через ~1/3 блока) → их середины. */

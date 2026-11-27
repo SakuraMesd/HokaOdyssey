@@ -209,11 +209,12 @@ final class VesselsClient {
             all.put(k.id, m);
         }
         Map<String, Object> common = new LinkedHashMap<>();                   // общие настройки мода (как у ships: aim, camera, hud)
-        for (String s : new String[]{"aim", "camera", "hud", "control", "hull"}) {
+        for (String s : new String[]{"aim", "camera", "hud", "control", "hull", "gun"}) {
             Object o = mod.config().get(s);
             if (o != null) common.put(s, o);
         }
         common.put("board-reach", mod.boardReach());
+        common.put("menu-reach", mod.menuReach());
         all.put("_", common);
         String js = new Gson().toJson(all);
         return bytes(out -> {
