@@ -35,7 +35,7 @@ public final class Laser {
     private Laser() {}
 
     static final int OP = 11;
-    private static final float DEFAULT_RANGE = 24;
+    private static final float DEFAULT_RANGE = 10;
 
     private static boolean active, sentActive;
     private static BlockPos target, sentTarget;
@@ -164,38 +164,79 @@ public final class Laser {
         MUZZLE.clear();
     }
 
-    /** Луч: ядро и свечение (полосы лицом к глазу), вспышка в точке попадания. */
+    /**
+     * Луч: извивается (две волны поперёк, у дула и у цели — ровно), мягкое свечение (края прозрачные, свет
+     * складывается), тонкая вторая «молния» вокруг, круглая вспышка в точке попадания.
+     */
     private static void beam(PoseStack.Pose pose, VertexConsumer vc, Vector3f a, Vector3f b, Vector3f eye) {
-        float flick = 0.85f + 0.15f * (float) Math.sin(System.currentTimeMillis() / 35.0);
-        strip(pose, vc, a, b, eye, 0.06f * flick, 0x3C, 0x9E, 0xFF, 70);
-        strip(pose, vc, a, b, eye, 0.025f * flick, 0x6F, 0xD3, 0xFF, 160);
-        strip(pose, vc, a, b, eye, 0.009f, 0xE6, 0xFA, 0xFF, 255);
-        spark(pose, vc, b, eye, 0.22f * flick, 0x6F, 0xD3, 0xFF, 120);
-        spark(pose, vc, b, eye, 0.09f * flick, 0xFF, 0xFF, 0xFF, 220);
+        float t = (System.currentTimeMillis() % 100_000L) / 1000f;
+        float flick = 0.88f + 0.12f * (float) Math.sin(t * 28);
+        Vector3f[] main = path(a, b, 0.07f, t, 0);
+        Vector3f[] wild = path(a, b, 0.16f, t * 1.7f, 2.1f);
+        ribbon(pose, vc, main, eye, 0.10f * flick, 0x2E, 0x8C, 0xFF, 55);
+        ribbon(pose, vc, main, eye, 0.04f * flick, 0x6F, 0xD3, 0xFF, 150);
+        ribbon(pose, vc, main, eye, 0.014f, 0xEE, 0xFB, 0xFF, 255);
+        ribbon(pose, vc, wild, eye, 0.012f, 0x8F, 0xDF, 0xFF, 110);
+        glow(pose, vc, b, eye, 0.30f * flick, 0x3C, 0x9E, 0xFF, 120);
+        glow(pose, vc, b, eye, 0.11f * flick, 0xFF, 0xFF, 0xFF, 230);
     }
 
-    private static void strip(PoseStack.Pose pose, VertexConsumer vc, Vector3f a, Vector3f b, Vector3f eye, float w, int r, int g, int bl, int al) {
+    /** Точки извилистого луча: amp — размах (блоки), phase — сдвиг волн. Концы — ровно в a и b. */
+    private static Vector3f[] path(Vector3f a, Vector3f b, float amp, float t, float phase) {
         Vector3f dir = new Vector3f(b).sub(a);
-        Vector3f mid = new Vector3f(a).add(b).mul(0.5f).sub(eye);
-        Vector3f side = dir.cross(mid, new Vector3f());
-        if (side.lengthSquared() < 1e-10f) return;
-        side.normalize(w);
-        quad(pose, vc, new Vector3f(a).sub(side), new Vector3f(a).add(side), new Vector3f(b).add(side), new Vector3f(b).sub(side), r, g, bl, al);
+        float len = dir.length();
+        int n = Math.max(6, Math.min(48, (int) (len * 5)));
+        Vector3f d = new Vector3f(dir).normalize();
+        Vector3f n1 = Math.abs(d.y) > 0.95f ? new Vector3f(1, 0, 0).cross(d) : new Vector3f(0, 1, 0).cross(d);
+        n1.normalize();
+        Vector3f n2 = new Vector3f(d).cross(n1).normalize();
+        float a0 = amp * Math.min(1, len / 3);
+        Vector3f[] out = new Vector3f[n + 1];
+        for (int i = 0; i <= n; i++) {
+            float u = i / (float) n, dist = u * len;
+            float taper = (float) Math.sin(Math.PI * u);
+            float w1 = (float) Math.sin(dist * 2.6f - t * 9 + phase) * a0 * taper;
+            float w2 = (float) Math.sin(dist * 4.1f + t * 7 + phase * 1.7f) * a0 * 0.6f * taper;
+            out[i] = new Vector3f(dir).mul(u).add(a).add(n1.x * w1 + n2.x * w2, n1.y * w1 + n2.y * w2, n1.z * w1 + n2.z * w2);
+        }
+        return out;
     }
 
-    private static void spark(PoseStack.Pose pose, VertexConsumer vc, Vector3f c, Vector3f eye, float s, int r, int g, int bl, int al) {
+    /** Лента вдоль точек лицом к глазу: середина — цвет, края — прозрачные (мягкое свечение). */
+    private static void ribbon(PoseStack.Pose pose, VertexConsumer vc, Vector3f[] p, Vector3f eye, float w, int r, int g, int bl, int al) {
+        Vector3f[] side = new Vector3f[p.length];
+        for (int i = 0; i < p.length; i++) {
+            Vector3f tan = new Vector3f(p[Math.min(p.length - 1, i + 1)]).sub(p[Math.max(0, i - 1)]);
+            Vector3f s = tan.cross(new Vector3f(p[i]).sub(eye), new Vector3f());
+            side[i] = s.lengthSquared() < 1e-12f ? new Vector3f() : s.normalize(w);
+        }
+        for (int i = 0; i + 1 < p.length; i++) {
+            quad(pose, vc, new Vector3f(p[i]).sub(side[i]), p[i], p[i + 1], new Vector3f(p[i + 1]).sub(side[i + 1]), r, g, bl, 0, al, al, 0);
+            quad(pose, vc, p[i], new Vector3f(p[i]).add(side[i]), new Vector3f(p[i + 1]).add(side[i + 1]), p[i + 1], r, g, bl, al, 0, 0, al);
+        }
+    }
+
+    /** Круглая вспышка лицом к глазу: в центре — цвет, к краю — прозрачная. */
+    private static void glow(PoseStack.Pose pose, VertexConsumer vc, Vector3f c, Vector3f eye, float rad, int r, int g, int bl, int al) {
         Vector3f view = new Vector3f(c).sub(eye);
         if (view.lengthSquared() < 1e-8f) return;
         Vector3f up = Math.abs(view.y) > 0.9f * view.length() ? new Vector3f(1, 0, 0) : new Vector3f(0, 1, 0);
-        Vector3f u = view.cross(up, new Vector3f()).normalize(s), v = view.cross(u, new Vector3f()).normalize(s);
-        quad(pose, vc, new Vector3f(c).sub(u).sub(v), new Vector3f(c).add(u).sub(v), new Vector3f(c).add(u).add(v),
-                new Vector3f(c).sub(u).add(v), r, g, bl, al);
+        Vector3f u = view.cross(up, new Vector3f()).normalize(rad), v = view.cross(u, new Vector3f()).normalize(rad);
+        int n = 16;
+        for (int i = 0; i < n; i++) {
+            double t0 = i * Math.PI * 2 / n, t1 = (i + 1) * Math.PI * 2 / n;
+            Vector3f e0 = new Vector3f(c).add(new Vector3f(u).mul((float) Math.cos(t0))).add(new Vector3f(v).mul((float) Math.sin(t0)));
+            Vector3f e1 = new Vector3f(c).add(new Vector3f(u).mul((float) Math.cos(t1))).add(new Vector3f(v).mul((float) Math.sin(t1)));
+            quad(pose, vc, c, e0, e1, c, r, g, bl, al, 0, 0, al);
+        }
     }
 
-    /** Двусторонний четырёхугольник (у прохода lightning отсечение задних граней). */
-    private static void quad(PoseStack.Pose pose, VertexConsumer vc, Vector3f p0, Vector3f p1, Vector3f p2, Vector3f p3, int r, int g, int b, int a) {
+    /** Двусторонний четырёхугольник с прозрачностью по вершинам (у прохода lightning отсечение задних граней). */
+    private static void quad(PoseStack.Pose pose, VertexConsumer vc, Vector3f p0, Vector3f p1, Vector3f p2, Vector3f p3,
+                             int r, int g, int b, int a0, int a1, int a2, int a3) {
         Vector3f[] q = {p0, p1, p2, p3, p3, p2, p1, p0};
-        for (Vector3f p : q) vc.addVertex(pose, p.x, p.y, p.z).setColor(r, g, b, a);
+        int[] al = {a0, a1, a2, a3, a3, a2, a1, a0};
+        for (int i = 0; i < 8; i++) vc.addVertex(pose, q[i].x, q[i].y, q[i].z).setColor(r, g, b, al[i]);
     }
 
     /** Обводка блока, который ломает луч (в проходе рамки игры). true — нарисована (рамку игры не рисуем). */
@@ -204,9 +245,11 @@ public final class Laser {
         if (!active || target == null || mc.level == null) return false;
         VoxelShape sh = mc.level.getBlockState(target).getShape(mc.level, target);
         if (sh.isEmpty()) sh = Shapes.block();
-        ShapeRenderer.renderShape(ps, buffers.getBuffer(RenderTypes.lines()), sh,
-                target.getX() - cam.x, target.getY() - cam.y, target.getZ() - cam.z, 0xFF6FD3FF,
-                mc.getWindow().getAppropriateLineWidth() * 2f);
+        int alpha = (int) (110 + 30 * Math.sin(System.currentTimeMillis() / 160.0));          // ~50%, мягко пульсирует
+        ShapeRenderer.renderShape(ps, buffers.getBuffer(RenderTypes.linesTranslucent()), sh,
+                target.getX() - cam.x, target.getY() - cam.y, target.getZ() - cam.z, (alpha << 24) | 0x6FD3FF,
+                mc.getWindow().getAppropriateLineWidth() * 1.5f);
+        if (buffers instanceof MultiBufferSource.BufferSource bs) bs.endBatch(RenderTypes.linesTranslucent());
         return true;
     }
 }
