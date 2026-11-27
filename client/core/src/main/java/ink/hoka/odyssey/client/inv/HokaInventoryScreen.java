@@ -110,8 +110,8 @@ public final class HokaInventoryScreen extends AbstractContainerScreen<Inventory
     /** Своя подсказка: скруглённая тёмно-синяя плашка с цветной кромкой, заголовок и серое пояснение. */
     private void tip(GuiGraphics g, String[] t, int mx, int my, int accent) {
         g.nextStratum();
-        int w = Math.max(font.width(t[0]), font.width(t[1])) + 12, h = 27;
-        int x = mx + 10, y = my - 14;
+        int w = font.width(t[0]) + 12, h = 16;
+        int x = mx + 10, y = my - 10;
         if (x + w > width - 2) x = mx - w - 8;
         if (y < 2) y = 2;
         int out = 0xF00A1224, bg = 0xF0142848;
@@ -119,7 +119,6 @@ public final class HokaInventoryScreen extends AbstractContainerScreen<Inventory
         g.fill(x + 1, y + 1, x + w - 1, y + h - 1, bg);
         g.fill(x + 2, y + 1, x + w - 2, y + 2, accent);                                          // цветная кромка сверху
         g.drawString(font, t[0], x + 6, y + 5, 0xFFFFFFFF, true);
-        g.drawString(font, t[1], x + 6, y + 16, 0xFF9AB0CC, false);
     }
 
     /** Выделение слота под мышью: скруглённое, голубое, почти прозрачное (поверх предмета — его видно). */
