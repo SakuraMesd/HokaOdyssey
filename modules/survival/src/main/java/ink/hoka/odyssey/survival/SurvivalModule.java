@@ -364,6 +364,8 @@ public final class SurvivalModule extends OdysseyModule {
     private void onDamage(EntityDamageEvent e) {
         LivingEntity v = e.getEntity();
         Damage d = e.getDamage();
+        // звук боли клиент играет сам по событию урона (как в ванили); Minestom слал ещё и отдельный звук — было «тык-тык»
+        e.setSound(null);
         if (v instanceof Player p) {
             GameMode g = p.getGameMode();
             if ((g == GameMode.CREATIVE || g == GameMode.SPECTATOR) && !d.getType().equals(DamageType.OUT_OF_WORLD)) { e.setCancelled(true); return; }
