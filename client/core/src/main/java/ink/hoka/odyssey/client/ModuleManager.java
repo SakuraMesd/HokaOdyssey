@@ -87,7 +87,8 @@ final class ModuleManager {
                 case 7 -> ink.hoka.odyssey.client.ui.UiScreen.handle(in);
                 case 8 -> ink.hoka.odyssey.client.ui.UiHud.handle(in);
                 case 9 -> ink.hoka.odyssey.client.inv.HokaInventory.handle(in);   // 0.67: инвентарь выживания
-                case 10 -> ink.hoka.odyssey.client.model.HeldEditor.handle(in);   // 0.69: настройка модели в руке
+                case 10 -> ink.hoka.odyssey.client.model.HeldEditor.handle(in);
+                case 11 -> ink.hoka.odyssey.client.model.Laser.handle(in);         // 0.71: лучи других игроков   // 0.69: настройка модели в руке
                 default -> HokaOdysseyClient.LOG.warn("Hoka Odyssey: неизвестная операция {}", op);
             }
         } catch (Exception e) {
@@ -250,6 +251,7 @@ final class ModuleManager {
         ink.hoka.odyssey.client.ui.UiScreen.clear();
         ink.hoka.odyssey.client.ui.UiHud.clear();
         ink.hoka.odyssey.client.model.Models.clear();
+        ink.hoka.odyssey.client.model.Laser.clear();
         FileStore.clear();
         for (String id : List.copyOf(LOADED.keySet()).reversed()) unload(id);
         Hooks.clear();

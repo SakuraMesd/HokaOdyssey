@@ -89,7 +89,9 @@ public final class HokaOdysseyClient implements ClientModInitializer {
         ink.hoka.odyssey.client.ui.UiHud.register();
         ink.hoka.odyssey.client.lod.LodRenderer.register();
         ink.hoka.odyssey.client.inv.HokaInventory.register();               // 0.67: инвентарь выживания
-        ink.hoka.odyssey.client.model.HeldModels.init();                   // 0.69: модели в руке (Аксиом)
+        ink.hoka.odyssey.client.model.HeldModels.init();
+        ClientTickEvents.END_CLIENT_TICK.register(c -> ink.hoka.odyssey.client.model.Laser.tick());   // 0.71: лазер Аксиома
+        net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.AFTER_ENTITIES.register(ink.hoka.odyssey.client.model.Laser::renderWorld);                   // 0.69: модели в руке (Аксиом)
         ink.hoka.odyssey.client.inv.HokaHud.register();                     // 0.68: HUD выживания               // 0.64: дальняя прорисовка
         net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.END_EXTRACTION.register(ink.hoka.odyssey.client.model.Models::extract);
         net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.AFTER_ENTITIES.register(ink.hoka.odyssey.client.model.Models::render);

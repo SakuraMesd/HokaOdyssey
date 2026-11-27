@@ -1,0 +1,17 @@
+# Добыча. В выживании руками и любыми предметами блоки НЕ ломаются — только инструментами из tools.
+# Творческий режим — как обычно. Изменили → /mining reload.
+#
+# tools.<id> — id своего предмета (метка hoka_item, модуль hoitems: axiom) или ванильный (minecraft:diamond_pickaxe)
+#   laser     — true: лазер (мод Hoka Odyssey): зажать ЛКМ — луч из дула в прицел, блок ломается за время из blocks;
+#               false: ломать как обычно (рукой с этим предметом), но только блоки из blocks
+#   max_range — проверка дальности на сервере, блоков (дальность луча у игрока — «Дальность» в /hoitem edit, иначе 24)
+#   drops_as  — что выпадает — как если ломать этим инструментом
+#   blocks    — какие блоки берёт: <блок>: секунд (для laser: false — время не важно, просто разрешено)
+tools:
+  axiom:
+    laser: true
+    max_range: 64
+    drops_as: minecraft:diamond_pickaxe
+    blocks:
+      coal_ore: 2.0
+      deepslate_coal_ore: 3.0

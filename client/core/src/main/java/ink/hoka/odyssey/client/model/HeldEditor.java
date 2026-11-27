@@ -25,9 +25,13 @@ public final class HeldEditor extends Screen {
     static HeldModels.Def editing;
     static String editingId;
 
-    private static final int PW = 176;
-    private static final String[] VIEWS = {"1-е лицо", "3-е лицо", "Общее"};
-    private static final String[][] SECTIONS = {{"Модель", "Рука 1", "Рука 2"}, {"Модель", "Рука 1", "Рука 2"}, {}};
+    private static final int PW = 204;
+    private static boolean beamTab;
+
+    /** Открыта вкладка «Луч» — свой луч виден всегда (поставить дуло). */
+    static boolean previewBeam() { return beamTab && Minecraft.getInstance().screen instanceof HeldEditor; }
+    private static final String[] VIEWS = {"1-е лицо", "3-е лицо", "Общее", "Луч"};
+    private static final String[][] SECTIONS = {{"Модель", "Рука 1", "Рука 2"}, {"Модель", "Рука 1", "Рука 2"}, {}, {}};
 
     private final String id;
     private final HeldModels.Def def, original;
@@ -62,8 +66,9 @@ public final class HeldEditor extends Screen {
         HeldModels.put(id, def);
         Minecraft.getInstance().options.setCameraType(view == 1 ? CameraType.THIRD_PERSON_FRONT : CameraType.FIRST_PERSON);
         int x = width - PW - 6, y = 22;
-        int tw = (PW - 4) / 3;
-        for (int i = 0; i < 3; i++) {
+        beamTab = view == 3;
+        int tw = (PW - 6) / 4;
+        for (int i = 0; i < 4; i++) {
             int v = i;
             Button b = Button.builder(Component.literal(VIEWS[i]), btn -> { view = v; section = 0; rebuildWidgets(); })
                     .bounds(x + i * (tw + 2), y, tw, 18).build();
@@ -91,6 +96,17 @@ public final class HeldEditor extends Screen {
                 y += 22;
                 y = trs(x, y, section == 1 ? def.tpArm1 : def.tpArm2, false, true);
             }
+        } else if (view == 3) {
+            addRenderableWidget(Button.builder(Component.literal("Лазер: " + (def.laser ? "вкл (ЛКМ)" : "выкл")),
+                    b -> { def.laser = !def.laser; rebuildWidgets(); }).bounds(x, y, PW, 18).build());
+            y += 22;
+            String[] ax = {"X", "Y", "Z"};
+            for (int i = 0; i < 3; i++) {
+                int k = i;
+                addRenderableWidget(new Slider(x, y, "Дуло " + ax[i] + " (пиксели модели)", -64, 64, 0.25f, () -> def.muzzle[k], v -> def.muzzle[k] = v));
+                y += 20;
+            }
+            y += 2;
         } else {
             addRenderableWidget(Button.builder(Component.literal("Руки: " + armsName()), b -> {
                 def.arms = switch (def.arms) { case "both" -> "right"; case "right" -> "none"; default -> "both"; };
@@ -157,6 +173,8 @@ public final class HeldEditor extends Screen {
 
     private void reset() {
         HeldModels.Def o = HeldModels.copy(original);
+        def.laser = o.laser;
+        System.arraycopy(o.muzzle, 0, def.muzzle, 0, 3);
         def.model = o.model; def.anim = o.anim; def.arms = o.arms; def.speed = o.speed; def.range = o.range; def.tpPose = o.tpPose;
         System.arraycopy(o.fpModel, 0, def.fpModel, 0, 7);
         System.arraycopy(o.fpArm1, 0, def.fpArm1, 0, 9);
@@ -172,6 +190,7 @@ public final class HeldEditor extends Screen {
     public void removed() {
         editing = null;
         editingId = null;
+        beamTab = false;
         Minecraft.getInstance().options.setCameraType(camera);
     }
 

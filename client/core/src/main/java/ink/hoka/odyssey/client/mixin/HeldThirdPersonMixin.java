@@ -32,7 +32,8 @@ public abstract class HeldThirdPersonMixin {
         ps.pushPose();
         ((ArmedModel) ((ItemInHandLayer) (Object) this).getParentModel()).translateToHand(s, arm, ps);
         boolean left = arm == HumanoidArm.LEFT;      // поворот и сдвиг к кисти — в HeldModels.thirdPerson (учёт растяжения руки)
-        HeldModels.thirdPerson(d, left, ps, snc, light);
+        HeldModels.thirdPerson(d, left, ps, snc, light,
+                s instanceof net.minecraft.client.renderer.entity.state.AvatarRenderState a ? a.id : -1);
         ps.popPose();
         ci.cancel();
     }

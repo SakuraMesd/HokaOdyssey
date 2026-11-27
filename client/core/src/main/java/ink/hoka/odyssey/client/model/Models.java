@@ -288,6 +288,12 @@ public final class Models {
 
     private static VertexConsumer currentVc;
 
+    /** Середина габарита модели (пиксели) или null — модели ещё нет. */
+    public static float[] center(String path) {
+        Lib l = lib(path);
+        return l == null ? null : l.center;
+    }
+
     /** Названия анимаций модели (пусто — модели ещё нет). */
     public static java.util.List<String> animations(String path) {
         Lib l = lib(path);

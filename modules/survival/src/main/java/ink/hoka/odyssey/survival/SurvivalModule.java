@@ -487,8 +487,10 @@ public final class SurvivalModule extends OdysseyModule {
         St s = st(p);
         if (hunger) s.exhaustion += 0.005f;
         Block b = e.getBlock();
-        ItemStack tool = p.getItemInMainHand();
-        if (b.registry().hardness() > 0 && tool.has(DataComponents.MAX_DAMAGE)) {
+        String asTool = p.getTag(net.minestom.server.tag.Tag.String("hoka_break_tool"));   // модуль mining: лазер и т.п.
+        net.minestom.server.item.Material asMat = asTool == null ? null : net.minestom.server.item.Material.fromKey(asTool);
+        ItemStack tool = asMat != null ? ItemStack.of(asMat) : p.getItemInMainHand();
+        if (asMat == null && b.registry().hardness() > 0 && tool.has(DataComponents.MAX_DAMAGE)) {
             boolean weapon = tool.has(DataComponents.WEAPON) && !tool.has(DataComponents.TOOL);
             wearHand(p, weapon ? 2 : 1);
         }

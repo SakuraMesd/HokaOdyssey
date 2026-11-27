@@ -1,0 +1,8 @@
+id: mining
+name: Добыча
+version: 0.1.0
+main: ink.hoka.odyssey.mining.MiningModule
+authors: [Takuyamo]
+description: Ломать блоки — только инструментами из конфига; лазер Аксиома (ЛКМ — луч, трещины, выпадение)
+depends: []
+softdepends: [clientmods, hoitems, survival]

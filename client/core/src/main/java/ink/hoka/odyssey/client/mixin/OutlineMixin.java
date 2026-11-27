@@ -28,7 +28,8 @@ public abstract class OutlineMixin {
         Hooks.outlineDrawn = false;
         if (state.cameraRenderState == null || state.cameraRenderState.pos == null) return;
         float pt = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
-        if (Hooks.outline(pose, buffers, state.cameraRenderState.pos, pt)) {
+        if (ink.hoka.odyssey.client.model.Laser.outline(pose, buffers, state.cameraRenderState.pos)
+                || Hooks.outline(pose, buffers, state.cameraRenderState.pos, pt)) {
             buffers.endBatch(RenderTypes.lines());
             Hooks.outlineDrawn = true;
             ci.cancel();

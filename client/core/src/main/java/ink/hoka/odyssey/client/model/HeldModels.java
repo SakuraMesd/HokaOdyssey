@@ -17,6 +17,8 @@ import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.player.PlayerModelPart;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +45,9 @@ public final class HeldModels {
         public float[] fpModel = {0, 0, 0, 0, 0, 0, 0.2f}, fpArm1 = {0, 0, 0, 0, 0, 0, 1, 1, 1}, fpArm2 = {0, 0, 0, 0, 0, 0, 1, 1, 1};
         public float[] tpModel = {0, 0, 0, 0, 0, 0, 0.12f}, tpArm1 = {-80, -10, 0, 1, 1, 1}, tpArm2 = {-80, 30, 0, 1, 1, 1};
         public boolean tpPose = true;
+        /** Лазер (ЛКМ — луч из дула, ломает блоки) и дуло — точка модели в пикселях Blockbench. */
+        public boolean laser = true;
+        public float[] muzzle = {0, 21.87f, -39.8f};
 
         boolean both() { return "both".equals(arms); }
     }
@@ -101,23 +106,31 @@ public final class HeldModels {
         if (t[3] != 0) ps.mulPose(Axis.XP.rotationDegrees(t[3]));
     }
 
-    private static void model(Def d, float[] t, float mirror, PoseStack ps, SubmitNodeCollector snc, int light) {
+    /** Рисует модель; возвращает дуло в системе PoseStack на входе ×(матрица входа) — т.е. в «сырых» координатах позы. */
+    private static Vector3f model(Def d, float[] t, float mirror, PoseStack ps, SubmitNodeCollector snc, int light) {
         ps.pushPose();
         apply(ps, t, mirror);
         float s = t[6] / 16f;
         ps.scale(s, s, s);
         Models.submit(d.model, d.anim.isEmpty() ? null : d.anim, d.speed, ps, snc, light);
+        Vector3f mz = null;
+        float[] c = Models.center(d.model);
+        if (c != null) mz = ps.last().pose().transformPosition(d.muzzle[0] - c[0], d.muzzle[1] - c[1], d.muzzle[2] - c[2], new Vector3f());
         ps.popPose();
+        return mz;
     }
 
     /** От первого лица (вместо ванильной руки с предметом). */
     public static void firstPerson(AbstractClientPlayer player, Def d, float equip, PoseStack ps, SubmitNodeCollector snc, int light) {
         HumanoidArm main = player.getMainArm();
         float h = main == HumanoidArm.RIGHT ? 1 : -1;
+        Matrix4f root = new Matrix4f(ps.last().pose());
         ps.pushPose();
         ps.translate(h * 0.56f, -0.52f + equip * -0.6f, -0.72f);
-        model(d, d.fpModel, h, ps, snc, light);
+        Vector3f mz = model(d, d.fpModel, h, ps, snc, light);
         ps.popPose();
+        if (d.laser && mz != null && Laser.showSelf() && player == Minecraft.getInstance().player)
+            Laser.firstPerson(ps, snc, new Matrix4f(root).invert().transformPosition(mz), root);
         if (player.isInvisible() || "none".equals(d.arms)) return;
         arm(player, main, d.fpArm1, equip, ps, snc, light);
         if (d.both()) arm(player, main.getOpposite(), d.fpArm2, equip, ps, snc, light);
@@ -150,7 +163,7 @@ public final class HeldModels {
     }
 
     /** От третьего лица: PoseStack уже у кисти (как у ванильного предмета в руке). */
-    public static void thirdPerson(Def d, boolean left, PoseStack ps, SubmitNodeCollector snc, int light) {
+    public static void thirdPerson(Def d, boolean left, PoseStack ps, SubmitNodeCollector snc, int light, int entity) {
         // рука могла быть растянута (масштаб части руки): кисть — на конце руки, а модель — без искажения
         float[] a = d.tpArm1;
         boolean st = d.tpPose;
@@ -160,7 +173,11 @@ public final class HeldModels {
         ps.scale(1 / sx, 1 / sy, 1 / sz);
         ps.mulPose(Axis.XP.rotationDegrees(-90));
         ps.mulPose(Axis.YP.rotationDegrees(180));
-        model(d, d.tpModel, left ? -1 : 1, ps, snc, light);
+        Vector3f mz = model(d, d.tpModel, left ? -1 : 1, ps, snc, light);
+        if (d.laser && mz != null && entity >= 0) {                               // поза сущностей — от камеры, без поворота
+            var cam = Models.camera();
+            Laser.muzzle(entity, new net.minecraft.world.phys.Vec3(mz.x + cam.x, mz.y + cam.y, mz.z + cam.z));
+        }
     }
 
     /** Поза рук от третьего лица (после ванильной): руки держат предмет и следуют за взглядом. */
@@ -192,6 +209,8 @@ public final class HeldModels {
         d.speed = o.has("speed") ? o.get("speed").getAsFloat() : 1;
         d.range = o.has("range") ? o.get("range").getAsFloat() : 0;
         d.tpPose = !o.has("tpPose") || o.get("tpPose").getAsBoolean();
+        d.laser = !o.has("laser") || o.get("laser").getAsBoolean();
+        arr(o, "muzzle", d.muzzle);
         arr(o, "fpModel", d.fpModel);
         arr(o, "fpArm1", d.fpArm1);
         arr(o, "fpArm2", d.fpArm2);
@@ -209,6 +228,8 @@ public final class HeldModels {
         o.addProperty("speed", d.speed);
         o.addProperty("range", d.range);
         o.addProperty("tpPose", d.tpPose);
+        o.addProperty("laser", d.laser);
+        o.add("muzzle", json(d.muzzle));
         o.add("fpModel", json(d.fpModel));
         o.add("fpArm1", json(d.fpArm1));
         o.add("fpArm2", json(d.fpArm2));
