@@ -10,6 +10,7 @@ include("modules:sky")        // небо карты: раздел sky: в map.y
 include("modules:ships")      // корабли: физика на сервере, модель и (далее) управление — клиентский модуль ships
 include("modules:clientmods") // клиентские модули мода Hoka Odyssey: раздача (подпись) + связь сервер↔клиент
 include("modules:blocks")     // свои блоки: носитель + текстура/модель с сервера (рисует мод Hoka Odyssey)
+include("modules:survival")   // выживание: здоровье, урон, голод, смерть, сохранение игроков
 include("modules:hoitems")    // свои предметы: иконка PNG или модель .bbmodel с сервера (рисует мод Hoka Odyssey)
 include("modules:hosounds")   // свои звуки: .ogg с сервера, hoka:<id> (играет мод Hoka Odyssey)
 include("modules:houi")       // окна и меню: раскладка JSON с сервера, рисует мод Hoka Odyssey

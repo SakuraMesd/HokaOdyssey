@@ -28,6 +28,19 @@ public interface OdysseyServerApi {
     /** Имена всех карт в maps/. */
     java.util.SortedSet<String> mapNames();
 
+    /**
+     * Перенести игрока на карту (мир) в точку to — как /homap tp: подгрузка вокруг точки, смена измерения у высоких
+     * карт, очередь переходов. Готово — когда игрок на месте.
+     */
+    default java.util.concurrent.CompletableFuture<Void> transfer(net.minestom.server.entity.Player player,
+                                                                  net.minestom.server.instance.Instance instance,
+                                                                  net.minestom.server.coordinate.Pos to) {
+        return player.getInstance() == instance ? player.teleport(to) : player.setInstance(instance, to);
+    }
+
+    /** Точка появления карты (spawn: в map.yml); пусто — нет такой карты. */
+    default java.util.Optional<net.minestom.server.coordinate.Pos> mapSpawn(String name) { return java.util.Optional.empty(); }
+
     /** Имя карты, если мир — карта из maps/ (иначе пусто). */
     java.util.Optional<String> mapName(net.minestom.server.instance.Instance instance);
 
