@@ -26,6 +26,10 @@ import java.util.List;
  * В слоты улучшений кладутся только улучшения (по одному), в слоты топлива — только топливо. Shift-клик из своего
  * инвентаря раскладывает сам: топливо — в бак, улучшения — в слоты улучшений, остальное (и что не влезло) — в
  * хранилище. Окно одно на корабль (владелец и OP видят одно и то же); груз корабля — {@link Cargo}, окно его зеркало.
+ * <p>
+ * vessels-3: у игрока с модом (ядро 0.80+, клиентский vessels 0.3+) это же окно рисуется по-своему — панель в стиле HUD,
+ * слоты по группам, сводка и шкала бака (S2C MENU: номер окна, заголовок, сводка). Слоты и правила те же; ярлыки
+ * сундука в том окне не видны.
  */
 final class VesselMenu {
 
@@ -35,6 +39,8 @@ final class VesselMenu {
 
     final Vessel vessel;
     final Inventory inv;
+    /** Заголовок окна текстом — по нему (и по номеру окна) мод узнаёт окно корабля. */
+    final String title;
     private final VesselsModule mod;
     /** Сейчас окно само переписывает слоты из груза — изменения не возвращать в груз. */
     private boolean syncing;
@@ -42,8 +48,8 @@ final class VesselMenu {
     VesselMenu(VesselsModule mod, Vessel v) {
         this.mod = mod;
         this.vessel = v;
-        this.inv = new Inventory(InventoryType.CHEST_5_ROW,
-                Component.text("Корабль #" + v.id + " · " + v.kind + (v.ownerName != null ? " · " + v.ownerName : "")));
+        this.title = "Корабль #" + v.id + " · " + v.kind + (v.ownerName != null ? " · " + v.ownerName : "");
+        this.inv = new Inventory(InventoryType.CHEST_5_ROW, Component.text(title));
         inv.setItemStack(UP_LABEL, label(Material.CYAN_STAINED_GLASS_PANE, "Улучшения ▸", NamedTextColor.AQUA,
                 List.of("Двигатель+, Бак+, Орудие+, Варп-катушка.", "Одинаковые складываются.")));
         inv.setItemStack(FUEL_LABEL, label(Material.ORANGE_STAINED_GLASS_PANE, "Топливо ▸", NamedTextColor.GOLD,
@@ -94,9 +100,10 @@ final class VesselMenu {
         if (!inv.getItemStack(slot).equals(it)) inv.setItemStack(slot, it);
     }
 
-    /** Сводка: бак, варп, орудие. */
+    /** Сводка: бак, варп, орудие (ярлыки сундука — для игрока без мода; моду — S2C MENU всем, кто смотрит окно). */
     void info() {
         VesselsModule.Status s = mod.status(vessel);
+        for (Player p : inv.getViewers()) mod.client.menu(p, vessel, this);
         inv.setItemStack(INFO_FUEL, label(Material.GLOWSTONE_DUST, "Бак: " + s.fuel() + " / " + s.capacity(), NamedTextColor.GOLD,
                 List.of("Варп стоит " + s.warpCost() + " топлива.", s.burnPerMinute() > 0 ? "В полёте: " + s.burnPerMinute() + " в минуту." : "Обычный полёт топливо не тратит.")));
         inv.setItemStack(INFO_WARP, label(Material.ENDER_PEARL, "Варп: " + Math.round(s.warpDistance()) + " блоков", NamedTextColor.LIGHT_PURPLE,

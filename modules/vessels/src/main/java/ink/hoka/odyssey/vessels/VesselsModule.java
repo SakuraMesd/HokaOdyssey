@@ -523,6 +523,7 @@ public final class VesselsModule extends OdysseyModule {
         }
         if (v.menu == null) v.menu = new VesselMenu(this, v);
         else v.menu.refresh();
+        client.menu(p, v, v.menu);                                              // моду — до окна: по номеру окна он его узнает
         p.openInventory(v.menu.inv);
     }
 

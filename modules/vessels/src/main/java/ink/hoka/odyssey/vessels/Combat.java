@@ -82,8 +82,11 @@ final class Combat {
         float dmg = (float) (damage() * st.gunDamage());
         if (hit.kind() == ShotRay.Kind.ENTITY && hit.ref() instanceof LivingEntity le) {
             mod.scheduler().later(() -> {
-                if (!le.isRemoved() && !le.isDead() && le.getInstance() == inst) le.damage(Damage.fromPlayer(p, dmg));
+                if (le.isRemoved() || le.isDead() || le.getInstance() != inst) return;
+                if (le.damage(Damage.fromPlayer(p, dmg)) || le.isDead()) mod.client.hit(p, le.isDead() ? 2 : 1);   // маркер у прицела
             }, Math.max(1, delay));
+        } else if (hit.kind() == ShotRay.Kind.VESSEL) {
+            mod.scheduler().later(() -> mod.client.hit(p, 3), Math.max(1, delay));
         } else if (hit.kind() == ShotRay.Kind.BLOCK && breakBlocks()) {
             int bx = hit.bx(), by = hit.by(), bz = hit.bz();
             mod.scheduler().later(() -> {

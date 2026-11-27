@@ -32,6 +32,12 @@ import java.util.Map;
  *               3 корабль, 4 незагружено) — всем рядом: болт, вспышка, звук, искры
  *     9 WARP    int корабль, byte что (0 отмена, 1 зарядка: int тиков, 2 прыжок) — пилоту и стоящим на корабле
  *    10 MSG     UTF текст, byte 1 — предупреждение — строка в HUD пилота (или над хотбаром)
+ *    11 MENU    UTF-JSON {window (номер окна Minestom), title (заголовок окна текстом), id, kind, owner, fuel, capacity,
+ *               warp-cost, warp-distance, warp-charge (с), warp-reload (с), gun-damage, gun-reload (с), gun-range,
+ *               speed-mul, burn (в минуту), upgrades (сколько стоит), mul {speed, warp-cost, gun-reload, gun-damage,
+ *               warp-reload}} — перед открытием окна корабля и при смене груза (тем, кто смотрит): мод рисует окно
+ *               по-своему (vessels-3); старый мод пакет пропускает — у него обычный сундук
+ *    12 HIT     byte 1 — попадание по цели, 2 — убийство, 3 — по кораблю — пилоту, когда болт долетел (маркер у прицела)
  * C2S 1 POSE    double x y z, float qx qy qz qw — поза своего корабля, 20 раз в секунду
  *     2 BOARD   int корабль — хочу сесть (ПКМ по кораблю)
  *     3 EXIT    — выйти (то же, что F)
@@ -165,6 +171,50 @@ final class VesselsClient {
             out.writeByte(what);
             out.writeInt(ticks);
         });
+    }
+
+    /** Сводка окна корабля (S2C MENU) — до открытия окна и при смене груза. */
+    void menu(Player p, Vessel v, VesselMenu m) {
+        if (!isReady(p)) return;
+        VesselsModule.Status s = mod.status(v);
+        Upgrades.Stats st = mod.stats(v);
+        int ups = 0;
+        for (int c : v.cargo.upgradeCounts()) ups += c;
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("window", (int) m.inv.getWindowId());
+        o.put("title", m.title);
+        o.put("id", v.id);
+        o.put("kind", v.kind);
+        if (v.ownerName != null) o.put("owner", v.ownerName);
+        o.put("fuel", s.fuel());
+        o.put("capacity", s.capacity());
+        o.put("warp-cost", s.warpCost());
+        o.put("warp-distance", s.warpDistance());
+        o.put("warp-charge", s.warpChargeSec());
+        o.put("warp-reload", s.warpReloadSec());
+        o.put("gun-damage", s.gunDamage());
+        o.put("gun-reload", s.gunReloadSec());
+        o.put("gun-range", s.gunRange());
+        o.put("speed-mul", s.speedMul());
+        o.put("burn", s.burnPerMinute());
+        o.put("upgrades", ups);
+        Map<String, Object> mul = new LinkedHashMap<>();
+        mul.put("speed", st.speed());
+        mul.put("warp-cost", st.warpCost());
+        mul.put("gun-reload", st.gunReload());
+        mul.put("gun-damage", st.gunDamage());
+        mul.put("warp-reload", st.warpReload());
+        o.put("mul", mul);
+        String js = new Gson().toJson(o);
+        send(p, bytes(out -> {
+            out.writeByte(11);
+            out.writeUTF(js);
+        }));
+    }
+
+    /** Пилоту: болт попал (1 — цель, 2 — убийство, 3 — корабль) — маркер у прицела. */
+    void hit(Player p, int what) {
+        send(p, new byte[]{12, (byte) what});
     }
 
     /** Строка в HUD пилота; у игрока без модуля — над хотбаром. */

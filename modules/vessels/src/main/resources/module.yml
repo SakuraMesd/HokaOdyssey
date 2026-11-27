@@ -1,6 +1,6 @@
 id: vessels
 name: Корабли-модели
-version: 0.2.0
+version: 0.3.0
 main: ink.hoka.odyssey.vessels.VesselsModule
 authors: [Takuyamo]
 description: Корабль — модель .bbmodel; ПКМ — сесть пилотом, полёт (считает клиентский модуль vessels), твёрдый корпус, меню (хранилище, улучшения, топливо), орудие, варп
