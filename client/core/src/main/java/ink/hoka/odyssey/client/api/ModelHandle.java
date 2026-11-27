@@ -13,6 +13,24 @@ public interface ModelHandle {
     /** Повернуть: курс (как у Minecraft: 0 — лицом на юг), наклон (+ — вниз), крен. */
     ModelHandle rotate(float yaw, float pitch, float roll);
 
+    /**
+     * 0.78: полный поворот кватернионом (система модели → мир, без поворота «лицом на юг»: +Z модели — +Z мира).
+     * Важнее {@link #rotate}; null — снова по углам.
+     */
+    default ModelHandle rotation(org.joml.Quaternionfc q) { return this; }
+
+    /**
+     * 0.78: поза на каждый кадр (плавно между тиками): ядро спрашивает прямо перед рисованием. Модуль кладёт точку
+     * мира, где начало модели (0,0,0 Blockbench), и полный поворот (как {@link #rotation}); вернуть false — в этом
+     * кадре не рисовать. Важнее {@link #at}/{@link #follow}/{@link #rotate}. null — снять.
+     */
+    default ModelHandle pose(Placer placer) { return this; }
+
+    /** Поза модели на кадр (см. {@link #pose}). */
+    interface Placer {
+        boolean place(float partialTick, org.joml.Vector3d pos, org.joml.Quaternionf rot);
+    }
+
     /** Масштаб (1 — 16 пикселей Blockbench = блок). */
     ModelHandle scale(float s);
 

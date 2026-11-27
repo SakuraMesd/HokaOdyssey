@@ -4,6 +4,7 @@ import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import ink.hoka.odyssey.client.api.ModelHandle;
+import ink.hoka.odyssey.client.api.ModelHandle.Placer;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldExtractionContext;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.minecraft.client.Minecraft;
@@ -142,6 +143,8 @@ public final class Models {
         Matrix4f[] pose;
         final Set<String> hidden = new HashSet<>();
         boolean removed;
+        org.joml.Quaternionf rot;            // 0.78: полный поворот (важнее углов)
+        Placer placer;                       // 0.78: поза на кадр от модуля
 
         Inst(String owner, String path) { this.owner = owner; this.path = path; }
 
@@ -151,6 +154,8 @@ public final class Models {
         @Override public ModelHandle follow(int entityId) { entity = entityId; return this; }
         @Override public ModelHandle play(String a, float sp) { anim = a; speed = sp; start = System.currentTimeMillis(); return this; }
         @Override public ModelHandle stop() { anim = null; return this; }
+        @Override public ModelHandle rotation(org.joml.Quaternionfc q) { rot = q == null ? null : new org.joml.Quaternionf(q); return this; }
+        @Override public ModelHandle pose(Placer p) { placer = p; return this; }
         @Override public ModelHandle bone(String name, boolean visible) { if (visible) hidden.remove(name); else hidden.add(name); return this; }
         @Override public void remove() { removed = true; LOCAL.remove(this); }
     }
@@ -244,7 +249,22 @@ public final class Models {
             if (l == null) continue;
             double px = in.x, py = in.y, pz = in.z;
             float yaw = in.yaw;
-            if (in.entity >= 0) {
+            org.joml.Quaternionf full = in.rot;
+            if (in.placer != null) {                                            // 0.78: поза от модуля на этот кадр
+                org.joml.Vector3d at = new org.joml.Vector3d(px, py, pz);
+                org.joml.Quaternionf q = new org.joml.Quaternionf();
+                boolean show;
+                try {
+                    show = in.placer.place(pt, at, q);
+                } catch (Throwable e) {
+                    LOG.warn("модель {}: поза модуля {} упала: {}", in.path, in.owner, e.toString());
+                    in.placer = null;
+                    show = false;
+                }
+                if (!show) continue;
+                px = at.x; py = at.y; pz = at.z;
+                full = q;
+            } else if (in.entity >= 0) {
                 Entity e = level.getEntity(in.entity);
                 if (e == null) continue;
                 Vec3 p = e.getPosition(pt);
@@ -260,12 +280,17 @@ public final class Models {
             BbAnimation a = in.anim == null ? null : m.animations.get(in.anim);
             float t = a == null ? -1 : a.localTime((now - in.start) / 1000f * in.speed);
             Pose.compute(m, a, t, in.pose);
-            Matrix4f base = new Matrix4f(ctx.matrices().last().pose()).translate((float) (px - cam.x), (float) (py - cam.y), (float) (pz - cam.z))
-                    .rotateY((float) Math.toRadians(180 - yaw))
+            Matrix4f base = new Matrix4f(ctx.matrices().last().pose()).translate((float) (px - cam.x), (float) (py - cam.y), (float) (pz - cam.z));
+            if (full != null) base.rotate(full);
+            else base.rotateY((float) Math.toRadians(180 - yaw))
                     .rotateX((float) Math.toRadians(-in.pitch))
-                    .rotateZ((float) Math.toRadians(in.roll))
-                    .scale(in.scale / 16f);
-            int light = LevelRenderer.getLightColor(level, BlockPos.containing(px, py + 0.5, pz));
+                    .rotateZ((float) Math.toRadians(in.roll));
+            base.scale(in.scale / 16f);
+            int light;
+            if (in.placer != null) {                                            // большая модель (корабль): свет — у её середины
+                Vector3f c = full.transform(new Vector3f(l.center[0], l.center[1], l.center[2]).mul(in.scale / 16f));
+                light = LevelRenderer.getLightColor(level, BlockPos.containing(px + c.x, py + c.y, pz + c.z));
+            } else light = LevelRenderer.getLightColor(level, BlockPos.containing(px, py + 0.5, pz));
             Set<Integer> hiddenBones = hiddenIndexes(m, in.hidden);
             for (BbModel.Bone b : m.bones) {
                 if (b.faces.isEmpty() || hiddenBones.contains(b.index) || "hitbox".equals(b.name)) continue;

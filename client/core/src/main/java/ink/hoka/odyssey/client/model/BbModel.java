@@ -15,12 +15,20 @@ import java.util.Map;
  * Модель Blockbench (.bbmodel, формат 4/5 — как у ModelEngine): кости с пивотами, кубы, текстуры, анимации.
  * Координаты — пиксели Blockbench (16 = блок), оси как в мире Minecraft: x — восток, y — вверх, z — юг.
  * Вершины кубов заранее переведены в систему своей кости (поворот куба «запечён»), так что на кадр остаётся
- * только матрица кости.
+ * только матрица кости. 0.78: и меши (элементы {@code type: "mesh"}) — грани из 3 и 4 вершин, как в Blockbench.
  */
 public final class BbModel {
 
-    /** Грань: 4 вершины в системе кости (пиксели), uv 0..1, номер текстуры. */
-    public record Face(float[] xyz, float[] uv, int texture) {}
+    /**
+     * Грань: 4 вершины в системе кости (пиксели), uv 0..1, номер текстуры. Треугольник меша — квад с повторённой
+     * последней вершиной (вершины 2 и 3 совпадают, {@link #triangle()}): конвейер игры рисует квадами.
+     */
+    public record Face(float[] xyz, float[] uv, int texture, boolean triangle) {
+        public Face(float[] xyz, float[] uv, int texture) { this(xyz, uv, texture, false); }
+
+        /** Сколько треугольников в грани (1 у треугольника меша, 2 у квада). */
+        public int triangles() { return triangle ? 1 : 2; }
+    }
 
     public static final class Bone {
         public final String name;
@@ -92,7 +100,7 @@ public final class BbModel {
 
         Bone virtual = new Bone("", "", new Vector3f(), new Vector3f());   // корневые кубы без группы
         for (JsonElement el : root.getAsJsonArray("outliner")) {
-            if (el.isJsonPrimitive()) addCube(virtual, elements.get(el.getAsString()), texUv);
+            if (el.isJsonPrimitive()) addElement(virtual, elements.get(el.getAsString()), texUv);
             else m.roots.add(readBone(m, el.getAsJsonObject(), groups, elements, texUv));
         }
         if (!virtual.faces.isEmpty()) m.roots.add(0, virtual);
@@ -127,7 +135,7 @@ public final class BbModel {
         JsonObject g = groups.getOrDefault(uuid, node);   // формат 4: всё в самом узле
         Bone b = new Bone(g.has("name") ? g.get("name").getAsString() : uuid, uuid, vec(g, "origin"), vec(g, "rotation"));
         for (JsonElement c : node.getAsJsonArray("children")) {
-            if (c.isJsonPrimitive()) addCube(b, elements.get(c.getAsString()), texUv);
+            if (c.isJsonPrimitive()) addElement(b, elements.get(c.getAsString()), texUv);
             else b.children.add(readBone(m, c.getAsJsonObject(), groups, elements, texUv));
         }
         return b;
@@ -141,9 +149,124 @@ public final class BbModel {
 
     private static final String[] FACES = {"north", "south", "east", "west", "up", "down"};
 
+    /** Элемент модели: куб или меш (остальное — локаторы, нули — не рисуется). */
+    private static void addElement(Bone bone, JsonObject e, List<float[]> texUv) {
+        if (e == null) return;
+        String type = e.has("type") ? e.get("type").getAsString() : "cube";
+        if ("cube".equals(type)) addCube(bone, e, texUv);
+        else if ("mesh".equals(type)) addMesh(bone, e, texUv);
+    }
+
+    /**
+     * Меш → грани в системе кости. Как в Blockbench: вершины — в системе элемента, мир = origin + R(rotation)·v
+     * (эйлер ZYX); uv грани — по вершинам, в пикселях текстуры (uv_width/uv_height, как у кубов). Грань из 3 вершин —
+     * треугольник (квад с повторённой вершиной), из 4 — квад в порядке {@link #sortedQuad} (Blockbench не хранит
+     * порядок обхода). Больше 4 вершин в Blockbench не бывает; встретится — веером треугольников.
+     */
+    private static void addMesh(Bone bone, JsonObject e, List<float[]> texUv) {
+        JsonObject verts = e.getAsJsonObject("vertices");
+        JsonObject faces = e.getAsJsonObject("faces");
+        if (verts == null || faces == null) return;
+        Vector3f origin = vec(e, "origin");
+        Vector3f rot = vec(e, "rotation");
+        Matrix4f mat = new Matrix4f().translate(origin);
+        rotateZYX(mat, rot);
+        Map<String, float[]> local = new HashMap<>();
+        for (Map.Entry<String, JsonElement> v : verts.entrySet()) {
+            if (!v.getValue().isJsonArray()) continue;
+            JsonArray a = v.getValue().getAsJsonArray();
+            if (a.size() < 3) continue;
+            local.put(v.getKey(), new float[]{a.get(0).getAsFloat(), a.get(1).getAsFloat(), a.get(2).getAsFloat()});
+        }
+        Vector3f p = new Vector3f();
+        for (Map.Entry<String, JsonElement> fe : faces.entrySet()) {
+            if (!fe.getValue().isJsonObject()) continue;
+            JsonObject face = fe.getValue().getAsJsonObject();
+            int tex = textureIndex(face);
+            if (tex < 0 || tex >= texUv.size()) continue;
+            JsonArray vs = face.getAsJsonArray("vertices");
+            JsonObject uvs = face.has("uv") && face.get("uv").isJsonObject() ? face.getAsJsonObject("uv") : new JsonObject();
+            if (vs == null || vs.size() < 3) continue;
+            List<String> keys = new ArrayList<>(vs.size());
+            boolean ok = true;
+            for (JsonElement k : vs) {
+                String key = k.getAsString();
+                if (!local.containsKey(key)) { ok = false; break; }
+                keys.add(key);
+            }
+            if (!ok) continue;
+            if (keys.size() == 4) keys = sortedQuad(keys, local);
+            float[] tw = texUv.get(tex);
+            // все точки грани: мир кости и uv 0..1
+            int n = keys.size();
+            float[][] wp = new float[n][];
+            float[][] tp = new float[n][];
+            for (int i = 0; i < n; i++) {
+                float[] l = local.get(keys.get(i));
+                mat.transformPosition(l[0], l[1], l[2], p);
+                wp[i] = new float[]{p.x, p.y, p.z};
+                float u = 0, v = 0;
+                JsonElement uv = uvs.get(keys.get(i));
+                if (uv != null && uv.isJsonArray() && uv.getAsJsonArray().size() >= 2) {
+                    u = uv.getAsJsonArray().get(0).getAsFloat() / tw[0];
+                    v = uv.getAsJsonArray().get(1).getAsFloat() / tw[1];
+                }
+                tp[i] = new float[]{u, v};
+            }
+            if (n == 4) bone.faces.add(meshFace(wp, tp, 0, 1, 2, 3, tex, false));
+            else for (int i = 1; i + 1 < n; i++) bone.faces.add(meshFace(wp, tp, 0, i, i + 1, i + 1, tex, true));
+        }
+    }
+
+    private static Face meshFace(float[][] wp, float[][] tp, int a, int b, int c, int d, int tex, boolean tri) {
+        int[] idx = {a, b, c, d};
+        float[] xyz = new float[12];
+        float[] uv = new float[8];
+        for (int i = 0; i < 4; i++) {
+            System.arraycopy(wp[idx[i]], 0, xyz, i * 3, 3);
+            System.arraycopy(tp[idx[i]], 0, uv, i * 2, 2);
+        }
+        return new Face(xyz, uv, tex, tri);
+    }
+
+    /** Номер текстуры грани: число (форматы 4/5); null/false/прочее — грань без текстуры (не рисуется). */
+    private static int textureIndex(JsonObject face) {
+        if (!face.has("texture")) return -1;
+        JsonElement t = face.get("texture");
+        if (!t.isJsonPrimitive() || !t.getAsJsonPrimitive().isNumber()) return -1;
+        return t.getAsInt();
+    }
+
+    /**
+     * Порядок обхода 4-вершинной грани — как MeshFace.getSortedVertices в Blockbench (mesh.js): если вершина 3
+     * лежит по другую сторону прямой 1–2, чем вершина 0, — порядок [2, 0, 1, 3]; иначе если она по другую сторону
+     * прямой 0–1, чем 2, — [0, 2, 1, 3]; иначе как в файле.
+     */
+    static List<String> sortedQuad(List<String> v, Map<String, float[]> pos) {
+        float[] p0 = pos.get(v.get(0)), p1 = pos.get(v.get(1)), p2 = pos.get(v.get(2)), p3 = pos.get(v.get(3));
+        if (otherSide(p1, p2, p0, p3)) return List.of(v.get(2), v.get(0), v.get(1), v.get(3));
+        if (otherSide(p0, p1, p2, p3)) return List.of(v.get(0), v.get(2), v.get(1), v.get(3));
+        return v;
+    }
+
+    /**
+     * Blockbench: плоскость через base1–base2 с нормалью от top к ближайшей точке прямой base1–base2;
+     * check по другую сторону прямой от top — расстояние до плоскости > 0.
+     */
+    static boolean otherSide(float[] base1, float[] base2, float[] top, float[] check) {
+        double dx = base2[0] - base1[0], dy = base2[1] - base1[1], dz = base2[2] - base1[2];
+        double len2 = dx * dx + dy * dy + dz * dz;
+        double t = len2 == 0 ? 0 : ((top[0] - base1[0]) * dx + (top[1] - base1[1]) * dy + (top[2] - base1[2]) * dz) / len2;
+        double nx = base1[0] + dx * t - top[0], ny = base1[1] + dy * t - top[1], nz = base1[2] + dz * t - top[2];
+        double nl = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        if (nl == 0) return false;                                       // top на прямой: three.js даёт нормаль 0 → расстояние 0
+        nx /= nl; ny /= nl; nz /= nl;
+        double dist = nx * (check[0] - base2[0]) + ny * (check[1] - base2[1]) + nz * (check[2] - base2[2]);
+        return dist > 0;
+    }
+
     /** Куб → 6 граней в системе кости (с учётом поворота куба вокруг его origin и inflate). */
     private static void addCube(Bone bone, JsonObject e, List<float[]> texUv) {
-        if (e == null || !"cube".equals(e.has("type") ? e.get("type").getAsString() : "cube")) return;
         // "visibility" — лишь глазик в редакторе Blockbench, ModelEngine его не учитывает (огурец весь «скрыт»)
         Vector3f from = vec(e, "from"), to = vec(e, "to");
         float inf = e.has("inflate") ? e.get("inflate").getAsFloat() : 0f;
@@ -205,6 +328,43 @@ public final class BbModel {
         if (o == null || !o.has(key) || !o.get(key).isJsonArray()) return new Vector3f();
         JsonArray a = o.getAsJsonArray(key);
         return new Vector3f(a.get(0).getAsFloat(), a.get(1).getAsFloat(), a.get(2).getAsFloat());
+    }
+
+    /** Сколько всего треугольников в гранях (квад — 2, треугольник меша — 1). */
+    public int triangleCount() {
+        int n = 0;
+        for (Bone b : bones) for (Face f : b.faces) n += f.triangles();
+        return n;
+    }
+
+    /**
+     * 0.78: все треугольники модели в позе по умолчанию (пиксели модели, кости уже применены; кость «hitbox» не
+     * входит — её не рисуют): по 9 чисел (x y z трёх вершин). Для попаданий лучом по форме модели.
+     */
+    public float[] restTriangles() {
+        Matrix4f[] rest = new Matrix4f[bones.size()];
+        Pose.compute(this, null, -1, rest);
+        int n = 0;
+        for (Bone b : bones) if (!"hitbox".equals(b.name)) for (Face f : b.faces) n += f.triangles();
+        float[] out = new float[n * 9];
+        Vector3f p = new Vector3f();
+        int k = 0;
+        int[][] tris = {{0, 1, 2}, {0, 2, 3}};
+        for (Bone b : bones) {
+            if ("hitbox".equals(b.name)) continue;
+            Matrix4f m = rest[b.index] != null ? rest[b.index] : new Matrix4f();
+            for (Face f : b.faces) {
+                for (int t = 0; t < f.triangles(); t++) {
+                    for (int v : tris[t]) {
+                        m.transformPosition(f.xyz[v * 3], f.xyz[v * 3 + 1], f.xyz[v * 3 + 2], p);
+                        out[k++] = p.x;
+                        out[k++] = p.y;
+                        out[k++] = p.z;
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     private void computeHitbox() {
