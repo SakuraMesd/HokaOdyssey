@@ -37,7 +37,9 @@ final class SpaceGen implements PlanetGenerator {
     private final long seed;
     private final boolean secretsOn;
     private final long secretSeed;
-    private final GenNoise shapeN, shapeN2, veinN, pickN;
+    private final GenNoise shapeN, shapeN2, veinN, pickN, veinPub, pickPub;
+    /** Руды видны всем (без защиты от X-ray): от сида карты, в видимой части; false — секреты от secret_seed. */
+    private final boolean oresVisible;
     private final int rock, regolith, meteor, ice, snow, chest;
     private final int[] ore = new int[ORE_NAMES.length];
     private final double chance, meteorChance, clusterChance, clusterBoost;
@@ -52,6 +54,9 @@ final class SpaceGen implements PlanetGenerator {
         shapeN2 = new GenNoise(seed ^ 0x51A9E02L);
         veinN = new GenNoise(secretSeed ^ 0x0E5E0E5EL);                // секретный шум — на клиенте бесполезен
         pickN = new GenNoise(secretSeed ^ 0x0E5E0B1CL);
+        veinPub = new GenNoise(seed ^ 0x0E5E0E5EL);
+        pickPub = new GenNoise(seed ^ 0x0E5E0B1CL);
+        oresVisible = !"false".equalsIgnoreCase(ctx.stringOption("ores_visible", "true"));
         GenIds ids = ctx.ids();
         rock = st(ids, ctx.stringOption("rock", "minecraft:tuff"));
         regolith = st(ids, ctx.stringOption("regolith", "minecraft:gravel"));
@@ -269,6 +274,7 @@ final class SpaceGen implements PlanetGenerator {
         double surf = surface(b, px, py, pz);
         if (dist >= surf || inCrater(b, px, py, pz)) return 0;
         double depth = (surf - dist) * b.r;
+        if (oresVisible) { int o = oreAt(b, px, py, pz, veinPub, pickPub); if (o >= 0) return o; }
         return switch (b.kind) {
             case ICE -> depth < 1.2 ? snow : ice;
             case METAL, METEOR -> meteor;
@@ -329,7 +335,8 @@ final class SpaceGen implements PlanetGenerator {
                 case METAL, METEOR -> meteor;
                 default -> depth < 1.4 ? regolith : rock;
             };
-            out.set(x - x0, y - y0, z - z0, st);
+            int vo = oresVisible ? oreAt(b, px, py, pz, veinPub, pickPub) : -1;
+            out.set(x - x0, y - y0, z - z0, vo >= 0 ? vo : st);
             if (!sec) continue;
             // секреты: тайник (пустота + сундук), руды
             if (b.loot) {
@@ -344,13 +351,19 @@ final class SpaceGen implements PlanetGenerator {
                     continue;
                 }
             }
-            double v = veinN.noise(px * 0.17 + b.ox, py * 0.17 + b.oy, pz * 0.17 + b.oz);
-            if (v > b.vein) {
-                int n = b.ores.length;
-                int idx = n == 1 ? 0 : (int) Math.min(n - 1, (pickN.noise(px * 0.05 + b.oz, py * 0.05, pz * 0.05 + b.ox) * 0.5 + 0.5) * n);
-                out.secret(x - x0, y - y0, z - z0, ore[b.ores[Math.max(0, idx)]]);
-            }
+            if (oresVisible) continue;
+            int so = oreAt(b, px, py, pz, veinN, pickN);
+            if (so >= 0) out.secret(x - x0, y - y0, z - z0, so);
         }
+    }
+
+    /** Руда в точке тела (жила по шуму) или −1. */
+    private int oreAt(Body b, double px, double py, double pz, GenNoise vein, GenNoise pick) {
+        double v = vein.noise(px * 0.17 + b.ox, py * 0.17 + b.oy, pz * 0.17 + b.oz);
+        if (v <= b.vein) return -1;
+        int n = b.ores.length;
+        int idx = n == 1 ? 0 : (int) Math.min(n - 1, (pick.noise(px * 0.05 + b.oz, py * 0.05, pz * 0.05 + b.ox) * 0.5 + 0.5) * n);
+        return ore[b.ores[Math.max(0, idx)]];
     }
 
     private static boolean inCrater(Body b, double px, double py, double pz) {

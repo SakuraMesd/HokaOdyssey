@@ -146,6 +146,7 @@ public final class OdysseyServer implements OdysseyServerApi {
         JoinTrace.register(events);                                       // «вход ник: авторизация→мир N мс (этапы …)»
         ink.hoka.odyssey.server.tall.CubeStreamer.register();
         DebugTab.register();                                              // ВРЕМЕННО: пинг/TPS/MSPT в TAB (-Dhoka.tab.debug=false — выкл)
+        ink.hoka.odyssey.server.tall.AheadLoad.register();               // столбцы по ходу быстрого полёта (иначе откидывает)
         ink.hoka.odyssey.server.tall.CubeEntities.register();             // шаг 10: сущности у незагруженных кубов — заморозка
         ink.hoka.odyssey.server.tall.CubeStore.register();                // шаг 11: выгрузка кубов без интереса
 

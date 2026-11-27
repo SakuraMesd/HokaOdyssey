@@ -14,7 +14,7 @@ import ink.hoka.odyssey.gen.PlanetGenerator;
 public final class SpaceProvider implements GenProvider {
 
     @Override public String id() { return "space"; }
-    @Override public int version() { return 1; }
+    @Override public int version() { return 2; }   // v2: руды видны (ores_visible), LOD тел
     @Override public GenBounds defaultBounds() { return new GenBounds(-12000, 12000, 50000); }
     @Override public PlanetGenerator create(GenContext ctx) { return new SpaceGen(ctx); }
 }

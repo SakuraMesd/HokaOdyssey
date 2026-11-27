@@ -29,6 +29,8 @@ public final class PoolBlocks implements ModInitializer {
     /** Блок запаса: название — от сервера (своего блока, к которому привязан). */
     public static final class PoolBlock extends Block {
         public volatile String title;
+        /** id своего блока сервера (F3: hoka_odyssey:<id>). */
+        public volatile String customId;
 
         PoolBlock(Properties p) { super(p); }
 
@@ -44,6 +46,7 @@ public final class PoolBlocks implements ModInitializer {
         for (int i = 0; i < SOLID; i++) solid[i] = reg(String.format("solid_%03d", i), 0);
         for (int i = 0; i < CLEAR; i++) clear[i] = reg(String.format("clear_%02d", i), 1);
         for (int i = 0; i < PASS; i++) pass[i] = reg(String.format("pass_%02d", i), 2);
+        HokaTab.register();                                                 // раздел креатива со своими предметами
     }
 
     private static PoolBlock reg(String name, int kind) {

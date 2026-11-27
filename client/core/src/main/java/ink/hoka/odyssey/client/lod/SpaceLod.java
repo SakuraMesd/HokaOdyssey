@@ -193,4 +193,17 @@ final class SpaceLod {
     }
 
     static int count() { return BODIES.size(); }
+
+    private static PlanetGenerator probed;
+    private static boolean probedOk;
+
+    /** Генератор умеет тела (космос): тогда они рисуются и при выключенной дальней прорисовке. */
+    static boolean supports(PlanetGenerator g) {
+        if (g == null) return false;
+        if (g != probed) {
+            probed = g;
+            try { probedOk = g.lodBodies(0, 0, 0, 0, 0, 0) != null; } catch (Throwable e) { probedOk = false; }
+        }
+        return probedOk;
+    }
 }

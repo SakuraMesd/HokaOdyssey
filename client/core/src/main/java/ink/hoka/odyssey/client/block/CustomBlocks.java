@@ -83,6 +83,7 @@ public final class CustomBlocks {
         SOUNDS = Map.of();
         PLACE = Map.of();
         Remap.clear();
+        HokaTab.clear();
         CustomItems.set(Map.of(), Map.of());
         LISTENING.clear();
         dirty = false;
@@ -201,6 +202,7 @@ public final class CustomBlocks {
                     models.put(pool, model);
                     remap.put(Block.BLOCK_STATE_REGISTRY.getId(st), pool);
                     ((PoolBlocks.PoolBlock) pool.getBlock()).title = d.has("name") ? d.get("name").getAsString() : id;
+                    ((PoolBlocks.PoolBlock) pool.getBlock()).customId = id;
                 }
                 int rot = d.get("rot").getAsInt();
                 place.computeIfAbsent(id, k -> new java.util.HashMap<>()).put(rot, pool != null ? pool : st);
@@ -223,6 +225,8 @@ public final class CustomBlocks {
                 bad++;
             }
         }
+        try { HokaTab.update(root, itemDefs == null ? null : JsonParser.parseString(new String(itemDefs, StandardCharsets.UTF_8)).getAsJsonObject()); }
+        catch (Exception e) { LOG.warn("раздел креатива: {}", e.toString()); }
         Map<String, CustomItems.Item> items = Map.of();
         if (itemDefs != null) {
             try {
@@ -238,6 +242,7 @@ public final class CustomBlocks {
         MODELS = Collections.unmodifiableMap(models);
         LAYERS = Collections.unmodifiableMap(layers);
         Remap.set(remap);
+        Remap.applyLoaded(remap);                                           // чанки, пришедшие до списка блоков
         LOG.info("свои блоки: {} собрано{}, блоков мода {}", ok, bad > 0 ? ", с ошибками " + bad : "", remap.size());
         remesh();
     }

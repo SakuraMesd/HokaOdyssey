@@ -374,6 +374,8 @@ public final class LodRenderer {
         ClientLevel lvl = mc.level;
         PlanetGenerator g = ClientGen.lodGenerator();
         int distChunks = LodSetting.distance();
+        // 0.75: космос — тела видны всегда (настройка 0 — только без рельефа: его тут и нет), не ближе 4096 блоков
+        if (SpaceLod.supports(g)) distChunks = Math.max(distChunks, 256);
         if (lvl == null || g == null || distChunks <= 0) {
             active = false;
             if (!NODES.isEmpty()) { clearAll(); gen = null; genKey = 0; }

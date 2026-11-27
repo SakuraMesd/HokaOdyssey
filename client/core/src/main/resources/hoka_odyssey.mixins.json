@@ -4,6 +4,7 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "IdMapperRemapMixin",
+    "DebugBlockIdMixin",
     "HeldFirstPersonMixin",
     "HeldThirdPersonMixin",
     "HeldArmPoseMixin",

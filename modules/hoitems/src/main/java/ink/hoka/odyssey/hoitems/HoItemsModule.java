@@ -107,6 +107,10 @@ public final class HoItemsModule extends OdysseyModule implements HoItems {
         for (Def def : defs.values()) {
             JsonObject o = new JsonObject();
             o.addProperty("id", def.id);
+            o.addProperty("material", def.material.key().asString());            // для раздела креатива у мода
+            o.addProperty("name", net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(def.name));
+            var col = def.name.color();
+            if (col != null) o.addProperty("color", col.asHexString());
             if (def.icon != null) o.addProperty("icon", "items/" + def.icon);
             if (def.model != null) o.addProperty("model", "items/" + def.model);
             if (def.display != null) o.addProperty("display", def.display);

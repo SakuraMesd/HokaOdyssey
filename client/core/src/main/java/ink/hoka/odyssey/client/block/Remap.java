@@ -44,6 +44,34 @@ public final class Remap {
         byId = a;
     }
 
+    /**
+     * Уже загруженные чанки (пришли до списка блоков — в них носители): носитель → блок мода прямо в секциях. Поток
+     * клиента. Пустые/общие пустые секции не трогаются (в них только воздух).
+     */
+    static void applyLoaded(Map<Integer, BlockState> map) {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        var lvl = mc.level;
+        if (lvl == null || mc.player == null || map.isEmpty()) return;
+        Map<BlockState, BlockState> swap = new IdentityHashMap<>();
+        for (var e : map.entrySet()) {
+            BlockState carrier = raw(() -> net.minecraft.world.level.block.Block.BLOCK_STATE_REGISTRY.byId(e.getKey()));
+            if (carrier != null) swap.put(carrier, e.getValue());
+        }
+        int rd = mc.options.getEffectiveRenderDistance() + 2, pcx = mc.player.chunkPosition().x, pcz = mc.player.chunkPosition().z, n = 0;
+        for (int cx = pcx - rd; cx <= pcx + rd; cx++) for (int cz = pcz - rd; cz <= pcz + rd; cz++) {
+            var ch = lvl.getChunkSource().getChunk(cx, cz, net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false);
+            if (ch == null) continue;
+            for (var sec : ch.getSections()) {
+                if (sec == null || sec.hasOnlyAir() || !sec.maybeHas(swap::containsKey)) continue;
+                for (int y = 0; y < 16; y++) for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
+                    BlockState to = swap.get(sec.getBlockState(x, y, z));
+                    if (to != null) { sec.setBlockState(x, y, z, to, false); n++; }
+                }
+            }
+        }
+        if (n > 0) org.slf4j.LoggerFactory.getLogger("HokaOdyssey/blocks").info("блоки мода в загруженных чанках: {}", n);
+    }
+
     static void clear() { byId = new BlockState[0]; toId = Map.of(); }
 
     /** Выполнить без подмены (номера как у сервера — носители). */

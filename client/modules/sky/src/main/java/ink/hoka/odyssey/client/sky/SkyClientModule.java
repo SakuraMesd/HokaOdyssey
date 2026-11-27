@@ -316,7 +316,7 @@ public final class SkyClientModule implements ClientModule {
             drawQ(TRANS, vb, sunStart, sunQ, view, 1, 1, 1, 1 - wet * 0.85f);
             drawQ(ADD, vb, sunHaloStart, sunHaloQ, view, 1, 1, 1, (1 - wet * 0.9f) * smooth(-0.25f, 0.02f, sunH));
             // 6. дымка у горизонта цветом тумана игры
-            drawQ(TRANS, sv, fogStart, fogQ, view, 1, 1, 1, 1);
+            if (!c.below) drawQ(TRANS, sv, fogStart, fogQ, view, 1, 1, 1, 1);
         }
         if (ops == 0) return;
         try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "Hoka sky", color, OptionalInt.empty())) {
@@ -592,7 +592,7 @@ public final class SkyClientModule implements ClientModule {
                 if (glow > 0.003f) col = add(col, c.glow, glow);
                 if (wet > 0) col = lerp(col, scale(gray(col), 0.72f), wet * 0.65f);
                 // 0.2: под горизонтом — цвет тумана (не темнее): с высоты низ неба = дымка, в которую уходит край мира
-                if (y < 0) col = lerp(col, fog, smooth(0, -0.12f, y));
+                if (y < 0 && !c.below) col = lerp(col, fog, smooth(0, -0.12f, y));
                 domeCol[r * (AZ + 1) + a] = 0xFF000000 | col;
             }
         }
@@ -1040,7 +1040,7 @@ public final class SkyClientModule implements ClientModule {
                     Map.entry("night.zenith", "#010208"), Map.entry("night.horizon", "#040614"),
                     Map.entry("glow", "#000000"), Map.entry("pattern", "none"), Map.entry("pattern_strength", "0"),
                     Map.entry("nebula_colors", "#6a3cff,#1fb8ff"), Map.entry("nebula", "1.0"),
-                    Map.entry("stars", "9000"), Map.entry("star_size", "0.85"), Map.entry("star_day", "1"),
+                    Map.entry("stars", "12000"), Map.entry("star_size", "0.85"), Map.entry("star_day", "1"), Map.entry("below", "true"),
                     Map.entry("sun", "none"), Map.entry("moon", "none"), Map.entry("clouds", "false"), Map.entry("fog", "false"),
                     Map.entry("sun.color", "#fff4c8"), Map.entry("sun.halo", "#ffc861"), Map.entry("moon.color", "#dfe8ff")),
             "alien", Map.ofEntries(
@@ -1071,6 +1071,8 @@ public final class SkyClientModule implements ClientModule {
         boolean moonPhases;
         // туман 0.2: fog: { color: auto|#rrggbb, start: 0.65, end: 1.0, density: 1.0, vertical: true } | fog: vanilla
         boolean fogOn, fogVertical;
+        /** 0.2.4 космос: небо со всех сторон — под горизонтом звёзды, а не дымка тумана (below: true). */
+        boolean below;
         int fogColor;                                                         // −1 — auto (цвет горизонта)
         float fogStart, fogEnd, fogDensity;
 
@@ -1131,6 +1133,7 @@ public final class SkyClientModule implements ClientModule {
             c.fogStart = Math.max(0, Math.min(c.fogEnd - 0.02f, (float) num(m, "fog.start", 0.65)));
             c.fogDensity = clamp01((float) num(m, "fog.density", 1.0));
             c.fogVertical = !m.getOrDefault("fog.vertical", "true").trim().equalsIgnoreCase("false");
+            c.below = m.getOrDefault("below", "false").trim().equalsIgnoreCase("true");
             return c;
         }
 
