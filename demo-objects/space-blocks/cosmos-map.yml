@@ -1,0 +1,47 @@
+# Космос 50 000 × 50 000 блоков (граница — border), по высоте −12000…12000. Генератор space: астероиды, метеориты,
+# скопления, руды и тайники; вокруг солнца и планет пусто (exclude). Солнце и планеты — модуль planets (config.yml).
+dimension: hoka:space
+tall: true
+cubes: true
+store: cubes
+generator: space
+seed: 20261127
+gen_size: 50000
+gen_min_y: -12000
+gen_max_y: 12000
+border: 50000
+sun: false
+ambient: 0.65
+time: {cycle: false, start: 18000}
+generator_options:
+  asteroid_chance: 0.04
+  meteor_chance: 0.006
+  cluster_chance: 0.12
+  cluster_boost: 0.45
+  # пусто вокруг тел: x,y,z,радиус (солнце и 5 планет)
+  exclude: "0,0,0,2700;8000,700,-5200,2100;-12500,-1800,7000,1800;16500,2800,13500,1900;-5000,900,-14500,1450;-18500,-2500,-17000,3500"
+  # астероид у точки появления
+  spawn_rock: "3600,150,-2400,14"
+  rock: "minecraft:note_block[instrument=banjo,note=0,powered=true]"
+  regolith: "minecraft:note_block[instrument=basedrum,note=0,powered=false]"
+  meteor: "minecraft:note_block[instrument=basedrum,note=0,powered=true]"
+  ore_coal: "minecraft:note_block[instrument=bass,note=0,powered=false]"
+  ore_copper: "minecraft:note_block[instrument=bass,note=0,powered=true]"
+  ore_iron: "minecraft:note_block[instrument=bell,note=0,powered=false]"
+  ore_silicon: "minecraft:note_block[instrument=bell,note=0,powered=true]"
+  ore_nickel: "minecraft:note_block[instrument=bit,note=0,powered=false]"
+  ore_cobalt: "minecraft:note_block[instrument=bit,note=0,powered=true]"
+  ore_silver: "minecraft:note_block[instrument=chime,note=0,powered=false]"
+  ore_gold: "minecraft:note_block[instrument=chime,note=0,powered=true]"
+  ore_platinum: "minecraft:note_block[instrument=cow_bell,note=0,powered=false]"
+  ore_uranium: "minecraft:note_block[instrument=cow_bell,note=0,powered=true]"
+  ore_magnesium: "minecraft:note_block[instrument=creeper,note=0,powered=false]"
+sky:
+  preset: space
+  seed: 7
+spawn:
+  x: 3600.5
+  y: 172.0
+  z: -2400.5
+  yaw: 0.0
+  pitch: 0.0

@@ -1032,6 +1032,17 @@ public final class SkyClientModule implements ClientModule {
                     Map.entry("nebula_colors", "#ff4fa0,#ffb347"), Map.entry("nebula", "0.85"),
                     Map.entry("sun.color", "#ffe2b0"), Map.entry("sun.halo", "#ff8f5a"),
                     Map.entry("moon.color", "#ffe6f0")),
+            // космос: всегда ночь (map.yml time: {cycle: false, start: 18000}), без солнца/луны/облаков/тумана, густые звёзды
+            // и млечный путь; солнце — настоящее (модуль planets, type: star)
+            "space", Map.ofEntries(
+                    Map.entry("day.zenith", "#02030a"), Map.entry("day.horizon", "#05071a"),
+                    Map.entry("sunset.zenith", "#02030a"), Map.entry("sunset.horizon", "#05071a"),
+                    Map.entry("night.zenith", "#010208"), Map.entry("night.horizon", "#040614"),
+                    Map.entry("glow", "#000000"), Map.entry("pattern", "none"), Map.entry("pattern_strength", "0"),
+                    Map.entry("nebula_colors", "#6a3cff,#1fb8ff"), Map.entry("nebula", "1.0"),
+                    Map.entry("stars", "9000"), Map.entry("star_size", "0.85"), Map.entry("star_day", "1"),
+                    Map.entry("sun", "none"), Map.entry("moon", "none"), Map.entry("clouds", "false"), Map.entry("fog", "false"),
+                    Map.entry("sun.color", "#fff4c8"), Map.entry("sun.halo", "#ffc861"), Map.entry("moon.color", "#dfe8ff")),
             "alien", Map.ofEntries(
                     Map.entry("day.zenith", "#0f8f86"), Map.entry("day.horizon", "#b8ffe0"),
                     Map.entry("sunset.zenith", "#2a1f6b"), Map.entry("sunset.horizon", "#ff5fb0"),

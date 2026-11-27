@@ -22,14 +22,17 @@ import java.util.concurrent.ConcurrentHashMap;
  * построек на ней не показываем. Подлетел к поверхности ближе {@code approach} блоков (по расстоянию до скруглённого
  * куба) — вход: экран темнеет, игрок (и пилот без корабля) переносится на карту планеты, экран светлеет. Это и есть
  * «невидимый барьер»: к планете ближе не подлететь, но корабль не упирается в стену — вход срабатывает раньше.
- * Конфиг — config.yml модуля (planets.&lt;id&gt;: map, x, y, z, size, round, color, atmosphere, approach, target, tx, ty, tz).
+ * Конфиг — config.yml модуля (planets.&lt;id&gt;: map, x, y, z, size, round, color, atmosphere, approach, target, tx, ty, tz,
+ * type: terra | desert | ice | lava | gas | rock | star). Звезда (star) светит планетам карты и не впускает — отбрасывает.
  */
 public final class PlanetsModule extends OdysseyModule {
 
     static final String MODULE = "planets";
 
     record Planet(String id, String map, double x, double y, double z, double size, double round, int rgb, int atmo,
-                  double approach, String target, Pos targetPos, int seed) {
+                  double approach, String target, Pos targetPos, int seed, String type) {
+
+        boolean star() { return "star".equals(type); }
 
         /** Расстояние от точки до поверхности скруглённого куба (отрицательное — внутри). */
         double distance(double px, double py, double pz) {
@@ -74,7 +77,8 @@ public final class PlanetsModule extends OdysseyModule {
                     Integer.parseInt(color, 16), argb, config().getDouble(k + "approach", 50),
                     config().getString(k + "target", ""),
                     new Pos(config().getDouble(k + "tx", 0.5), config().getDouble(k + "ty", 41), config().getDouble(k + "tz", 0.5)),
-                    config().getInt(k + "seed", id.hashCode())));
+                    config().getInt(k + "seed", id.hashCode()),
+                    config().getString(k + "type", "terra").toLowerCase()));
         }
     }
 
@@ -93,6 +97,7 @@ public final class PlanetsModule extends OdysseyModule {
                 out.writeFloat((float) pl.size); out.writeFloat((float) pl.round);
                 out.writeInt(pl.rgb); out.writeInt(pl.atmo); out.writeInt(pl.seed);
             }
+            for (Planet pl : here) out.writeUTF(pl.type);                       // 0.3: вид планеты (после списка — старые клиенты не ломаются)
         });
     }
 
@@ -105,10 +110,22 @@ public final class PlanetsModule extends OdysseyModule {
             for (Planet pl : planets) {
                 if (!pl.map.equals(map)) continue;
                 if (pl.distance(pos.x(), pos.y() + 1, pos.z()) > pl.approach) continue;
+                if (pl.star()) { push(p, pl, "Слишком жарко — щиты не выдержат!"); break; }
+                if (pl.target.isEmpty()) { push(p, pl, "Посадка на эту планету пока недоступна"); break; }
                 enter(p, pl);
                 break;
             }
         }
+    }
+
+    /** Звезда / планета без карты: войти нельзя — отбрасывает назад (и корабль с пилотом), сообщение. */
+    private void push(Player p, Planet pl, String msg) {
+        var pos = p.getPosition();
+        var dir = new net.minestom.server.coordinate.Vec(pos.x() - pl.x, pos.y() - pl.y, pos.z() - pl.z).normalize();
+        var back = pos.add(dir.mul(pl.approach * 0.6 + 20));
+        var v = p.getVehicle();
+        if (v != null) v.teleport(back); else p.teleport(back);
+        p.sendActionBar(net.kyori.adventure.text.Component.text(msg, net.kyori.adventure.text.format.NamedTextColor.GOLD));
     }
 
     /** Вход в планету: затемнение → перенос на карту планеты (в момент полной темноты) → просветление. */

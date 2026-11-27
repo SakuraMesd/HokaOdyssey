@@ -48,7 +48,7 @@ public final class PlanetsClientModule implements ClientModule {
     private final java.util.concurrent.atomic.AtomicInteger listVer = new java.util.concurrent.atomic.AtomicInteger();
 
     /** Планета из пакета LIST — до построения сеток. */
-    private record Spec(double x, double y, double z, float size, float round, int rgb, int atmo, int seed) {}
+    private record Spec(double x, double y, double z, float size, float round, int rgb, int atmo, int seed, String type) {}
     private ClientContext ctx;
     private int fadeIn, fadeHold, fadeOut, fadeT = -1;
 
@@ -109,7 +109,12 @@ public final class PlanetsClientModule implements ClientModule {
                     float size = in.readFloat(), round = in.readFloat();
                     int rgb = in.readInt(), atmo = in.readInt();
                     int seed = in.available() >= 4 ? in.readInt() : 1;
-                    specs.add(new Spec(x, y, z, size, round, rgb, atmo, seed));
+                    specs.add(new Spec(x, y, z, size, round, rgb, atmo, seed, "terra"));
+                }
+                // 0.3: виды планет — после списка (старый сервер их не шлёт)
+                for (int i = 0; i < n && in.available() > 0; i++) {
+                    Spec o = specs.get(i);
+                    specs.set(i, new Spec(o.x(), o.y(), o.z(), o.size(), o.round(), o.rgb(), o.atmo(), o.seed(), in.readUTF()));
                 }
                 int ver = listVer.incrementAndGet();
                 var ex = gen;
@@ -133,14 +138,21 @@ public final class PlanetsClientModule implements ClientModule {
     /** Сетки планет из пакета (фоновый поток: шум fbm тяжёлый). */
     private static List<Planet> build(List<Spec> specs) {
         List<Planet> l = new ArrayList<>();
+        Spec star = null;
+        for (Spec sp : specs) if ("star".equals(sp.type())) { star = sp; break; }
         for (Spec sp : specs) {
             int seed = sp.seed();
             float h = sp.size() / 2, r = Math.min(sp.round(), h);
+            boolean isStar = "star".equals(sp.type());
+            // свет — от звезды карты (у самой звезды теней нет), без звезды — как раньше
+            Vector3f light = star != null && !isStar
+                    ? new Vector3f((float) (star.x() - sp.x()), (float) (star.y() - sp.y()), (float) (star.z() - sp.z())).normalize() : LIGHT;
+            float at = isStar ? 0.32f : "gas".equals(sp.type()) ? 0.05f : ATMO_T;
             l.add(new Planet(sp.x(), sp.y(), sp.z(), sp.size(),
-                    List.of(24, 48, 72).stream().map(g -> shell(h, r, 0, g, (dir, lit) -> withClouds(surface(dir, seed, lit), dir, seed, lit))).toList(),
-                    shell(h, r, h * ATMO_T, 32, (dir, lit) -> 0xFF000000),
+                    List.of(24, 48, 72).stream().map(g -> shell(h, r, 0, g, isStar ? null : light, (dir, lit) -> Kinds.paint(sp.type(), sp.rgb(), dir, seed, lit))).toList(),
+                    shell(h, r, h * at, 32, light, (dir, lit) -> 0xFF000000),
                     sp.atmo() & 0xFFFFFF, (sp.atmo() >>> 24) / 255f,
-                    (float) Math.sqrt(1 - Math.pow(r / (r + h * ATMO_T), 2))));
+                    (float) Math.sqrt(1 - Math.pow(r / (r + h * at), 2))));
         }
         return List.copyOf(l);
     }
@@ -156,7 +168,7 @@ public final class PlanetsClientModule implements ClientModule {
     private static final float ATMO_T = 0.06f;
 
     /** Оболочка скруглённого куба с отступом t блоков по нормали (одинаковая толщина на гранях и углах). */
-    private static List<Quad> shell(float h, float r, float t, int GRID, Paint paint) {
+    private static List<Quad> shell(float h, float r, float t, int GRID, Vector3f light, Paint paint) {
         List<Quad> out = new ArrayList<>();
         float inner = h - r;
         for (int face = 0; face < 6; face++) {
@@ -178,7 +190,7 @@ public final class PlanetsClientModule implements ClientModule {
                     Vector3f pos = new Vector3f(n).mul(r + t).add(in);
                     p[q * 3] = pos.x; p[q * 3 + 1] = pos.y; p[q * 3 + 2] = pos.z;
                     nn[q * 3] = n.x; nn[q * 3 + 1] = n.y; nn[q * 3 + 2] = n.z;
-                    float lit = 0.18f + 0.82f * Math.max(0, n.dot(LIGHT));
+                    float lit = light == null ? 1f : 0.12f + 0.88f * Math.max(0, n.dot(light));          // null — светится сама (звезда)
                     col[q] = paint.color(new Vector3f(pos).normalize(), lit);
                     if ((col[q] >>> 24) != 0) any = true;
                 }
@@ -192,7 +204,7 @@ public final class PlanetsClientModule implements ClientModule {
 
     // ───────────────────────── «как Земля» ─────────────────────────
 
-    private static int surface(Vector3f d, int seed, float lit) {
+    static int surface(Vector3f d, int seed, float lit) {
         float e = fbm(d.x * 2.1f, d.y * 2.1f, d.z * 2.1f, seed, 5);           // высота: океан / суша
         float m = fbm(d.x * 3.3f + 40, d.y * 3.3f, d.z * 3.3f, seed + 7, 3);   // влажность: пустыни / леса
         float lat = Math.abs(d.y);
@@ -207,32 +219,32 @@ public final class PlanetsClientModule implements ClientModule {
     }
 
     /** Облака впечены в цвет поверхности (отдельная оболочка мерцала с поверхностью — не хватает точности глубины). */
-    private static int withClouds(int surface, Vector3f d, int seed, float lit) {
+    static int withClouds(int surface, Vector3f d, int seed, float lit) {
         float n = fbm(d.x * 3.2f + 100, d.y * 4.2f, d.z * 3.2f, seed + 31, 4);
         float a = smooth(0.05f, 0.35f, n) * 0.85f;
         if (a <= 0.01f) return surface;
         return 0xFF000000 | lerp(surface & 0xFFFFFF, shade(0xFFFFFF, 0.3f + 0.7f * lit), a);
     }
 
-    private static int shade(int c, float k) {
+    static int shade(int c, float k) {
         int r = Math.min(255, (int) ((c >> 16 & 255) * k)), g = Math.min(255, (int) ((c >> 8 & 255) * k)), b = Math.min(255, (int) ((c & 255) * k));
         return r << 16 | g << 8 | b;
     }
 
-    private static int lerp(int a, int b, float t) {
+    static int lerp(int a, int b, float t) {
         int r = (int) ((a >> 16 & 255) + ((b >> 16 & 255) - (a >> 16 & 255)) * t);
         int g = (int) ((a >> 8 & 255) + ((b >> 8 & 255) - (a >> 8 & 255)) * t);
         int bl = (int) ((a & 255) + ((b & 255) - (a & 255)) * t);
         return r << 16 | g << 8 | bl;
     }
 
-    private static float smooth(float a, float b, float x) {
+    static float smooth(float a, float b, float x) {
         float t = Math.max(0, Math.min(1, (x - a) / (b - a)));
         return t * t * (3 - 2 * t);
     }
 
     /** Фрактальный шум (сумма октав value-noise), примерно −0.7…0.7. */
-    private static float fbm(float x, float y, float z, int seed, int oct) {
+    static float fbm(float x, float y, float z, int seed, int oct) {
         float s = 0, a = 0.5f;
         for (int o = 0; o < oct; o++) { s += a * noise(x, y, z, seed + o * 1013); x *= 2.03f; y *= 2.03f; z *= 2.03f; a *= 0.5f; }
         return s;

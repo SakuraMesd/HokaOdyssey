@@ -2,6 +2,7 @@
 dependencies {
     compileOnly(project(":api"))
     compileOnly(project(":modules:clientmods"))   // канал ядра мода: op 11 — лазер
+    compileOnly(project(":modules:blocks"))       // HoBlocks: свои блоки (руды космоса) по носителю
 }
 
 tasks.jar { archiveFileName.set("mining.jar") }

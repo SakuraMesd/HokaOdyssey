@@ -5,8 +5,9 @@
 #   laser     — true: лазер (мод Hoka Odyssey): зажать ЛКМ — луч из дула в прицел, блок ломается за время из blocks;
 #               false: ломать как обычно (рукой с этим предметом), но только блоки из blocks
 #   max_range — проверка дальности на сервере, блоков (дальность луча у игрока — «Дальность» в /hoitem edit, иначе 10)
-#   drops_as  — что выпадает — как если ломать этим инструментом
+#   drops_as  — что выпадает — как если ломать этим инструментом (ванильные блоки; свои блоки дают сам блок)
 #   blocks    — какие блоки берёт: <блок>: секунд (для laser: false — время не важно, просто разрешено)
+#               ванильный — coal_ore (= minecraft:coal_ore); свой (модуль blocks) — hoka:<id>
 tools:
   axiom:
     laser: true
@@ -15,3 +16,21 @@ tools:
     blocks:
       coal_ore: 2.0
       deepslate_coal_ore: 3.0
+      # космос: породы астероидов
+      hoka:space_regolith: 0.5
+      hoka:space_rock: 0.8
+      hoka:meteor_rock: 1.2
+      packed_ice: 0.8
+      snow_block: 0.4
+      # космос: руды (дороже — дольше)
+      hoka:coal_ore: 1.5
+      hoka:copper_ore: 2.0
+      hoka:iron_ore: 2.0
+      hoka:silicon_ore: 2.5
+      hoka:magnesium_ore: 2.5
+      hoka:nickel_ore: 3.0
+      hoka:cobalt_ore: 3.5
+      hoka:silver_ore: 3.5
+      hoka:gold_ore: 4.0
+      hoka:platinum_ore: 5.0
+      hoka:uranium_ore: 6.0

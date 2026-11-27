@@ -42,7 +42,7 @@ import java.util.stream.Stream;
  * (states.yml); моду уходит описание {@code blocks/blocks.json} и файлы из assets/ — он рисует носитель как наш
  * блок. Ставится предметом с меткой {@code hoka_block}, ломается как носитель, в выживании возвращает предмет.
  */
-public final class BlocksModule extends OdysseyModule {
+public final class BlocksModule extends OdysseyModule implements HoBlocks {
 
     static final Tag<String> ITEM_TAG = Tag.String("hoka_block");
 
@@ -65,6 +65,7 @@ public final class BlocksModule extends OdysseyModule {
         client = services().get(ClientModsApi.class).orElseThrow();
         String r = reload();
         logger().info("свои блоки: {}", r);
+        services().register(HoBlocks.class, this);
         events().addListener(PlayerBlockPlaceEvent.class, this::onPlace);
         events().addListener(PlayerBlockBreakEvent.class, this::onBreak);
         events().addListener(PlayerPickBlockEvent.class, this::onPick);
@@ -81,6 +82,7 @@ public final class BlocksModule extends OdysseyModule {
 
     @Override
     protected void onDisable() {
+        services().unregister(HoBlocks.class);
         try {
             client.clearFiles(id());
             client.publishFiles();
@@ -332,6 +334,12 @@ public final class BlocksModule extends OdysseyModule {
         if (p == null) return;
         if (e.getPlayer().getGameMode() == GameMode.SURVIVAL || e.getPlayer().getGameMode() == GameMode.ADVENTURE)
             e.getPlayer().getInventory().addItemStack(item(p.def, 1));
+    }
+
+    @Override
+    public String idOf(Block block) {
+        Placed p = byState.get(block.stateId());
+        return p == null ? null : p.def.id;
     }
 
     private void onPick(PlayerPickBlockEvent e) {

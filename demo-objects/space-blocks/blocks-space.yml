@@ -1,0 +1,57 @@
+  # ── космос: породы астероидов и руды (текстуры — assets/space/, генератор space) ──
+  space_rock:
+    name: "Астероидный камень"
+    texture: space/space_rock.png
+    sounds: {type: stone}
+  space_regolith:
+    name: "Реголит"
+    texture: space/space_regolith.png
+    sounds: {type: stone}
+  meteor_rock:
+    name: "Метеоритная порода"
+    texture: space/meteor_rock.png
+    sounds: {type: stone}
+  coal_ore:
+    name: "Угольная руда астероида"
+    texture: space/coal_ore.png
+    sounds: {type: stone}
+  copper_ore:
+    name: "Медная руда"
+    texture: space/copper_ore.png
+    sounds: {type: stone}
+  iron_ore:
+    name: "Железная руда астероида"
+    texture: space/iron_ore.png
+    sounds: {type: stone}
+  silicon_ore:
+    name: "Кремниевая руда"
+    texture: space/silicon_ore.png
+    sounds: {type: stone}
+  nickel_ore:
+    name: "Никелевая руда"
+    texture: space/nickel_ore.png
+    sounds: {type: stone}
+  cobalt_ore:
+    name: "Кобальтовая руда"
+    texture: space/cobalt_ore.png
+    sounds: {type: stone}
+  silver_ore:
+    name: "Серебряная руда"
+    texture: space/silver_ore.png
+    sounds: {type: stone}
+  gold_ore:
+    name: "Золотая руда астероида"
+    texture: space/gold_ore.png
+    sounds: {type: stone}
+  platinum_ore:
+    name: "Платиновая руда"
+    texture: space/platinum_ore.png
+    sounds: {type: stone}
+  uranium_ore:
+    name: "Урановая руда"
+    texture: space/uranium_ore.png
+    sounds: {type: stone}
+  magnesium_ore:
+    name: "Магниевая руда"
+    texture: space/magnesium_ore.png
+    sounds: {type: stone}

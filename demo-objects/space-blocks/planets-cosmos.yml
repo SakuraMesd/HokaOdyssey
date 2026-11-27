@@ -1,0 +1,77 @@
+  # ── космос (карта cosmos): солнце в центре и 5 планет. type: terra | desert | ice | lava | gas | rock | star ──
+  sun:
+    map: cosmos
+    type: star
+    x: 0
+    y: 0
+    z: 0
+    size: 3000
+    round: 1500
+    seed: 7
+    color: "#ffcf5a"
+    atmosphere: "#ffb44ac0"
+    approach: 450
+  verdis:
+    map: cosmos
+    type: terra
+    x: 8000
+    y: 700
+    z: -5200
+    size: 2048
+    round: 256
+    seed: 20261124
+    color: "#4f8f4a"
+    atmosphere: "#7fb4ff70"
+    approach: 50
+    target: hoka23
+    tx: 0.5
+    ty: 306
+    tz: 32.5
+  dune:
+    map: cosmos
+    type: desert
+    x: -12500
+    y: -1800
+    z: 7000
+    size: 1700
+    round: 220
+    seed: 3141
+    color: "#d8a860"
+    atmosphere: "#ffcf8a50"
+    approach: 50
+  glacia:
+    map: cosmos
+    type: ice
+    x: 16500
+    y: 2800
+    z: 13500
+    size: 1800
+    round: 240
+    seed: 2718
+    color: "#cfe6f5"
+    atmosphere: "#bfe8ff60"
+    approach: 50
+  ignis:
+    map: cosmos
+    type: lava
+    x: -5000
+    y: 900
+    z: -14500
+    size: 1300
+    round: 180
+    seed: 1618
+    color: "#3a2a24"
+    atmosphere: "#ff6a2a50"
+    approach: 50
+  jovis:
+    map: cosmos
+    type: gas
+    x: -18500
+    y: -2500
+    z: -17000
+    size: 3600
+    round: 900
+    seed: 4242
+    color: "#c99a6a"
+    atmosphere: "#ffd8a040"
+    approach: 80

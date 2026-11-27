@@ -19,3 +19,4 @@ include("modules:axiom")      // Axiom (клиентский редактор м
 include("generators:noise-test") // переносимый генератор планеты «noise-test» v2 → run/generators/ (сервер и клиент)
 include("generators:planet")     // генератор планеты «planet» v1: −500…2000, море 300, объекты из objects/ (рельеф — позже)
 include("generators:vale")       // генератор «vale» v2: горы до ~1950, хребты, разломы, 24 биома, деревья-великаны, грибы, цветы
+include("generators:space")      // генератор «space» v1: космос — астероиды, метеориты, скопления, руды и тайники

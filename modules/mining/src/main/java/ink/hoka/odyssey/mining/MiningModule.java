@@ -110,6 +110,13 @@ public final class MiningModule extends OdysseyModule {
 
     private static String key(String b) { return b.contains(":") ? b : "minecraft:" + b; }
 
+    /** Ключ блока для конфига: свой блок (модуль blocks) — «hoka:<id>», иначе ванильный «minecraft:…». */
+    private String keyOf(Block b) {
+        var hb = services().get(ink.hoka.odyssey.blocks.HoBlocks.class).orElse(null);
+        String id = hb == null ? null : hb.idOf(b);
+        return id != null ? "hoka:" + id : b.key().asString();
+    }
+
     private Tool toolOf(Player p) {
         ItemStack hand = p.getItemInMainHand();
         String id = hand.getTag(HOKA);
@@ -128,7 +135,7 @@ public final class MiningModule extends OdysseyModule {
         Player p = e.getPlayer();
         if (free(p) || p.getUuid().equals(breaking)) return;
         Tool t = toolOf(p);
-        if (t != null && !t.laser && t.blocks.containsKey(e.getBlock().key().asString())) {
+        if (t != null && !t.laser && t.blocks.containsKey(keyOf(e.getBlock()))) {
             p.setTag(BREAK_TOOL, t.dropsAs);                                    // выпадение как с drops_as
             scheduler().run(() -> p.removeTag(BREAK_TOOL));
             return;
@@ -177,7 +184,7 @@ public final class MiningModule extends OdysseyModule {
                 if (!s.hasBlock || inst == null) { reset(p, s); continue; }
                 if (!s.pos.equals(s.progressPos)) { reset(p, s); s.progressPos = s.pos; }
                 Block b = inst.getBlock(s.pos);
-                Double secs = t.blocks.get(b.key().asString());
+                Double secs = t.blocks.get(keyOf(b));
                 if (secs == null) {
                     if (!s.warned && !b.isAir()) {
                         p.sendActionBar(Component.text("Лазер этот блок не берёт", NamedTextColor.RED));

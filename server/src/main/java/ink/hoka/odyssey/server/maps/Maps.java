@@ -189,7 +189,10 @@ public final class Maps {
             } else if (!"flat".equals(meta.getString("generator", "flat")))
                 LOG.warn("карта «{}» на .htw: генераторы планет — только для store: cubes, здесь всегда flat", name);
             inst = MinecraftServer.getInstanceManager().createInstanceContainer(ink.hoka.odyssey.server.tall.TallWorld.key(name), loader);
-            inst.setWorldBorder(ink.hoka.odyssey.server.tall.TallWorld.border());
+            // map.yml border: <поперечник> [border_x / border_z — центр] — граница карты (космос 50k); нет — как раньше
+            double bd = meta.getDouble("border", 0);
+            inst.setWorldBorder(bd > 0 ? new net.minestom.server.instance.WorldBorder(bd, meta.getDouble("border_x", 0), meta.getDouble("border_z", 0), 64, 15)
+                    : ink.hoka.odyssey.server.tall.TallWorld.border());
             // store: cubes — CubeColumn (шаг 9: свой Chunk, кубы разреженно); .htw — TallChunk, как раньше
             if (isCubeStore(meta)) inst.setChunkSupplier(ink.hoka.odyssey.server.tall.CubeColumn::generated);
             else inst.setChunkSupplier(ink.hoka.odyssey.server.tall.TallChunk::generated);   // свой свет, разреженные секции, своя генерация

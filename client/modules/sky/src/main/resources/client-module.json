@@ -1,6 +1,6 @@
 {
   "id": "sky",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "main": "ink.hoka.odyssey.client.sky.SkyClientModule",
   "authors": ["Takuyamo"],
   "description": "Небо карты: градиент по времени суток, узор, звёзды и туманность, кубические солнце и луна, свой туман (край мира тает в дымке цвета горизонта)"
