@@ -23,9 +23,9 @@ import java.util.Map;
  * Столкновения считает ядро мода (ClientContext.onCollision): тело корабля — его система (середина модели, поворот
  * корабля), фигуры — мелкие клетки корпуса по полблока ({@link Kind#fine}), ступенька 0.5 — игрок по ним шагает.
  * <p>
- * Стоит на корабле — корабль везёт его: перед движением игрока (onLocalTravel) ноги переносятся так же, как сдвинулся
- * и повернулся корабль за тик (вместе с курсом взгляда). Корабль влетел в игрока — тот же перенос: игрока толкает
- * корпус, а не протаскивает насквозь. Поза корабля для столкновений и переноса — на конец тика (снимается раз в тик).
+ * Стоит на корабле — корабль везёт его: в конце тика ({@link #tick}) ноги переносятся так же, как сдвинулся и
+ * повернулся корабль за тик (вместе с курсом взгляда). Корабль влетел в игрока — тот же перенос: игрока толкает
+ * корпус, а не протаскивает насквозь. Поза корабля для столкновений — снятая в конце прошлого тика.
  */
 final class Decks {
 
@@ -56,7 +56,7 @@ final class Decks {
 
     // ───────────────────────── позы ─────────────────────────
 
-    /** Раз в тик, перед движением игрока: новые позы кораблей. */
+    /** Раз в тик: новые позы кораблей. */
     void sample(Iterable<? extends Ship> ships) {
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         Vector3d p = new Vector3d();
@@ -117,47 +117,53 @@ final class Decks {
 
     // ───────────────────────── перенос ─────────────────────────
 
-    /** Перед движением своего игрока: стоит на корабле или корабль в него влетел — сдвинуть вместе с кораблём. */
-    void travel(LocalPlayer p) {
-        if (!carry || own >= 0 || p.isSpectator() || p.isPassenger()) return;
+    /**
+     * Конец тика клиента (после сущностей: носители кораблей уже сдвинулись): стоял ли игрок на корабле в его прошлой
+     * позе (той, по которой считались столкновения), новые позы, перенос стоящих и толчок задетых. Так игрок и
+     * корабль сдвигаются в одном тике — на экране оба плавно идут от прошлой позы к новой, игрок не «сползает».
+     */
+    void tick(LocalPlayer p, Iterable<? extends Ship> ships) {
+        int was = standing;
+        standing = p == null || !carry || own >= 0 ? -1 : standingOn(p, was);
+        sample(ships);
+        if (p == null || !carry || own >= 0 || p.isSpectator() || p.isPassenger()) return;
         for (var en : tracks.entrySet()) {
             Track t = en.getValue();
             if (!t.has0 || !t.has1 || en.getKey() == own || t.kind == null) continue;
             if (t.p0.distanceSquared(t.p1) < 1e-10 && t.q0.equals(t.q1, 1e-7)) continue;   // корабль стоит
             Vec3 feet = p.position();
-            Vector3d l0 = local(t.p0, t.q0, feet);
             boolean on = en.getKey() == standing;
             boolean hit = !on && intersects(t, p, t.p1, t.q1) && !intersects(t, p, t.p0, t.q0);
             if (!on && !hit) continue;
+            Vector3d l0 = local(t.p0, t.q0, feet);
             Vector3d nf = new Quaterniond(t.q1).transform(new Vector3d(l0)).add(t.p1);
-            double dyaw = Math.IEEEremainder(yaw(t.q1) - yaw(t.q0), Math.PI * 2);
             if (nf.distanceSquared(feet.x, feet.y, feet.z) > 64 * 64) continue;      // скачок (варп, телепорт) — не тащить
             p.setPos(nf.x, nf.y, nf.z);
-            if (on && Math.abs(dyaw) > 1e-4) {
+            double dyaw = Math.IEEEremainder(yaw(t.q1) - yaw(t.q0), Math.PI * 2);
+            if (on && Math.abs(dyaw) > 1e-5) {                                  // корабль повернул — и взгляд стоящего
                 float d = (float) Math.toDegrees(dyaw);
                 p.setYRot(p.getYRot() + d);
                 p.yRotO += d;
                 p.setYHeadRot(p.getYHeadRot() + d);
                 p.yBodyRot += d;
+                p.yBodyRotO += d;
             }
             return;
         }
     }
 
-    /** После движения: на каком корабле стоит (ноги над корпусом и на земле; в прыжке над палубой — тот же). */
-    void travelEnd(LocalPlayer p) {
-        int was = standing;
-        standing = -1;
-        if (!carry || own >= 0) return;
+    /** На каком корабле стоит игрок (в прошлой позе корабля): ноги над корпусом и на земле; в прыжке над палубой — тот же. */
+    private int standingOn(LocalPlayer p, int was) {
         for (var en : tracks.entrySet()) {
             Track t = en.getValue();
             if (!t.has1 || en.getKey() == own || t.kind == null || t.kind.fine.isEmpty()) continue;
             Vector3d l = local(t.p1, t.q1, p.position());
             if (Math.abs(l.x) > t.kind.half[0] + 1 || Math.abs(l.z) > t.kind.half[2] + 1 || Math.abs(l.y) > t.kind.half[1] + 3) continue;
             boolean onNow = p.onGround() && t.kind.standsOn(l.x, l.y, l.z, 0.35);
-            boolean stay = en.getKey() == was && t.kind.standsOn(l.x, l.y, l.z, 2.5);     // подпрыгнул над палубой
-            if (onNow || stay) { standing = en.getKey(); return; }
+            boolean stay = en.getKey() == was && t.kind.standsOn(l.x, l.y, l.z, 2.5);
+            if (onNow || stay) return en.getKey();
         }
+        return -1;
     }
 
     /** Стоит ли игрок на этом корабле (для HUD/подсказок). */

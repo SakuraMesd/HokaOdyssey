@@ -1,0 +1,36 @@
+# Предметы кораблей (модуль vessels 0.2.0) для модуля hoitems.
+# Выкладка: папку vessels/ (иконки 16×16) — в module/hoitems/assets/vessels/, этот раздел — дописать в
+# module/hoitems/config.yml под items:, затем /hoitem reload (или homodule reload hoitems).
+# Без этого vessels тоже работает: выдаёт запасные ванильные предметы (светопыль, огненный стержень…) с тем же смыслом.
+# id менять нельзя: vessels узнаёт предметы по ним (vessel_fuel, vessel_engine, vessel_tank, vessel_gun, vessel_warp).
+items:
+  vessel_fuel:
+    name: "Топливо"
+    color: gold
+    lore: ["Светящиеся кристаллы для двигателей корабля.", "Кладите в слоты топлива (меню корабля — G)."]
+    icon: vessels/fuel.png
+    material: glowstone_dust
+  vessel_engine:
+    name: "Двигатель+"
+    color: aqua
+    lore: ["Улучшение корабля: скорость и форсаж +10%.", "Кладите в слоты улучшений (меню корабля — G)."]
+    icon: vessels/engine.png
+    stack: 1
+  vessel_tank:
+    name: "Бак+"
+    color: aqua
+    lore: ["Улучшение корабля: расход топлива на варп −10%.", "Кладите в слоты улучшений (меню корабля — G)."]
+    icon: vessels/tank.png
+    stack: 1
+  vessel_gun:
+    name: "Орудие+"
+    color: aqua
+    lore: ["Улучшение корабля: перезарядка орудия −10%, урон +10%.", "Кладите в слоты улучшений (меню корабля — G)."]
+    icon: vessels/gun.png
+    stack: 1
+  vessel_warp:
+    name: "Варп-катушка"
+    color: aqua
+    lore: ["Улучшение корабля: перезарядка варпа −15%.", "Кладите в слоты улучшений (меню корабля — G)."]
+    icon: vessels/warp.png
+    stack: 1

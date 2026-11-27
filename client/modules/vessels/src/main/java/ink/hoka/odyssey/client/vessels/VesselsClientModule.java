@@ -100,17 +100,13 @@ public final class VesselsClientModule implements ClientModule {
             Minecraft mc = Minecraft.getInstance();
             if (pilot != null && (mc.player == null || mc.level == null)) stopPilot();
             if (pilot != null) pilot.tick();
+            decks.own = pilot != null ? pilot.vessel : -1;
+            decks.tick(mc.player, ships.values());                              // твёрдый корпус: перенос стоящих на корабле
             fx.tick();
             keys();
         });
         ctx.onWorld(fx::render);
-        try {                                                                   // твёрдый корпус: столкновения и перенос (ядро 0.21+)
-            ctx.onLocalTravel(p -> {
-                decks.own = pilot != null ? pilot.vessel : -1;
-                decks.sample(ships.values());
-                decks.travel(p);
-            });
-            ctx.onLocalTravelEnd(decks::travelEnd);
+        try {                                                                   // твёрдый корпус: столкновения (ядро 0.13+)
             ctx.onCollision(decks::collide);
         } catch (LinkageError old) {
             ctx.logger().warn("ядро мода без столкновений с телами — корабли проходимы насквозь до обновления мода");

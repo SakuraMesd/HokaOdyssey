@@ -240,7 +240,7 @@ public final class VesselsModule extends OdysseyModule {
             return;
         }
         Piloting pl = new Piloting(p, v, ticks);
-        pl.checkMul = status(v).speedMul();
+        pl.checkMul = speedMul(v);
         v.pilot = pl;
         p.setAllowFlying(true);
         p.setFlying(true);                                                      // не падать; двигает мод (скорость полёта 0)
@@ -314,7 +314,7 @@ public final class VesselsModule extends OdysseyModule {
         Instance inst = v.carrier != null ? v.carrier.getInstance() : null;
         if (k == null || inst == null) return;
         double[] np = {x, y, z};
-        double mul = status(v).speedMul();                                     // улучшения скорости; сняли — старый предел ещё 5 с
+        double mul = speedMul(v);                                               // улучшения скорости; сняли — старый предел ещё 5 с
         if (mul >= pl.checkMul) { pl.checkMul = mul; pl.checkMulAt = ticks; }
         else if (ticks - pl.checkMulAt > 100) pl.checkMul = mul;
         String why = VesselMath.check(v.pos(), v.rot, np, q, ticks - pl.lastPose, k, limits, pl.checkMul);
@@ -434,6 +434,13 @@ public final class VesselsModule extends OdysseyModule {
     /** Сводка корабля: топливо, варп, орудие, скорость (меню и HUD пилота). */
     record Status(int fuel, int capacity, int warpCost, double burnPerMinute, double warpDistance, double warpChargeSec,
                   double warpReloadSec, double gunDamage, double gunReloadSec, double gunRange, double speedMul, boolean empty) {}
+
+    /** Множитель скорости корабля (улучшения; пустой бак при расходе — аварийный ход). Быстро — для каждой позы. */
+    double speedMul(Vessel v) {
+        double m = stats(v).speed();
+        if (config().getDouble("fuel.burn-per-minute", 0) > 0 && v.cargo.fuelUnits() <= 0) m *= config().getDouble("fuel.empty-speed", 0.25);
+        return m;
+    }
 
     Status status(Vessel v) {
         Upgrades.Stats st = stats(v);
