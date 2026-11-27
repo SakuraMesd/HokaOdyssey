@@ -35,6 +35,7 @@ final class SpaceGen implements PlanetGenerator {
     static final int ROCK = 0, ICE = 1, METAL = 2, METEOR = 3;
 
     private final long seed;
+    private final int minY, maxY;
     private final boolean secretsOn;
     private final long secretSeed;
     private final GenNoise shapeN, shapeN2, veinN, pickN, veinPub, pickPub;
@@ -48,6 +49,8 @@ final class SpaceGen implements PlanetGenerator {
 
     SpaceGen(GenContext ctx) {
         seed = ctx.seed();
+        minY = ctx.bounds().minY();
+        maxY = ctx.bounds().maxY();
         secretsOn = ctx.server();
         secretSeed = secretsOn ? ctx.secretSeed() : 0;
         shapeN = new GenNoise(seed ^ 0x51A9E01L);
@@ -101,6 +104,10 @@ final class SpaceGen implements PlanetGenerator {
         double vein;                                 // порог жилы (меньше — богаче)
         boolean loot;
         int lx, ly, lz;                              // сундук тайника (мировые)
+
+        boolean hitsColumn(int x0, int z0) {
+            return x0 + 16 > x - ext && x0 < x + ext && z0 + 16 > z - ext && z0 < z + ext;
+        }
 
         boolean hits(int x0, int y0, int z0) {
             return x0 + 16 > x - ext && x0 < x + ext && y0 + 16 > y - ext && y0 < y + ext && z0 + 16 > z - ext && z0 < z + ext;
@@ -226,18 +233,42 @@ final class SpaceGen implements PlanetGenerator {
     @Override
     public int highest(int x, int z, int yFrom, int yTo, ink.hoka.odyssey.gen.HeightKind k) {
         int best = NONE;
-        for (int j = Math.floorDiv(yTo, A); j >= Math.floorDiv(yFrom, A); j--) {
-            if ((j + 1) * A - 1 < best) break;
-            Body a = asteroid(Math.floorDiv(x, A), j, Math.floorDiv(z, A));
-            if (a != null && covers(a, x, z)) best = Math.max(best, top(a, x, z, yFrom, yTo));
+        for (Body b : column(x >> 4, z >> 4)) {                                 // по убыванию верха рамки
+            if (b.y + b.ext < best || b.y + b.ext < yFrom) break;
+            if (b.y - b.ext > yTo || !covers(b, x, z)) continue;
+            best = Math.max(best, top(b, x, z, yFrom, yTo));
         }
-        for (int j = Math.floorDiv(yTo, B); j >= Math.floorDiv(yFrom, B); j--) {
-            if ((j + 1) * B - 1 < best) break;
-            Body m = meteorite(Math.floorDiv(x, B), j, Math.floorDiv(z, B));
-            if (m != null && covers(m, x, z)) best = Math.max(best, top(m, x, z, yFrom, yTo));
-        }
-        if (spawn != null && covers(spawn, x, z)) best = Math.max(best, top(spawn, x, z, yFrom, yTo));
         return best;
+    }
+
+    /** Тела, задевающие столбец 16×16 (по всей высоте карты), по убыванию верха рамки — кэш на поток (свет и высоты сервера спрашивают все 256 клеток × 3 вида). */
+    private final ThreadLocal<java.util.LinkedHashMap<Long, Body[]>> colCache = ThreadLocal.withInitial(() ->
+            new java.util.LinkedHashMap<>(64, 0.75f, true) {
+                @Override protected boolean removeEldestEntry(java.util.Map.Entry<Long, Body[]> e) { return size() > 64; }
+            });
+
+    private Body[] column(int cx, int cz) {
+        long key = ((long) cx << 32) | (cz & 0xFFFFFFFFL);
+        var cache = colCache.get();
+        Body[] r = cache.get(key);
+        if (r != null) return r;
+        int x0 = cx << 4, z0 = cz << 4;
+        java.util.ArrayList<Body> l = new java.util.ArrayList<>();
+        int ia = Math.floorDiv(x0, A), ka = Math.floorDiv(z0, A);
+        for (int j = Math.floorDiv(minY, A); j <= Math.floorDiv(maxY, A); j++) {
+            Body a = asteroid(ia, j, ka);
+            if (a != null && a.hitsColumn(x0, z0)) l.add(a);
+        }
+        int ib = Math.floorDiv(x0, B), kb = Math.floorDiv(z0, B);
+        for (int j = Math.floorDiv(minY, B); j <= Math.floorDiv(maxY, B); j++) {
+            Body m = meteorite(ib, j, kb);
+            if (m != null && m.hitsColumn(x0, z0)) l.add(m);
+        }
+        if (spawn != null && spawn.hitsColumn(x0, z0)) l.add(spawn);
+        l.sort((p, q) -> Double.compare(q.y + q.ext, p.y + p.ext));
+        r = l.toArray(new Body[0]);
+        cache.put(key, r);
+        return r;
     }
 
     @Override

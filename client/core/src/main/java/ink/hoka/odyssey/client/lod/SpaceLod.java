@@ -39,6 +39,8 @@ final class SpaceLod {
         GpuBuffer vb;
         int quads;
         long seen;
+        /** Когда настоящие блоки тела появились у клиента (0 — нет): LOD гасим через 1.5 с (Sodium успевает построить). */
+        long readyAt;
 
         Body(double x, double y, double z, double ext) { this.x = x; this.y = y; this.z = z; this.ext = ext; }
     }
@@ -195,10 +197,30 @@ final class SpaceLod {
             if (d2 > (double) dist * dist) continue;
             if (b.ext * b.ext < d2 * 0.004 * 0.004) continue;                     // меньше ~пикселя-двух — не рисуем
             double hor = Math.max(Math.abs(dx), Math.abs(dz)) + b.ext, ver = Math.abs(dy) + b.ext;
-            if (hor < rdBlocks - 24 && ver < vBlocks - 24) continue;              // целиком загружено — настоящие блоки
+            if (hor < rdBlocks - 24 && ver < vBlocks - 24 && realReady(b)) {         // целиком в обзоре и блоки уже пришли
+                long now = System.currentTimeMillis();
+                if (b.readyAt == 0) b.readyAt = now;
+                if (now - b.readyAt > 1500) continue;                             // настоящие построены — LOD не нужен
+            } else b.readyAt = 0;
             l.add(b);
         }
         return l;
+    }
+
+    /** Настоящие блоки тела у клиента: столбец в центре загружен и куб центра (и выше/ниже на полрамки) не пуст. */
+    private static boolean realReady(Body b) {
+        var lvl = net.minecraft.client.Minecraft.getInstance().level;
+        if (lvl == null) return false;
+        int bx = (int) Math.floor(b.x), bz = (int) Math.floor(b.z);
+        var ch = lvl.getChunkSource().getChunk(bx >> 4, bz >> 4, net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false);
+        if (ch == null) return false;
+        for (double dy : new double[]{0, b.ext * 0.4, -b.ext * 0.4}) {
+            int y = (int) Math.floor(b.y + dy);
+            int si = lvl.getSectionIndex(y);
+            var secs = ch.getSections();
+            if (si < 0 || si >= secs.length || secs[si] == null || secs[si].hasOnlyAir()) return false;
+        }
+        return true;
     }
 
     static void clear() {

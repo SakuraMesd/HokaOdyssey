@@ -9,7 +9,7 @@
     round: 480
     seed: 7
     color: "#ffcf5a"
-    atmosphere: "#ffb44ac0"
+    atmosphere: "#ffb44a00"
     approach: 600
   verdis:
     map: cosmos
