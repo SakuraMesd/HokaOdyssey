@@ -135,6 +135,8 @@ public final class Laser {
         var cam = Minecraft.getInstance().gameRenderer.getMainCamera();
         Vector3f e = new Vector3f((float) (end.x - cam.position().x), (float) (end.y - cam.position().y), (float) (end.z - cam.position().z));
         cam.rotation().conjugate(new org.joml.Quaternionf()).transform(e);
+        float minDepth = -muzzleRoot.z + 0.35f;                                   // вплотную к блоку — луч не назад сквозь модель
+        if (-e.z < minDepth && e.z < -1e-4f) e.mul(minDepth / -e.z);
         Vector3f eye = new Matrix4f(root).invert().transformPosition(new Vector3f());
         snc.submitCustomGeometry(ps, RenderTypes.lightning(), (pose, vc) -> beam(pose, vc, muzzleRoot, e, eye));
     }
@@ -253,17 +255,28 @@ public final class Laser {
         for (int i = 0; i < 8; i++) vc.addVertex(pose, q[i].x, q[i].y, q[i].z).setColor(r, g, b, al[i]);
     }
 
-    /** Ребро рамки: лента лицом к глазу (камера — в 0), концы продлены на полширины — углы без щелей. */
-    private static void edge(PoseStack.Pose pose, VertexConsumer vc, Vector3f a, Vector3f b, int alpha) {
-        float w = 0.012f + 0.0025f * a.length();                                   // вдали толще — видно одинаково
-        Vector3f d = new Vector3f(b).sub(a).normalize(w);
-        Vector3f a2 = new Vector3f(a).sub(d), b2 = new Vector3f(b).add(d);
-        Vector3f side = new Vector3f(b2).sub(a2).cross(new Vector3f(a2).add(b2).mul(0.5f), new Vector3f());
-        if (side.lengthSquared() < 1e-12f) return;
-        side.normalize(w);
-        int c = 0x6FD3FF;
-        Vector3f[] q = {new Vector3f(a2).sub(side), new Vector3f(a2).add(side), new Vector3f(b2).add(side), new Vector3f(b2).sub(side)};
-        for (Vector3f v : q) vc.addVertex(pose, v.x, v.y, v.z).setColor((c >> 16) & 255, (c >> 8) & 255, c & 255, alpha);
+    /**
+     * Рамка по краю грани (углы c0..c3 по кругу): четыре трапеции со скошенными углами — полосы не накладываются.
+     * w — ширина внутрь грани; aOut/aIn — прозрачность у края и внутри (градиент).
+     */
+    private static void frame(PoseStack.Pose pose, VertexConsumer vc, float[][] c, float w, int aOut, int aIn) {
+        Vector3f[] o = new Vector3f[4], in = new Vector3f[4];
+        Vector3f mid = new Vector3f();
+        for (int i = 0; i < 4; i++) { o[i] = new Vector3f(c[i][0], c[i][1], c[i][2]); mid.add(o[i]); }
+        mid.mul(0.25f);
+        for (int i = 0; i < 4; i++) {
+            Vector3f toNext = new Vector3f(o[(i + 1) % 4]).sub(o[i]), toPrev = new Vector3f(o[(i + 3) % 4]).sub(o[i]);
+            float k1 = Math.min(w, toNext.length() / 2), k2 = Math.min(w, toPrev.length() / 2);
+            in[i] = new Vector3f(o[i]).add(toNext.normalize(k2)).add(toPrev.normalize(k1));
+        }
+        int r = 0x6F, g = 0xD3, b = 0xFF;
+        for (int i = 0; i < 4; i++) {
+            int j = (i + 1) % 4;
+            vc.addVertex(pose, o[i].x, o[i].y, o[i].z).setColor(r, g, b, aOut);
+            vc.addVertex(pose, o[j].x, o[j].y, o[j].z).setColor(r, g, b, aOut);
+            vc.addVertex(pose, in[j].x, in[j].y, in[j].z).setColor(r, g, b, aIn);
+            vc.addVertex(pose, in[i].x, in[i].y, in[i].z).setColor(r, g, b, aIn);
+        }
     }
 
     /** Обводка блока, который ломает луч (в проходе рамки игры). true — нарисована (рамку игры не рисуем). */
@@ -272,15 +285,18 @@ public final class Laser {
         if (!active || target == null || mc.level == null) return false;
         VoxelShape sh = mc.level.getBlockState(target).getShape(mc.level, target);
         if (sh.isEmpty()) sh = Shapes.block();
-        int alpha = (int) (120 + 25 * Math.sin(System.currentTimeMillis() / 160.0));          // ~50%, мягко пульсирует
-        var bb = sh.bounds().inflate(0.004).move(target.getX() - cam.x, target.getY() - cam.y, target.getZ() - cam.z);
-        float[] xs = {(float) bb.minX, (float) bb.maxX}, ys = {(float) bb.minY, (float) bb.maxY}, zs = {(float) bb.minZ, (float) bb.maxZ};
+        int alpha = (int) (125 + 20 * Math.sin(System.currentTimeMillis() / 160.0));          // ~50%, мягко пульсирует
+        var bb = sh.bounds().inflate(0.003).move(target.getX() - cam.x, target.getY() - cam.y, target.getZ() - cam.z);
+        float x0 = (float) bb.minX, y0 = (float) bb.minY, z0 = (float) bb.minZ, x1 = (float) bb.maxX, y1 = (float) bb.maxY, z1 = (float) bb.maxZ;
         VertexConsumer vc = buffers.getBuffer(RenderTypes.debugQuads());
         PoseStack.Pose pose = ps.last();
-        for (int i = 0; i < 2; i++) for (int j = 0; j < 2; j++) {
-            edge(pose, vc, new Vector3f(xs[0], ys[i], zs[j]), new Vector3f(xs[1], ys[i], zs[j]), alpha);
-            edge(pose, vc, new Vector3f(xs[i], ys[0], zs[j]), new Vector3f(xs[i], ys[1], zs[j]), alpha);
-            edge(pose, vc, new Vector3f(xs[i], ys[j], zs[0]), new Vector3f(xs[i], ys[j], zs[1]), alpha);
+        float[][][] faces = {
+                {{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}, {{x0, y1, z0}, {x1, y1, z0}, {x1, y1, z1}, {x0, y1, z1}},
+                {{x0, y0, z0}, {x1, y0, z0}, {x1, y1, z0}, {x0, y1, z0}}, {{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}},
+                {{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}, {{x1, y0, z0}, {x1, y0, z1}, {x1, y1, z1}, {x1, y1, z0}}};
+        for (float[][] f : faces) {
+            frame(pose, vc, f, 0.022f, alpha, alpha);                              // чёткая кромка
+            frame(pose, vc, f, 0.11f, alpha / 2, 0);                               // мягкое свечение внутрь грани
         }
         if (buffers instanceof MultiBufferSource.BufferSource bs) bs.endBatch(RenderTypes.debugQuads());
         return true;
