@@ -78,6 +78,7 @@ public final class HokaInventoryScreen extends AbstractContainerScreen<Inventory
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
         super.render(g, mx, my, pt);
+        if (hoveredSlot != null && hoveredSlot.isActive()) highlight(g, leftPos + hoveredSlot.x, topPos + hoveredSlot.y);
         for (int i = 0; i < HokaInventory.EXTRA; i++) {
             int x = leftPos + EXTRA[i][0], y = topPos + EXTRA[i][1];
             ItemStack it = HokaInventory.EXTRAS[i];
@@ -86,13 +87,27 @@ public final class HokaInventoryScreen extends AbstractContainerScreen<Inventory
                 g.renderItemDecorations(font, it, x, y);
             }
             if (over(i, mx, my)) {
-                g.fill(x, y, x + 16, y + 16, 0x80FFFFFF);
+                highlight(g, x, y);
                 if (menu.getCarried().isEmpty()) {
                     if (!it.isEmpty()) g.setTooltipForNextFrame(font, it, mx, my);
                     else g.setTooltipForNextFrame(font, Component.literal(EXTRA_NAME[i]), mx, my);
                 }
             }
         }
+    }
+
+    /** Выделение слота под мышью: скруглённое, голубое, почти прозрачное (поверх предмета — его видно). */
+    private static void highlight(GuiGraphics g, int x, int y) {
+        int fillC = 0x266FD3FF, edge = 0x666FD3FF;
+        g.fill(x + 1, y + 1, x + 15, y + 15, fillC);
+        g.fill(x + 2, y - 1, x + 14, y, edge);                 // верх
+        g.fill(x + 2, y + 16, x + 14, y + 17, edge);           // низ
+        g.fill(x - 1, y + 2, x, y + 14, edge);                 // лево
+        g.fill(x + 16, y + 2, x + 17, y + 14, edge);           // право
+        g.fill(x, y, x + 2, y + 1, edge); g.fill(x, y + 1, x + 1, y + 2, edge);              // углы — скруглены
+        g.fill(x + 14, y, x + 16, y + 1, edge); g.fill(x + 15, y + 1, x + 16, y + 2, edge);
+        g.fill(x, y + 15, x + 2, y + 16, edge); g.fill(x, y + 14, x + 1, y + 15, edge);
+        g.fill(x + 14, y + 15, x + 16, y + 16, edge); g.fill(x + 15, y + 14, x + 16, y + 15, edge);
     }
 
     private boolean over(int i, double mx, double my) {
