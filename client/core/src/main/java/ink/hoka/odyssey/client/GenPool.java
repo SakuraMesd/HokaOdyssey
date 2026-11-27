@@ -356,6 +356,24 @@ public final class GenPool {
         r.generated = true;
     }
 
+    /**
+     * 0.65 дальняя прорисовка: куб для LOD тем же путём, что и настоящий (диск → границы → hasBlocks → uniform →
+     * generate). Сгенерированный кладётся в дисковый кэш — когда игрок подойдёт, куб уже готов. false — куб пуст.
+     */
+    public static boolean lodCube(ink.hoka.odyssey.gen.PlanetGenerator g, ink.hoka.odyssey.gen.GenBounds b, long seed,
+                                  int x, int y, int z, GenArrayCube c) {
+        c.reset(x, y, z, seed);
+        if (!b.cubeInside(x, y, z)) return false;
+        if (!g.hasBlocks(x, y, z)) return false;                             // сверху вниз по пустому небу — без диска
+        GenDiskCache d = disk;
+        if (d != null && d.get(x, y, z, c)) return true;
+        int u = g.uniform(x, y, z);
+        if (u >= 0) { c.fill(u); return u != 0; }
+        g.generate(c);
+        if (d != null) d.put(x, y, z, c, c.visHash());
+        return true;
+    }
+
     /** Биом по номеру генератора (нет — первый / по умолчанию фабрики). */
     static Holder<Biome> biome(Job j, PalettedContainerFactory f, int id) {
         Holder<Biome>[] hs = j.biomes();

@@ -7,7 +7,6 @@ import com.mojang.blaze3d.platform.DepthTestFunction;
 import com.mojang.blaze3d.shaders.UniformType;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import ink.hoka.odyssey.client.ClientGen;
 import ink.hoka.odyssey.client.LodSetting;
@@ -57,11 +56,17 @@ public final class LodRenderer {
 
     private static final Logger LOG = LoggerFactory.getLogger("HokaOdyssey");
 
-    static final int N = 32, MIN_LEVEL = 1, MAX_LEVEL = 6;
-    /** Плиток в видеопамяти не больше (старые по давности — вон). */
-    private static final int MAX_NODES = 640;
-    /** Разделять плитку уровня L, если до неё ближе ширины × K (по качеству 1…4). */
-    private static final float[] SPLIT_K = {0, 0.9f, 1.3f, 1.8f, 2.5f};
+    /** Уровень 0 — плитка 32×32 настоящих блоков (LodVoxel), 1…6 — ячейки 2…64 блока (карта высот генератора). */
+    static final int N = 32, MIN_LEVEL = 0, MAX_LEVEL = 6;
+    /** Плиток в памяти не больше (старые по давности — вон). */
+    private static final int MAX_NODES = 2400;
+    /** Разделять плитку уровня L ≥ 2, если до неё ближе ширины × K (по качеству 1…4). */
+    private static final float[] SPLIT_K = {0, 1.0f, 1.4f, 1.9f, 2.6f};
+    /** Насколько дальше ближнего круга — настоящие блоки (уровень 0), по качеству. */
+    private static final int[] VOXEL_RING = {0, 64, 160, 288, 448};
+    /** Запас при обратном укрупнении: разделённая плитка собирается обратно лишь на 15% дальше — без мигания. */
+    private static final float HYST = 1.15f;
+    private static int voxelR;
 
     // ───────────── кадр: матрицы (LodLevelRendererMixin) ─────────────
 
@@ -90,9 +95,11 @@ public final class LodRenderer {
         /** 0 — нет, 1 — в очереди, 2 — собрана (ждёт заливки), 3 — готова, 4 — пусто. */
         volatile int st;
         volatile LodMesh pending;
-        GpuBuffer vb;
-        int quads;
+        GpuBuffer vb, wb;
+        int quads, wquads;
         float yMin, yMax;
+        /** Разделена в прошлый раз (гистерезис). */
+        boolean wasSplit;
         long used;
         long prio;
         int epoch;
@@ -116,6 +123,7 @@ public final class LodRenderer {
     private static volatile PlanetGenerator gen;
     private static volatile Holder<Biome>[] biomes;
     private static volatile GenBounds bounds;
+    private static volatile long seed;
     private static long genKey;
     private static Thread[] workers;
     private static final AtomicLong builtTiles = new AtomicLong(), builtNanos = new AtomicLong();
@@ -123,7 +131,7 @@ public final class LodRenderer {
 
     private static synchronized void startWorkers() {
         if (workers != null) return;
-        int n = Math.max(1, Math.min(3, Runtime.getRuntime().availableProcessors() / 4));
+        int n = Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors() / 3));
         workers = new Thread[n];
         for (int i = 0; i < n; i++) {
             Thread t = new Thread(LodRenderer::work, "hoka-lod-" + i);
@@ -145,9 +153,11 @@ public final class LodRenderer {
             long t0 = System.nanoTime();
             LodMesh m = null;
             try {
-                int s = 1 << n.level;
-                LodTile t = new LodTile(n.x0(), n.z0(), s, N);
-                if (g.lod(t)) m = LodMesh.build(t, biomes, bounds);
+                if (n.level == 0) m = LodVoxel.build(g, bounds, seed, n.x0(), n.z0(), biomes);
+                else {
+                    LodTile t = new LodTile(n.x0(), n.z0(), 1 << n.level, N);
+                    if (g.lod(t)) m = LodMesh.heightmap(t, biomes, bounds);
+                }
             } catch (Throwable e) {
                 LOG.warn("дальняя прорисовка: плитка {}:{},{} — {}", n.level, n.tx, n.tz, e.toString());
             }
@@ -179,7 +189,8 @@ public final class LodRenderer {
     }
 
     private static void release(Node n) {
-        if (n.vb != null) { n.vb.close(); n.vb = null; }
+        if (n.vb != null) { vramBytes -= n.vb.size(); n.vb.close(); n.vb = null; }
+        if (n.wb != null) { vramBytes -= n.wb.size(); n.wb.close(); n.wb = null; }
         LodMesh p = n.pending;
         n.pending = null;
         if (p != null) p.free();
@@ -238,9 +249,25 @@ public final class LodRenderer {
         return n;
     }
 
+    /**
+     * Разделить плитку на 4 помельче: уровень 1 — внутри кольца настоящих блоков, выше — по качеству (и всё, что
+     * ближе кольца). С запасом: уже разделённая собирается обратно лишь заметно дальше (нет мигания на границе).
+     */
     private static boolean split(int level, int tx, int tz, double cx, double cz, float k) {
+        if (level <= MIN_LEVEL) return false;
         int w = width(level);
-        return level > MIN_LEVEL && rectMin(cx, cz, tx * w, tz * w, w) < w * k;
+        double d = rectMin(cx, cz, tx * w, tz * w, w);
+        double t = level == 1 ? voxelR : Math.max(w * k, voxelR);
+        Node n = NODES.get(key(level, tx, tz));
+        boolean was = n != null && n.wasSplit;
+        return d < (was ? t * HYST : t);
+    }
+
+    /** Запомнить решение (вызывать только при обходе для отрисовки — не из renderable). */
+    private static boolean splitNow(int level, int tx, int tz, double cx, double cz, float k) {
+        boolean sp = split(level, tx, tz, cx, cz, k);
+        if (level > MIN_LEVEL) node(level, tx, tz).wasSplit = sp;
+        return sp;
     }
 
     /** Всё поддерево можно нарисовать (каждый нужный лист готов). */
@@ -259,7 +286,7 @@ public final class LodRenderer {
         if (skip(level, tx, tz, cx, cz, dist, cutoff)) return;
         int w = width(level);
         double d = rectMin(cx, cz, tx * w, tz * w, w);
-        if (split(level, tx, tz, cx, cz, k)) {
+        if (splitNow(level, tx, tz, cx, cz, k)) {
             boolean all = true;
             for (int c = 0; c < 4 && all; c++)
                 all = renderable(level - 1, tx * 2 + (c & 1), tz * 2 + (c >> 1), cx, cz, dist, cutoff, k);
@@ -293,19 +320,25 @@ public final class LodRenderer {
         WorldRenderEvents.START_MAIN.register(PHASE, c -> render());
     }
 
-    private static final RenderPipeline PIPE = RenderPipeline.builder()
-            .withLocation(Identifier.fromNamespaceAndPath("hoka_odyssey", "pipeline/lod"))
-            .withVertexShader(Identifier.fromNamespaceAndPath("hoka_odyssey", "core/lod"))
-            .withFragmentShader(Identifier.fromNamespaceAndPath("hoka_odyssey", "core/lod"))
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withUniform("HokaLod", UniformType.UNIFORM_BUFFER)
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS)
-            .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
-            .withDepthWrite(true)
-            .withCull(false)
-            .withoutBlend()
-            .build();
+    private static RenderPipeline pipe(String name, boolean water) {
+        var b = RenderPipeline.builder()
+                .withLocation(Identifier.fromNamespaceAndPath("hoka_odyssey", "pipeline/" + name))
+                .withVertexShader(Identifier.fromNamespaceAndPath("hoka_odyssey", "core/lod"))
+                .withFragmentShader(Identifier.fromNamespaceAndPath("hoka_odyssey", "core/lod"))
+                .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+                .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+                .withUniform("HokaLod", UniformType.UNIFORM_BUFFER)
+                .withSampler("Sampler0")
+                .withSampler("Sampler2")
+                .withVertexFormat(LodQuads.FORMAT, VertexFormat.Mode.QUADS)
+                .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+                .withCull(false);
+        if (water) b.withShaderDefine("HOKA_WATER").withDepthWrite(false).withBlend(com.mojang.blaze3d.pipeline.BlendFunction.TRANSLUCENT);
+        else b.withDepthWrite(true).withoutBlend();
+        return b.build();
+    }
+
+    private static final RenderPipeline PIPE = pipe("lod", false), WATER_PIPE = pipe("lod_water", true);
 
     private static GpuBuffer projBuf, paramBuf;
     private static final Matrix4f P = new Matrix4f();
@@ -348,11 +381,12 @@ public final class LodRenderer {
         long k = ClientGen.lodKey();
         if (k != genKey || gen != g) {
             clearAll();
-            LodColors.clear();
+            LodBlocks.clear();
             genKey = k;
             gen = g;
             biomes = ClientGen.lodBiomes();
             bounds = ClientGen.lodBounds();
+            seed = ClientGen.lodSeed();
         }
         active = true;
         startWorkers();
@@ -363,6 +397,7 @@ public final class LodRenderer {
         int dist = distChunks * 16;
         int cutoff = Math.max(48, rd * 16 - 8);                          // ближе — настоящие блоки (иначе кроны LOD торчат над ними)
         float qk = SPLIT_K[LodSetting.quality()];
+        voxelR = Math.min(dist, cutoff + VOXEL_RING[LodSetting.quality()]);
         if (dirty != 0 || selVersion != LodSetting.version() || selDistance != dist || selCutoff != cutoff
                 || Double.isNaN(selX) || Math.abs(pos.x - selX) + Math.abs(pos.z - selZ) > 8 || frame % 20 == 0) {
             dirty = 0;
@@ -405,10 +440,12 @@ public final class LodRenderer {
             LodMesh m = n.pending;
             if (m == null) continue;
             n.pending = null;
-            if (n.vb != null) { vramBytes -= n.vb.size(); n.vb.close(); }
-            n.vb = dev.createBuffer(() -> "Hoka LOD", GpuBuffer.USAGE_VERTEX, m.data);
-            vramBytes += n.vb.size();
-            n.quads = m.quads;
+            if (n.vb != null) { vramBytes -= n.vb.size(); n.vb.close(); n.vb = null; }
+            if (n.wb != null) { vramBytes -= n.wb.size(); n.wb.close(); n.wb = null; }
+            if (m.opaque != null) { n.vb = dev.createBuffer(() -> "Hoka LOD", GpuBuffer.USAGE_VERTEX, m.opaque); vramBytes += n.vb.size(); }
+            if (m.water != null) { n.wb = dev.createBuffer(() -> "Hoka LOD water", GpuBuffer.USAGE_VERTEX, m.water); vramBytes += n.wb.size(); }
+            n.quads = m.opaqueQuads;
+            n.wquads = m.waterQuads;
             n.yMin = m.yMin;
             n.yMax = m.yMax;
             m.free();
@@ -430,14 +467,13 @@ public final class LodRenderer {
         for (int i = 0; i < l.size() && (i < over || vramBytes > budget); i++) {
             Node n = l.get(i);
             NODES.remove(n.key);
-            if (n.vb != null) vramBytes -= n.vb.size();
             release(n);
         }
     }
 
-    /** Видеопамять под плитки (не нужные в этом кадре сверх неё — вон): по качеству 48…256 МБ. */
+    /** Видеопамять под плитки (не нужные в этом кадре сверх неё — вон): по качеству 96…512 МБ. */
     private static long vramBudget() {
-        return (long) new int[]{0, 48, 96, 160, 256}[LodSetting.quality()] << 20;
+        return (long) new int[]{0, 96, 192, 320, 512}[LodSetting.quality()] << 20;
     }
 
     private static void draw(Minecraft mc, Camera cam, ClientLevel lvl, int dist, int cutoff) {
@@ -450,8 +486,7 @@ public final class LodRenderer {
         // отсечение по пирамиде видимости
         PV.set(P).mul(VIEW);
         FRUSTUM.set(PV);
-        float bright = brightness(lvl);
-        MOD.set(bright, bright, bright * (0.92f + 0.08f * bright), 1);
+        MOD.set(1, 1, 1, 1);                                                  // свет — световая карта игры (в шейдере)
 
         var dev = RenderSystem.getDevice();
         if (projBuf == null) projBuf = dev.createBuffer(() -> "Hoka LOD projection", GpuBuffer.USAGE_UNIFORM | GpuBuffer.USAGE_COPY_DST, 64);
@@ -466,8 +501,8 @@ public final class LodRenderer {
             int sf = skyFog;
             if (sf >= 0 && System.currentTimeMillis() - skyFogAt < 2000) { fr = (sf >> 16 & 255) / 255f; fg = (sf >> 8 & 255) / 255f; fb = (sf & 255) / 255f; }
             else { fr = VANILLA_FOG.x; fg = VANILLA_FOG.y; fb = VANILLA_FOG.z; }
-            // туман LOD: от 55% до края дальности (по сфере), яркость — как у земли (ночью темнее)
-            qb.putFloat(0, cutoff).putFloat(4, dist * 0.55f).putFloat(8, dist).putFloat(12, 0)
+            // ближний круг (там настоящие блоки), край (нет), туман LOD: от 60% до края дальности (по сфере)
+            qb.putFloat(0, cutoff).putFloat(4, Float.MAX_VALUE).putFloat(8, dist * 0.6f).putFloat(12, dist)
               .putFloat(16, fr).putFloat(20, fg).putFloat(24, fb).putFloat(28, 1);
             enc.writeToBuffer(paramBuf.slice(), qb);
         }
@@ -479,15 +514,15 @@ public final class LodRenderer {
         if (vis.length < draws.size()) vis = new Node[draws.size() * 2];
         int maxQ = 0;
         for (Node n : draws) {
-            if (n.vb == null || n.quads == 0) continue;
+            if (n.vb == null && n.wb == null) continue;
             float ox = (float) (n.x0() - px), oz = (float) (n.z0() - pz), oy = (float) -py;
             int w = width(n.level);
             if (!FRUSTUM.testAab(ox, n.yMin + oy, oz, ox + w, n.yMax + oy, oz + w)) continue;
             OFF.set(ox, oy, oz);
             slices[cnt] = RenderSystem.getDynamicUniforms().writeTransform(VIEW, MOD, OFF, IDENT);
             vis[cnt++] = n;
-            quads += n.quads;
-            maxQ = Math.max(maxQ, n.quads);
+            quads += n.quads + n.wquads;
+            maxQ = Math.max(maxQ, Math.max(n.quads, n.wquads));
         }
         lastDrawn = cnt;
         lastQuads = quads;
@@ -502,16 +537,27 @@ public final class LodRenderer {
             RenderSystem.bindDefaultUniforms(pass);
             pass.setUniform("Projection", projBuf.slice());
             pass.setUniform("HokaLod", paramBuf.slice());
-            pass.setPipeline(PIPE);
+            var atlas = mc.getTextureManager().getTexture(net.minecraft.client.renderer.texture.TextureAtlas.LOCATION_BLOCKS);
+            var samplers = RenderSystem.getSamplerCache();
+            var atlasSampler = samplers.getSampler(com.mojang.blaze3d.textures.AddressMode.CLAMP_TO_EDGE, com.mojang.blaze3d.textures.AddressMode.CLAMP_TO_EDGE,
+                    com.mojang.blaze3d.textures.FilterMode.NEAREST, com.mojang.blaze3d.textures.FilterMode.NEAREST, true);
+            var lightSampler = samplers.getClampToEdge(com.mojang.blaze3d.textures.FilterMode.LINEAR);
             pass.setIndexBuffer(ib, idx.type());
-            for (int i = 0; i < cnt; i++) {
-                Node n = vis[i];
-                pass.setUniform("DynamicTransforms", slices[i]);
-                pass.setVertexBuffer(0, n.vb);
-                pass.drawIndexed(0, 0, n.quads * 6, 1);
-                slices[i] = null;
-                vis[i] = null;
+            for (int p = 0; p < 2; p++) {                                       // 0 — земля, 1 — вода поверх (полупрозрачная)
+                pass.setPipeline(p == 0 ? PIPE : WATER_PIPE);
+                pass.bindTexture("Sampler0", atlas.getTextureView(), atlasSampler);
+                pass.bindTexture("Sampler2", mc.gameRenderer.lightTexture().getTextureView(), lightSampler);
+                for (int i = 0; i < cnt; i++) {
+                    Node n = vis[i];
+                    GpuBuffer vb = p == 0 ? n.vb : n.wb;
+                    int q = p == 0 ? n.quads : n.wquads;
+                    if (vb == null || q == 0) continue;
+                    pass.setUniform("DynamicTransforms", slices[i]);
+                    pass.setVertexBuffer(0, vb);
+                    pass.drawIndexed(0, 0, q * 6, 1);
+                }
             }
+            for (int i = 0; i < cnt; i++) { slices[i] = null; vis[i] = null; }
         }
         enc.clearDepthTexture(depth.texture(), 1.0);                          // ванильная земля — поверх
     }
@@ -519,21 +565,16 @@ public final class LodRenderer {
     private static GpuBufferSlice[] slices = new GpuBufferSlice[64];
     private static Node[] vis = new Node[64];
 
-    /** Яркость дальнего мира по времени суток (как небо темнеет ночью и в грозу). */
-    private static float brightness(ClientLevel lvl) {
-        int d = lvl.getSkyDarken();                                           // 0 — день … ~11 — ночь
-        return Math.max(0.22f, 1f - d / 11f * 0.8f);
-    }
-
     // ───────────── F3 ─────────────
 
     public static String debugLine() {
         if (!active) return null;
         long bt = builtTiles.get();
         int ready = 0, queued = 0;
-        for (Node n : NODES.values()) { if (n.st == 3) ready++; else if (n.st == 1) queued++; }
-        return String.format("Hoka LOD: %d чанк., видно %d плиток / %d квадов, готово %d, очередь %d, %.1f мс/плитка, %d МБ%s",
-                LodSetting.distance(), lastDrawn, lastQuads, ready, queued, bt == 0 ? 0 : builtNanos.get() / 1e6 / bt,
+        int vox = 0;
+        for (Node n : NODES.values()) { if (n.st == 3) { ready++; if (n.level == 0) vox++; } else if (n.st == 1) queued++; }
+        return String.format("Hoka LOD: %d чанк., блоки до %d, видно %d плиток / %d квадов, готово %d (блоков %d), очередь %d, %.1f мс/плитка, %d МБ%s",
+                LodSetting.distance(), voxelR, lastDrawn, lastQuads, ready, vox, queued, bt == 0 ? 0 : builtNanos.get() / 1e6 / bt,
                 vramBytes >> 20, underground ? ", под землёй — выкл" : "");
     }
 }

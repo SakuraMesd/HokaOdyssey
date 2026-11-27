@@ -20,6 +20,13 @@ public final class LodTile {
     public final short[] water;
     /** Номер биома (как в {@link PlanetGenerator#columnBiome}), −1 — первый из реестра. */
     public final short[] biome;
+    /**
+     * Кроны над ячейкой (по желанию генератора): доля площади под кронами 0…255, высота верха крон (Y) и состояние
+     * листвы. Издалека лес — это смесь земли и крон по доле, а не сплошной ковёр: так цвет совпадает с ближним миром.
+     */
+    public final byte[] cover;
+    public final short[] canopy;
+    public final int[] canopyState;
 
     public LodTile(int x0, int z0, int step, int n) {
         if (step < 1 || n < 1 || n > 256) throw new IllegalArgumentException("step " + step + ", n " + n);
@@ -33,7 +40,21 @@ public final class LodTile {
         biome = new short[n * n];
         java.util.Arrays.fill(water, NO_WATER);
         java.util.Arrays.fill(biome, (short) -1);
+        cover = new byte[n * n];
+        canopy = new short[n * n];
+        canopyState = new int[n * n];
     }
+
+    /** Кроны ячейки (i, j): доля 0…1, верх крон Y, состояние листвы. */
+    public void canopy(int i, int j, double share, int topY, int leavesState) {
+        int k = j * n + i;
+        cover[k] = (byte) Math.max(0, Math.min(255, (int) Math.round(share * 255)));
+        canopy[k] = (short) Math.max(Short.MIN_VALUE + 1, Math.min(Short.MAX_VALUE, topY));
+        canopyState[k] = leavesState;
+    }
+
+    /** Доля крон 0…1. */
+    public double cover(int k) { return (cover[k] & 0xFF) / 255.0; }
 
     /** Центр ячейки (i, j) — мировые X и Z. */
     public int cx(int i) { return x0 + i * step + (step >> 1); }

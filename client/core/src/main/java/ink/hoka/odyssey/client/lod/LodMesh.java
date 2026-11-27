@@ -9,160 +9,183 @@ import org.lwjgl.system.MemoryUtil;
 import java.nio.ByteBuffer;
 
 /**
- * Сетка плитки дальней прорисовки: столбики-«пиксели» ячеек. Верх — прямоугольники с объединением соседей одной высоты
- * и цвета по рядам; бока — там, где сосед ниже (цвет боковой грани блока, темнее по стороне, как у ванильного света);
- * по краю плитки — «юбка» вниз, чтобы между плитками разной детальности не было щелей. Формат — POSITION_COLOR
- * (3 float + RGBA), координаты от угла плитки (x0, 0, z0). Строится в фоне, память — вне кучи (освободить {@link #free}).
+ * Сетка плитки дальней прорисовки: непрозрачная часть (земля, кроны, склоны) и вода (полупрозрачная, отдельным
+ * проходом — сквозь мелководье видно дно, как у настоящей воды). Формат {@link LodQuads}. Память вне кучи
+ * ({@link #free}).
+ * <p>Дальние ячейки (2…64 блока, {@link #heightmap}): столбики с текстурой верхнего блока, повторённой по каждому блоку.
+ * Лес издалека — смесь земли и крон по доле площади под кронами (из генератора): цвет ячейки = средний цвет такой
+ * смеси (как его видит игра в мипмапах вдали), а при густом лесе ячейка поднимается до крон.</p>
  */
 final class LodMesh {
 
-    final ByteBuffer data;
-    final int quads;
+    final ByteBuffer opaque, water;
+    final int opaqueQuads, waterQuads;
     final float yMin, yMax;
 
-    private LodMesh(ByteBuffer data, int quads, float yMin, float yMax) {
-        this.data = data;
-        this.quads = quads;
-        this.yMin = yMin;
-        this.yMax = yMax;
+    LodMesh(LodQuads o, LodQuads w) {
+        opaqueQuads = o.quads;
+        waterQuads = w.quads;
+        float lo = Math.min(o.yMin, w.yMin), hi = Math.max(o.yMax, w.yMax);
+        yMin = lo == Float.MAX_VALUE ? 0 : lo;
+        yMax = hi == -Float.MAX_VALUE ? 0 : hi;
+        opaque = o.finish();
+        water = w.finish();
     }
 
-    void free() { if (data != null) MemoryUtil.memFree(data); }
+    boolean empty() { return opaque == null && water == null; }
 
-    private static final float SHADE_NS = 0.80f, SHADE_EW = 0.62f, WATER_DROP = 0.125f;
+    void free() {
+        if (opaque != null) MemoryUtil.memFree(opaque);
+        if (water != null) MemoryUtil.memFree(water);
+    }
+
+    private static final float WATER_DROP = 0.125f;
 
     /** null — в плитке ничего нет. */
-    static LodMesh build(LodTile t, Holder<Biome>[] biomes, GenBounds bounds) {
-        int n = t.n, s = t.step;
-        float[] y = new float[n * n];
-        int[] top = new int[n * n], side = new int[n * n];
-        boolean[] has = new boolean[n * n];
-        float lo = Float.MAX_VALUE, hi = -Float.MAX_VALUE;
+    static LodMesh heightmap(LodTile t, Holder<Biome>[] biomes, GenBounds bounds) {
+        int n = t.n, s = t.step, nn = n * n;
+        float[] y = new float[nn];
+        LodBlocks.Face[] top = new LodBlocks.Face[nn], side = new LodBlocks.Face[nn];
+        int[] col = new int[nn], sideCol = new int[nn];                     // RGB множители ×128 (0…2 → 0…255)
+        boolean[] has = new boolean[nn];
+        float[] wy = new float[nn];
+        int[] wcol = new int[nn];
+        LodBlocks.Face waterFace = LodBlocks.info(waterState()).faces == null ? null : LodBlocks.info(waterState()).faces[1];
         for (int j = 0; j < n; j++) for (int i = 0; i < n; i++) {
             int k = j * n + i;
+            wy[k] = Float.NaN;
             if (bounds != null && !bounds.columnInside(t.cx(i), t.cz(j))) continue;
-            boolean wet = t.water[k] != LodTile.NO_WATER && t.water[k] >= t.top[k];
-            if (wet) {
-                int w = LodColors.water(t.biome[k], biomes);
-                top[k] = w;
-                side[k] = LodColors.mul(w, 0.85f);
-                y[k] = t.water[k] + 1 - WATER_DROP;
-            } else {
-                if (t.state[k] == 0) continue;
-                long c = LodColors.of(t.state[k], t.biome[k], biomes);
-                if (c == 0) continue;
-                top[k] = (int) (c >>> 32);
-                side[k] = (int) c;
-                y[k] = t.top[k] + 1;
+            LodBlocks.Info g = LodBlocks.info(t.state[k]);
+            if (g.kind != LodBlocks.SOLID) continue;
+            int bio = t.biome[k];
+            LodBlocks.Face gt = g.faces[1], gs = g.faces[2];
+            int gTint = LodBlocks.tintColor(gt.tint(), bio, biomes), gsTint = LodBlocks.tintColor(gs.tint(), bio, biomes);
+            int gAvg = LodBlocks.mulRgb(gt.avg(), gTint);
+            double c = t.cover(k);
+            float h = t.top[k] + 1;
+            LodBlocks.Face ft = gt, fs = gs;
+            int tint = gTint, sTint = gsTint, baseAvg = gAvg, sideAvg = LodBlocks.mulRgb(gs.avg(), gsTint), target = gAvg;
+            if (c > 0.02 && t.canopyState[k] != 0) {
+                LodBlocks.Info l = LodBlocks.info(t.canopyState[k]);
+                if (l.kind == LodBlocks.SOLID) {
+                    int lTint = LodBlocks.tintColor(l.faces[1].tint(), bio, biomes);
+                    int lAvg = LodBlocks.mulRgb(l.faces[1].avg(), lTint);
+                    target = mix(gAvg, lAvg, (float) c);
+                    if (c >= 0.45 && t.canopy[k] > t.top[k]) {               // густо — ячейка до крон, цвет — смесь
+                        h = t.top[k] + 1 + Math.round((t.canopy[k] - t.top[k]) * 0.85f);
+                        ft = l.faces[1];
+                        fs = l.faces[2];
+                        tint = lTint;
+                        sTint = LodBlocks.tintColor(fs.tint(), bio, biomes);
+                        baseAvg = lAvg;
+                        sideAvg = LodBlocks.mulRgb(fs.avg(), sTint);
+                    }
+                }
             }
+            top[k] = ft;
+            side[k] = fs;
+            col[k] = pack(tint, ratio(target, baseAvg));
+            sideCol[k] = pack(sTint, ratio(target == gAvg ? sideAvg : mix(sideAvg, target, 0.5f), sideAvg));
+            y[k] = h;
             has[k] = true;
-            lo = Math.min(lo, y[k]);
-            hi = Math.max(hi, y[k]);
+            if (t.water[k] != LodTile.NO_WATER && t.water[k] >= t.top[k] && waterFace != null) {
+                wy[k] = t.water[k] + 1 - WATER_DROP;
+                wcol[k] = LodBlocks.tintColor(LodBlocks.TINT_WATER, bio, biomes);
+            }
         }
-        if (lo == Float.MAX_VALUE) return null;
+        LodQuads o = new LodQuads(n * 6), w = new LodQuads(16);
         float skirt = s * 3 + 8;
-        Out o = new Out(n * 8 + 64);
-        // верх: жадно прямоугольниками (ширина по X, затем вниз по Z, пока ряд такой же) — равнины и вода одним куском
-        boolean[] done = new boolean[n * n];
+        // верх: жадно прямоугольниками одинаковой высоты, текстуры и цвета
+        boolean[] done = new boolean[nn];
         for (int j = 0; j < n; j++) for (int i = 0; i < n; i++) {
             int k = j * n + i;
             if (!has[k] || done[k]) continue;
             int e = i + 1;
-            while (e < n && same(has, done, y, top, k, j * n + e)) e++;
+            while (e < n && same(has, done, y, top, col, k, j * n + e)) e++;
             int f = j + 1;
             grow:
             while (f < n) {
-                for (int q = i; q < e; q++) if (!same(has, done, y, top, k, f * n + q)) break grow;
+                for (int q = i; q < e; q++) if (!same(has, done, y, top, col, k, f * n + q)) break grow;
                 f++;
             }
             for (int r = j; r < f; r++) for (int q = i; q < e; q++) done[r * n + q] = true;
-            float x0 = i * s, x1 = e * s, z0 = j * s, z1 = f * s;
-            o.quad(x0, y[k], z0, x0, y[k], z1, x1, y[k], z1, x1, y[k], z0, top[k]);
+            float x0 = i * s, x1 = e * s, z0 = j * s, z1 = f * s, yk = y[k];
+            float[] m = unpack(col[k], 1f);
+            o.quad(x0, yk, z0, x0, yk, z1, x1, yk, z1, x1, yk, z0, top[k], 1, m[0], m[1], m[2], 1);
         }
-        // бока: к соседу ниже (или к пустоте/краю плитки — юбка вниз); одинаковые подряд вдоль ребра — одним куском
-        // восток (+X) и запад (−X): вдоль Z
-        for (int dir = 0; dir < 2; dir++) for (int i = 0; i < n; i++) {
-            int j = 0;
-            while (j < n) {
-                int k = j * n + i;
-                float b = bottom(has, y, n, i, j, dir == 0 ? 1 : -1, 0, skirt);
-                if (!has[k] || b >= y[k]) { j++; continue; }
-                int c = LodColors.mul(side[k], SHADE_EW);
-                int e = j + 1;
-                while (e < n) {
-                    int q = e * n + i;
-                    if (!has[q] || y[q] != y[k] || side[q] != side[k] || bottom(has, y, n, i, e, dir == 0 ? 1 : -1, 0, skirt) != b) break;
-                    e++;
-                }
-                float x = (dir == 0 ? i + 1 : i) * s, z0 = j * s, z1 = e * s, yk = y[k];
-                if (dir == 0) o.quad(x, yk, z0, x, yk, z1, x, b, z1, x, b, z0, c);
-                else o.quad(x, yk, z1, x, yk, z0, x, b, z0, x, b, z1, c);
-                j = e;
-            }
+        // бока: к соседу ниже (у пустоты и края плитки — юбка вниз)
+        for (int k = 0; k < nn; k++) {
+            if (!has[k]) continue;
+            int i = k % n, j = k / n;
+            float yk = y[k], x0 = i * s, x1 = (i + 1) * s, z0 = j * s, z1 = (j + 1) * s;
+            float b;
+            b = i + 1 < n && has[k + 1] ? y[k + 1] : yk - skirt;
+            if (b < yk) { float[] m = unpack(sideCol[k], LodQuads.SHADE[5]); o.quad(x1, yk, z0, x1, yk, z1, x1, b, z1, x1, b, z0, side[k], 5, m[0], m[1], m[2], 1); }
+            b = i > 0 && has[k - 1] ? y[k - 1] : yk - skirt;
+            if (b < yk) { float[] m = unpack(sideCol[k], LodQuads.SHADE[4]); o.quad(x0, yk, z1, x0, yk, z0, x0, b, z0, x0, b, z1, side[k], 4, m[0], m[1], m[2], 1); }
+            b = j + 1 < n && has[k + n] ? y[k + n] : yk - skirt;
+            if (b < yk) { float[] m = unpack(sideCol[k], LodQuads.SHADE[3]); o.quad(x1, yk, z1, x0, yk, z1, x0, b, z1, x1, b, z1, side[k], 3, m[0], m[1], m[2], 1); }
+            b = j > 0 && has[k - n] ? y[k - n] : yk - skirt;
+            if (b < yk) { float[] m = unpack(sideCol[k], LodQuads.SHADE[2]); o.quad(x0, yk, z0, x1, yk, z0, x1, b, z0, x0, b, z0, side[k], 2, m[0], m[1], m[2], 1); }
         }
-        // юг (+Z) и север (−Z): вдоль X
-        for (int dir = 0; dir < 2; dir++) for (int j = 0; j < n; j++) {
+        // вода: по рядам одинакового уровня и цвета
+        for (int j = 0; j < n; j++) {
             int i = 0;
             while (i < n) {
                 int k = j * n + i;
-                float b = bottom(has, y, n, i, j, 0, dir == 0 ? 1 : -1, skirt);
-                if (!has[k] || b >= y[k]) { i++; continue; }
-                int c = LodColors.mul(side[k], SHADE_NS);
+                if (Float.isNaN(wy[k])) { i++; continue; }
                 int e = i + 1;
-                while (e < n) {
-                    int q = j * n + e;
-                    if (!has[q] || y[q] != y[k] || side[q] != side[k] || bottom(has, y, n, e, j, 0, dir == 0 ? 1 : -1, skirt) != b) break;
-                    e++;
-                }
-                float z = (dir == 0 ? j + 1 : j) * s, x0 = i * s, x1 = e * s, yk = y[k];
-                if (dir == 0) o.quad(x1, yk, z, x0, yk, z, x0, b, z, x1, b, z, c);
-                else o.quad(x0, yk, z, x1, yk, z, x1, b, z, x0, b, z, c);
+                while (e < n && wy[j * n + e] == wy[k] && wcol[j * n + e] == wcol[k]) e++;
+                float[] m = LodQuads.mul(wcol[k], 1f, 1, 1, 1);
+                w.quad(i * s, wy[k], j * s, i * s, wy[k], (j + 1) * s, e * s, wy[k], (j + 1) * s, e * s, wy[k], j * s, waterFace, 1, m[0], m[1], m[2], 1);
                 i = e;
             }
         }
-        if (o.quads == 0) { o.free(); return null; }
-        return new LodMesh(o.finish(), o.quads, lo - skirt, hi);
+        LodMesh mesh = new LodMesh(o, w);
+        if (mesh.empty()) return null;
+        return mesh;
     }
 
-    private static boolean same(boolean[] has, boolean[] done, float[] y, int[] top, int a, int b) {
-        return has[b] && !done[b] && y[b] == y[a] && top[b] == top[a];
+    private static int waterState = -1;
+
+    static int waterState() {
+        if (waterState < 0) waterState = net.minecraft.world.level.block.Block.getId(net.minecraft.world.level.block.Blocks.WATER.defaultBlockState());
+        return waterState;
     }
 
-    /** Низ боковой грани ячейки (i, j) в сторону (dx, dz): верх соседа, а за краем/у пустоты — юбка вниз. */
-    private static float bottom(boolean[] has, float[] y, int n, int i, int j, int dx, int dz, float skirt) {
-        int k = j * n + i;
-        if (!has[k]) return Float.MAX_VALUE;
-        int a = i + dx, b = j + dz;
-        if (a < 0 || b < 0 || a >= n || b >= n || !has[b * n + a]) return y[k] - skirt;
-        return y[b * n + a];
+    private static boolean same(boolean[] has, boolean[] done, float[] y, LodBlocks.Face[] top, int[] col, int a, int b) {
+        return has[b] && !done[b] && y[b] == y[a] && top[b] == top[a] && col[b] == col[a];
     }
 
-    /** Вершины POSITION_COLOR (16 байт) в памяти вне кучи, растёт по мере надобности. */
-    private static final class Out {
-        ByteBuffer b;
-        int quads;
+    /** Смесь цветов RGB: a → b на долю t. */
+    static int mix(int a, int b, float t) {
+        int r = Math.round((a >> 16 & 255) + ((b >> 16 & 255) - (a >> 16 & 255)) * t);
+        int g = Math.round((a >> 8 & 255) + ((b >> 8 & 255) - (a >> 8 & 255)) * t);
+        int bl = Math.round((a & 255) + ((b & 255) - (a & 255)) * t);
+        return r << 16 | g << 8 | bl;
+    }
 
-        Out(int quadsHint) { b = MemoryUtil.memAlloc(Math.max(64, quadsHint) * 64); }
+    /** Во сколько раз поменять цвет base, чтобы в среднем вышел target: по каналам, 0…2 (×64 → 0…128 в байте). */
+    private static int ratio(int target, int base) {
+        int r = q((target >> 16 & 255) / (float) Math.max(8, base >> 16 & 255));
+        int g = q((target >> 8 & 255) / (float) Math.max(8, base >> 8 & 255));
+        int b = q((target & 255) / (float) Math.max(8, base & 255));
+        return r << 16 | g << 8 | b;
+    }
 
-        void quad(float ax, float ay, float az, float bx, float by, float bz, float cx, float cy, float cz, float dx, float dy, float dz, int argb) {
-            if (b.remaining() < 64) {
-                ByteBuffer nb = MemoryUtil.memRealloc(b, b.capacity() * 2);
-                b = nb;
-            }
-            int abgr = argb & 0xFF00FF00 | (argb >> 16 & 0xFF) | (argb & 0xFF) << 16;   // в памяти: R, G, B, A
-            v(ax, ay, az, abgr); v(bx, by, bz, abgr); v(cx, cy, cz, abgr); v(dx, dy, dz, abgr);
-            quads++;
-        }
+    private static int q(float v) { return Math.max(0, Math.min(255, Math.round(Math.min(2f, v) * 64 / 4) * 4)); }
 
-        private void v(float x, float y, float z, int abgr) {
-            b.putFloat(x).putFloat(y).putFloat(z).putInt(abgr);
-        }
+    /** Оттенок × смешивание в одно число (ключ склейки): оттенок RGB24 и смешивание RGB по 8 бит — храним как пару. */
+    private static int pack(int tint, int ratio) {
+        // оттенок и смешивание перемножаем сразу (0…2 на канал, шаг 1/64) — склеиваются ячейки с одинаковым итогом
+        int r = Math.min(255, Math.round((tint >> 16 & 255) / 255f * (ratio >> 16 & 255)));
+        int g = Math.min(255, Math.round((tint >> 8 & 255) / 255f * (ratio >> 8 & 255)));
+        int b = Math.min(255, Math.round((tint & 255) / 255f * (ratio & 255)));
+        return r << 16 | g << 8 | b;
+    }
 
-        ByteBuffer finish() {
-            b.flip();
-            return b;
-        }
-
-        void free() { MemoryUtil.memFree(b); }
+    /** Ключ цвета → множители 0…2 с учётом света грани. */
+    private static float[] unpack(int c, float shade) {
+        return new float[]{(c >> 16 & 255) / 64f * shade, (c >> 8 & 255) / 64f * shade, (c & 255) / 64f * shade};
     }
 }

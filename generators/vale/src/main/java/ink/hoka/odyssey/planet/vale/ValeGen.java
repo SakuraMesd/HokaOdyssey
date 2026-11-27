@@ -847,26 +847,28 @@ final class ValeGen implements PlanetGenerator {
     private final int[] lodLeaf = new int[BIOME_ID.length];
     private final byte[] lodTreeH = new byte[BIOME_ID.length];
     private final float[] lodTreeD = new float[BIOME_ID.length];
-    private static final long LOD_SALT = 0x10D_7EEL;
 
     /** Только номера состояний (без Pal: список «используемых» и флаги генерации не меняются). */
     private void initLod(GenIds ids) {
-        lodZone(ids, FOREST, "oak", 9, 0.70f);
-        lodZone(ids, BIRCH, "birch", 9, 0.65f);
-        lodZone(ids, TAIGA, "spruce", 13, 0.60f);
-        lodZone(ids, REDWOOD, "spruce", 26, 0.75f);
-        lodZone(ids, JUNGLE, "jungle", 18, 0.85f);
-        lodZone(ids, CHERRY, "cherry", 8, 0.45f);
-        lodZone(ids, PALE, "pale_oak", 11, 0.60f);
-        lodZone(ids, SWAMP, "mangrove", 9, 0.35f);
-        lodZone(ids, SAVANNA, "acacia", 7, 0.12f);
-        lodZone(ids, FLOWER, "oak", 7, 0.12f);
-        lodZone(ids, PLAINS, "oak", 7, 0.04f);
-        lodZone(ids, MEADOW, "birch", 7, 0.04f);
-        lodZone(ids, ALPINE, "spruce", 10, 0.20f);
+        // доля колонок под кронами и средняя высота верха крон — замер ValeCanopyStats по настоящей генерации
+        lodZone(ids, FOREST, "oak", 9, 0.50f);
+        lodZone(ids, BIRCH, "birch", 9, 0.37f);
+        lodZone(ids, TAIGA, "spruce", 11, 0.30f);
+        lodZone(ids, REDWOOD, "spruce", 33, 0.24f);
+        lodZone(ids, JUNGLE, "jungle", 40, 0.13f);
+        lodZone(ids, CHERRY, "cherry", 12, 0.05f);
+        lodZone(ids, PALE, "pale_oak", 29, 0.25f);
+        lodZone(ids, SWAMP, "mangrove", 16, 0.20f);
+        lodZone(ids, SAVANNA, "acacia", 27, 0.17f);
+        lodZone(ids, FLOWER, "oak", 10, 0.08f);
+        lodZone(ids, PLAINS, "oak", 7, 0.03f);
+        lodZone(ids, MEADOW, "birch", 10, 0.065f);
+        lodZone(ids, ALPINE, "spruce", 24, 0.12f);
+        lodZone(ids, GROVE, "spruce", 22, 0.06f);
+        lodZone(ids, MESA, "oak", 17, 0.06f);
         try {
             lodLeaf[GLOW] = ids.defaultState("minecraft:red_mushroom_block");
-            lodTreeH[GLOW] = 12;
+            lodTreeH[GLOW] = 27;
             lodTreeD[GLOW] = 0.22f;
         } catch (RuntimeException ignored) {}
     }
@@ -909,17 +911,14 @@ final class ValeGen implements PlanetGenerator {
             Terrain.S s = ss[j * n + i];
             int cls = t.lodClass(x, z, s, h, s1);
             byte top = (byte) (cls >> 8), zn = (byte) cls;
-            int state = topState[top], y = h;
+            int state = topState[top];
             boolean wet = h < sea && zn != RIFT;
             int wy = wet ? sea : LodTile.NO_WATER;
-            if (!wet && lodLeaf[zn] != 0 && top != STONE && top != SNOW && top != ICE && !t.glade(x, z)) {
-                long r = GenRandom.hash(t.seed ^ LOD_SALT, x, st, z);
-                if ((r & 0xFFFF) < lodTreeD[zn] * 65536f) {
-                    state = lodLeaf[zn];
-                    y = h + lodTreeH[zn] - 2 + (int) ((r >>> 16) & 3);
-                }
+            if (!wet && lodLeaf[zn] != 0 && top != STONE && top != SNOW && top != ICE) {
+                double share = lodTreeD[zn] * (t.glade(x, z) ? 0.25 : 1.0);
+                o.canopy(i, j, share, h + lodTreeH[zn], lodLeaf[zn]);
             }
-            o.set(i, j, y, state, wy, biomes[zn]);
+            o.set(i, j, h, state, wy, biomes[zn]);
         }
         return true;
     }

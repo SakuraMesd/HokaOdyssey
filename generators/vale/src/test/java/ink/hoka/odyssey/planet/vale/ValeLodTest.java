@@ -23,7 +23,7 @@ class ValeLodTest {
         for (int j = 0; j < n; j++) for (int i = 0; i < n; i++) {
             int k = j * n + i;
             int real = v.surface(t.cx(i), t.cz(j));
-            if (t.top[k] > real + 3) continue;                                 // крона
+            if (t.top[k] > real + 3) continue;
             diffs[cnt++] = Math.abs(t.top[k] - real);
         }
         Arrays.sort(diffs, 0, cnt);

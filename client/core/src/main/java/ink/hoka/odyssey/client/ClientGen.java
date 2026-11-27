@@ -444,6 +444,9 @@ public final class ClientGen {
     /** Биомы по номерам генератора (для оттенка травы/листвы/воды). */
     public static net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>[] lodBiomes() { Loaded l = loaded; return l == null ? null : l.ids().biomeHolders(); }
 
+    /** Сид кубов (как у GenPool). */
+    public static long lodSeed() { Loaded l = loaded; return l == null ? 0 : l.def().seed(); }
+
     /** Границы карты генератора (null — нет). */
     public static ink.hoka.odyssey.gen.GenBounds lodBounds() { Loaded l = loaded; return l == null ? null : l.bounds(); }
 
