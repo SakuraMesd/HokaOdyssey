@@ -119,23 +119,30 @@ public final class HeldEditor extends Screen {
         return switch (def.arms) { case "both" -> "обе"; case "right" -> "одна"; default -> "без рук"; };
     }
 
-    /** Ползунки сдвига/поворота/масштаба одного массива настроек. rotOnly — только поворот (позы рук 3-го лица). */
+    /** Ползунки: сдвиг/поворот/размер модели; у рук — ещё растяжение по X, Y (длина), Z. rotOnly — поза рук 3-го лица. */
     private int trs(int x, int y, float[] t, boolean scale, boolean rotOnly) {
         String[] ax = {"X", "Y", "Z"};
         if (!rotOnly) for (int i = 0; i < 3; i++) {
             int k = i;
             addRenderableWidget(new Slider(x, y, "Сдвиг " + ax[i], -48, 48, 0.25f, () -> t[k], v -> t[k] = v));
-            y += 22;
+            y += 20;
         }
         int r0 = rotOnly ? 0 : 3;
         for (int i = 0; i < 3; i++) {
             int k = r0 + i;
             addRenderableWidget(new Slider(x, y, "Поворот " + ax[i], -180, 180, 1, () -> t[k], v -> t[k] = v));
-            y += 22;
+            y += 20;
         }
         if (scale) {
             addRenderableWidget(new Slider(x, y, "Размер", 0.01f, 2, 0.01f, () -> t[6], v -> t[6] = v));
-            y += 22;
+            y += 20;
+        } else {
+            String[] nm = {"Толщина X", "Длина Y", "Толщина Z"};
+            for (int i = 0; i < 3; i++) {
+                int k = r0 + 3 + i;
+                addRenderableWidget(new Slider(x, y, nm[i], 0.1f, 3, 0.01f, () -> t[k], v -> t[k] = v));
+                y += 20;
+            }
         }
         return y;
     }
@@ -152,11 +159,11 @@ public final class HeldEditor extends Screen {
         HeldModels.Def o = HeldModels.copy(original);
         def.model = o.model; def.anim = o.anim; def.arms = o.arms; def.speed = o.speed; def.range = o.range; def.tpPose = o.tpPose;
         System.arraycopy(o.fpModel, 0, def.fpModel, 0, 7);
-        System.arraycopy(o.fpArm1, 0, def.fpArm1, 0, 6);
-        System.arraycopy(o.fpArm2, 0, def.fpArm2, 0, 6);
+        System.arraycopy(o.fpArm1, 0, def.fpArm1, 0, 9);
+        System.arraycopy(o.fpArm2, 0, def.fpArm2, 0, 9);
         System.arraycopy(o.tpModel, 0, def.tpModel, 0, 7);
-        System.arraycopy(o.tpArm1, 0, def.tpArm1, 0, 3);
-        System.arraycopy(o.tpArm2, 0, def.tpArm2, 0, 3);
+        System.arraycopy(o.tpArm1, 0, def.tpArm1, 0, 6);
+        System.arraycopy(o.tpArm2, 0, def.tpArm2, 0, 6);
         status = "Сброшено к сохранённому";
         rebuildWidgets();
     }
@@ -194,7 +201,7 @@ public final class HeldEditor extends Screen {
         private final DoubleSupplier get;
 
         Slider(int x, int y, String name, float min, float max, float step, DoubleSupplier get, Consumer<Float> set) {
-            super(x, y, PW, 20, Component.empty(), Math.clamp((get.getAsDouble() - min) / (max - min), 0, 1));
+            super(x, y, PW, 18, Component.empty(), Math.clamp((get.getAsDouble() - min) / (max - min), 0, 1));
             this.name = name;
             this.min = min;
             this.max = max;

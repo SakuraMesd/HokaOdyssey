@@ -31,10 +31,7 @@ public abstract class HeldThirdPersonMixin {
         }
         ps.pushPose();
         ((ArmedModel) ((ItemInHandLayer) (Object) this).getParentModel()).translateToHand(s, arm, ps);
-        ps.mulPose(Axis.XP.rotationDegrees(-90));
-        ps.mulPose(Axis.YP.rotationDegrees(180));
-        boolean left = arm == HumanoidArm.LEFT;
-        ps.translate((left ? -1 : 1) / 16f, 0.125f, -0.625f);
+        boolean left = arm == HumanoidArm.LEFT;      // поворот и сдвиг к кисти — в HeldModels.thirdPerson (учёт растяжения руки)
         HeldModels.thirdPerson(d, left, ps, snc, light);
         ps.popPose();
         ci.cancel();

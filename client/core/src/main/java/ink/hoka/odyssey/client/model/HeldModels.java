@@ -40,8 +40,8 @@ public final class HeldModels {
     public static final class Def {
         public String model = "", anim = "", arms = "both";
         public float speed = 1, range = 0;
-        public float[] fpModel = {0, 0, 0, 0, 0, 0, 0.2f}, fpArm1 = new float[6], fpArm2 = new float[6];
-        public float[] tpModel = {0, 0, 0, 0, 0, 0, 0.12f}, tpArm1 = {-80, -10, 0}, tpArm2 = {-80, 30, 0};
+        public float[] fpModel = {0, 0, 0, 0, 0, 0, 0.2f}, fpArm1 = {0, 0, 0, 0, 0, 0, 1, 1, 1}, fpArm2 = {0, 0, 0, 0, 0, 0, 1, 1, 1};
+        public float[] tpModel = {0, 0, 0, 0, 0, 0, 0.12f}, tpArm1 = {-80, -10, 0, 1, 1, 1}, tpArm2 = {-80, 30, 0, 1, 1, 1};
         public boolean tpPose = true;
 
         boolean both() { return "both".equals(arms); }
@@ -135,6 +135,13 @@ public final class HeldModels {
         ps.mulPose(Axis.XP.rotationDegrees(200));
         ps.mulPose(Axis.YP.rotationDegrees(h * -135));
         ps.translate(h * 5.6f, 0, 0);
+        // растяжение руки (x, y — вдоль руки, z) — от плеча: пивот руки игрока (∓5, 2, 0) пикселей
+        if (t[6] != 1 || t[7] != 1 || t[8] != 1) {
+            float px = -h * 5 / 16f, py = 2 / 16f;
+            ps.translate(px, py, 0);
+            ps.scale(t[6], t[7], t[8]);
+            ps.translate(-px, -py, 0);
+        }
         AvatarRenderer<AbstractClientPlayer> r = Minecraft.getInstance().getEntityRenderDispatcher().getPlayerRenderer(player);
         var skin = player.getSkin().body().texturePath();
         if (h > 0) r.renderRightHand(ps, snc, light, skin, player.isModelPartShown(PlayerModelPart.RIGHT_SLEEVE));
@@ -144,6 +151,15 @@ public final class HeldModels {
 
     /** От третьего лица: PoseStack уже у кисти (как у ванильного предмета в руке). */
     public static void thirdPerson(Def d, boolean left, PoseStack ps, SubmitNodeCollector snc, int light) {
+        // рука могла быть растянута (масштаб части руки): кисть — на конце руки, а модель — без искажения
+        float[] a = d.tpArm1;
+        boolean st = d.tpPose;
+        float sx = st ? Math.max(0.05f, a[3]) : 1, sy = st ? Math.max(0.05f, a[4]) : 1, sz = st ? Math.max(0.05f, a[5]) : 1;
+        float ox = (left ? -1 : 1) / 16f;
+        ps.translate(-ox * sx, 0.625f * sy, -0.125f * sz);
+        ps.scale(1 / sx, 1 / sy, 1 / sz);
+        ps.mulPose(Axis.XP.rotationDegrees(-90));
+        ps.mulPose(Axis.YP.rotationDegrees(180));
         model(d, d.tpModel, left ? -1 : 1, ps, snc, light);
     }
 
@@ -161,6 +177,9 @@ public final class HeldModels {
         arm.xRot = (float) Math.toRadians(r[0]) + headX;
         arm.yRot = (float) Math.toRadians(mir * r[1]) + headY;
         arm.zRot = (float) Math.toRadians(mir * r[2]);
+        arm.xScale = Math.max(0.05f, r[3]);
+        arm.yScale = Math.max(0.05f, r[4]);
+        arm.zScale = Math.max(0.05f, r[5]);
     }
 
     // ───────────────────────── json ─────────────────────────
