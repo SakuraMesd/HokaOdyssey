@@ -180,10 +180,7 @@ public final class Laser {
         Vector3f side = dir.cross(mid, new Vector3f());
         if (side.lengthSquared() < 1e-10f) return;
         side.normalize(w);
-        vc.addVertex(pose, a.x - side.x, a.y - side.y, a.z - side.z).setColor(r, g, bl, al);
-        vc.addVertex(pose, a.x + side.x, a.y + side.y, a.z + side.z).setColor(r, g, bl, al);
-        vc.addVertex(pose, b.x + side.x, b.y + side.y, b.z + side.z).setColor(r, g, bl, al);
-        vc.addVertex(pose, b.x - side.x, b.y - side.y, b.z - side.z).setColor(r, g, bl, al);
+        quad(pose, vc, new Vector3f(a).sub(side), new Vector3f(a).add(side), new Vector3f(b).add(side), new Vector3f(b).sub(side), r, g, bl, al);
     }
 
     private static void spark(PoseStack.Pose pose, VertexConsumer vc, Vector3f c, Vector3f eye, float s, int r, int g, int bl, int al) {
@@ -191,10 +188,14 @@ public final class Laser {
         if (view.lengthSquared() < 1e-8f) return;
         Vector3f up = Math.abs(view.y) > 0.9f * view.length() ? new Vector3f(1, 0, 0) : new Vector3f(0, 1, 0);
         Vector3f u = view.cross(up, new Vector3f()).normalize(s), v = view.cross(u, new Vector3f()).normalize(s);
-        vc.addVertex(pose, c.x - u.x - v.x, c.y - u.y - v.y, c.z - u.z - v.z).setColor(r, g, bl, al);
-        vc.addVertex(pose, c.x + u.x - v.x, c.y + u.y - v.y, c.z + u.z - v.z).setColor(r, g, bl, al);
-        vc.addVertex(pose, c.x + u.x + v.x, c.y + u.y + v.y, c.z + u.z + v.z).setColor(r, g, bl, al);
-        vc.addVertex(pose, c.x - u.x + v.x, c.y - u.y + v.y, c.z - u.z + v.z).setColor(r, g, bl, al);
+        quad(pose, vc, new Vector3f(c).sub(u).sub(v), new Vector3f(c).add(u).sub(v), new Vector3f(c).add(u).add(v),
+                new Vector3f(c).sub(u).add(v), r, g, bl, al);
+    }
+
+    /** Двусторонний четырёхугольник (у прохода lightning отсечение задних граней). */
+    private static void quad(PoseStack.Pose pose, VertexConsumer vc, Vector3f p0, Vector3f p1, Vector3f p2, Vector3f p3, int r, int g, int b, int a) {
+        Vector3f[] q = {p0, p1, p2, p3, p3, p2, p1, p0};
+        for (Vector3f p : q) vc.addVertex(pose, p.x, p.y, p.z).setColor(r, g, b, a);
     }
 
     /** Обводка блока, который ломает луч (в проходе рамки игры). true — нарисована (рамку игры не рисуем). */
