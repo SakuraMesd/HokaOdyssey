@@ -3,6 +3,9 @@
   "package": "ink.hoka.odyssey.client.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "HeldFirstPersonMixin",
+    "HeldThirdPersonMixin",
+    "HeldArmPoseMixin",
     "CameraMixin",
     "ChunkRateMixin",
     "NoReverseDnsMixin",

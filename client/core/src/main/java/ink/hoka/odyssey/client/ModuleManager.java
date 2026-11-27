@@ -87,6 +87,7 @@ final class ModuleManager {
                 case 7 -> ink.hoka.odyssey.client.ui.UiScreen.handle(in);
                 case 8 -> ink.hoka.odyssey.client.ui.UiHud.handle(in);
                 case 9 -> ink.hoka.odyssey.client.inv.HokaInventory.handle(in);   // 0.67: инвентарь выживания
+                case 10 -> ink.hoka.odyssey.client.model.HeldEditor.handle(in);   // 0.69: настройка модели в руке
                 default -> HokaOdysseyClient.LOG.warn("Hoka Odyssey: неизвестная операция {}", op);
             }
         } catch (Exception e) {

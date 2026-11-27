@@ -50,15 +50,19 @@ public final class HoItemsModule extends OdysseyModule implements HoItems {
         logger().info("свои предметы: {}", reload());
         services().register(HoItems.class, this);
         registerCommand(new HoItemCommand());
+        client.onCore(OP_HELD, this::onHeldSave);
         scheduler().repeat(() -> {                                     // clientmods перезагружен — отдать заново
             ClientModsApi now = services().get(ClientModsApi.class).orElse(null);
-            if (now != null && System.identityHashCode(now) != publishedTo) { client = now; publish(); }
+            if (now != null && System.identityHashCode(now) != publishedTo) { client = now; now.onCore(OP_HELD, this::onHeldSave); publish(); }
         }, 100, 100);
+        scheduler().repeat(this::applyRange, 5, 5);
     }
 
     @Override
     protected void onDisable() {
         services().unregister(HoItems.class);
+        try { client.offCore(OP_HELD); } catch (Throwable ignored) { }
+        for (Player p : net.minestom.server.MinecraftServer.getConnectionManager().getOnlinePlayers()) resetRange(p);
         try { client.clearFiles(id()); client.publishFiles(); } catch (Throwable ignored) { }
     }
 
@@ -114,9 +118,84 @@ public final class HoItemsModule extends OdysseyModule implements HoItems {
         root.addProperty("version", 1);
         root.add("items", arr);
         api.putFile(id(), "items/items.json", new Gson().toJson(root).getBytes(StandardCharsets.UTF_8));
+        JsonObject held = held();
+        api.putFile(id(), "items/held.json", new Gson().toJson(held).getBytes(StandardCharsets.UTF_8));
+        Map<String, Double> r = new java.util.HashMap<>();
+        for (var e : held.entrySet()) {
+            var o = e.getValue().getAsJsonObject();
+            if (o.has("range") && o.get("range").getAsDouble() > 0) r.put(e.getKey(), o.get("range").getAsDouble());
+        }
+        ranges = r;
         api.publishFiles();
         publishedTo = System.identityHashCode(api);
         return files;
+    }
+
+    // ───────── предметы-модели в руке (Аксиом): настройки held.json, окно у админа — op ядра 10 ─────────
+
+    static final int OP_HELD = 10;
+    private volatile Map<String, Double> ranges = Map.of();
+    private final java.util.Set<java.util.UUID> ranged = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private Path heldFile() { return dataFolder().resolve("held.json"); }
+
+    private synchronized JsonObject held() {
+        try {
+            if (Files.exists(heldFile())) return com.google.gson.JsonParser.parseString(Files.readString(heldFile())).getAsJsonObject();
+        } catch (Exception e) {
+            logger().error("held.json не прочитан: {}", e.toString());
+        }
+        return new JsonObject();
+    }
+
+    /** C2S op 10: UTF id, UTF json — админ сохранил настройки в окне. */
+    private void onHeldSave(Player p, byte[] data) {
+        if (!server().isOp(p)) return;
+        try (var in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(data))) {
+            String id = in.readUTF();
+            JsonObject o = com.google.gson.JsonParser.parseString(in.readUTF()).getAsJsonObject();
+            synchronized (this) {
+                JsonObject all = held();
+                all.add(id, o);
+                Files.writeString(heldFile(), new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(all));
+            }
+            publish();
+            logger().info("{} сохранил настройки модели в руке {}", p.getUsername(), id);
+        } catch (Exception e) {
+            logger().error("настройки от {} не сохранены: {}", p.getUsername(), e.toString());
+        }
+    }
+
+    private void openEditor(Player p, String id) {
+        Def d = defs.get(id);
+        String model = d != null && d.model != null ? "items/" + d.model : "";
+        var bytes = new java.io.ByteArrayOutputStream();
+        try (var out = new java.io.DataOutputStream(bytes)) {
+            out.writeUTF(id);
+            out.writeUTF(model);
+        } catch (IOException ignored) { }
+        client.sendCore(p, OP_HELD, bytes.toByteArray());
+    }
+
+    /** «Дальность» предмета: пока он в руке — дальность взаимодействия с блоками и сущностями. */
+    private void applyRange() {
+        Map<String, Double> r = ranges;
+        for (Player p : net.minestom.server.MinecraftServer.getConnectionManager().getOnlinePlayers()) {
+            String id = p.getItemInMainHand().getTag(TAG);
+            Double v = id == null ? null : r.get(id);
+            if (v != null) {
+                p.getAttribute(net.minestom.server.entity.attribute.Attribute.BLOCK_INTERACTION_RANGE).setBaseValue(v);
+                p.getAttribute(net.minestom.server.entity.attribute.Attribute.ENTITY_INTERACTION_RANGE).setBaseValue(v);
+                ranged.add(p.getUuid());
+            } else if (ranged.remove(p.getUuid())) resetRange(p);
+        }
+    }
+
+    private void resetRange(Player p) {
+        var a = net.minestom.server.entity.attribute.Attribute.BLOCK_INTERACTION_RANGE;
+        var b = net.minestom.server.entity.attribute.Attribute.ENTITY_INTERACTION_RANGE;
+        p.getAttribute(a).setBaseValue(a.defaultValue());
+        p.getAttribute(b).setBaseValue(b.defaultValue());
     }
 
     @Override
@@ -140,7 +219,7 @@ public final class HoItemsModule extends OdysseyModule implements HoItems {
             super("hoitem");
             setCondition((s, c) -> !(s instanceof Player p) || server().isOp(p));
             setDefaultExecutor((s, c) -> {
-                s.sendMessage(Component.text("Свои предметы: " + defs.size() + ".  /hoitem give <id> [кол-во] · /hoitem reload", NamedTextColor.AQUA));
+                s.sendMessage(Component.text("Свои предметы: " + defs.size() + ".  /hoitem give <id> [кол-во] · /hoitem edit [id] · /hoitem reload", NamedTextColor.AQUA));
                 for (Def d : defs.values())
                     s.sendMessage(Component.text("  " + d.id + " — ", NamedTextColor.GRAY).append(d.name)
                             .append(Component.text(" (" + d.material.key().value() + (d.icon != null ? ", иконка" : "") + (d.model != null ? ", модель" : "") + ")", NamedTextColor.GRAY)));
@@ -156,6 +235,13 @@ public final class HoItemsModule extends OdysseyModule implements HoItems {
                 p.getInventory().addItemStack(it);
                 s.sendMessage(Component.text("Выдано: ", NamedTextColor.GREEN).append(defs.get(c.get(idArg)).name));
             };
+            addSyntax((s, c) -> {
+                if (!(s instanceof Player p)) return;
+                String id = p.getItemInMainHand().getTag(TAG);
+                if (id == null) { s.sendMessage(Component.text("Возьми предмет в руку или: /hoitem edit <id>", NamedTextColor.RED)); return; }
+                openEditor(p, id);
+            }, ArgumentType.Literal("edit"));
+            addSyntax((s, c) -> { if (s instanceof Player p) openEditor(p, c.get(idArg)); }, ArgumentType.Literal("edit"), idArg);
             addSyntax(give, ArgumentType.Literal("give"), idArg);
             addSyntax(give, ArgumentType.Literal("give"), idArg, count);
         }

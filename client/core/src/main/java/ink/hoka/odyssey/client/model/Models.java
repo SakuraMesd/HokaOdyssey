@@ -52,7 +52,7 @@ public final class Models {
         void listen(String path, java.util.function.Consumer<byte[]> fn);
     }
 
-    private static Source source;
+    static Source source;
 
     public static void init(Source s) { source = s; }
 
@@ -62,6 +62,7 @@ public final class Models {
         BbModel model;
         Identifier[] tex = new Identifier[0];
         float radius;
+        final float[] center = new float[3];   // середина габарита (пиксели) — для моделей в руке
     }
 
     private static final Map<String, Lib> LIBS = new HashMap<>();
@@ -99,6 +100,16 @@ public final class Models {
             }
             m.texturePngs.clear();
             float r = 0;
+            float[] lo = {1e9f, 1e9f, 1e9f}, hi = {-1e9f, -1e9f, -1e9f};
+            Matrix4f[] rest = new Matrix4f[m.bones.size()];
+            Pose.compute(m, null, -1, rest);
+            Vector3f tp = new Vector3f();
+            for (BbModel.Bone b : m.bones) for (BbModel.Face f : b.faces) for (int i = 0; i < 4; i++) {
+                rest[b.index].transformPosition(f.xyz()[i * 3], f.xyz()[i * 3 + 1], f.xyz()[i * 3 + 2], tp);
+                lo[0] = Math.min(lo[0], tp.x); lo[1] = Math.min(lo[1], tp.y); lo[2] = Math.min(lo[2], tp.z);
+                hi[0] = Math.max(hi[0], tp.x); hi[1] = Math.max(hi[1], tp.y); hi[2] = Math.max(hi[2], tp.z);
+            }
+            for (int k = 0; k < 3; k++) l.center[k] = lo[k] < hi[k] ? (lo[k] + hi[k]) / 2 : 0;
             for (BbModel.Bone b : m.bones) for (BbModel.Face f : b.faces)
                 for (int i = 0; i < 4; i++) r = Math.max(r, Math.max(Math.abs(f.xyz()[i * 3]), Math.max(Math.abs(f.xyz()[i * 3 + 1]), Math.abs(f.xyz()[i * 3 + 2]))));
             l.model = m;
@@ -276,6 +287,43 @@ public final class Models {
     }
 
     private static VertexConsumer currentVc;
+
+    /** Названия анимаций модели (пусто — модели ещё нет). */
+    public static java.util.List<String> animations(String path) {
+        Lib l = lib(path);
+        return l == null ? java.util.List.of() : new ArrayList<>(new java.util.TreeSet<>(l.model.animations.keySet()));
+    }
+
+    /**
+     * Нарисовать модель в текущей точке PoseStack (предмет в руке и т.п.): середина модели — в точке, 1 пиксель
+     * модели = 1 единица (масштаб — у вызывающего). Анимация идёт по общим часам. false — модели ещё нет.
+     */
+    public static boolean submit(String path, String anim, float speed, com.mojang.blaze3d.vertex.PoseStack ps,
+                                 net.minecraft.client.renderer.SubmitNodeCollector snc, int light) {
+        Lib l = lib(path);
+        if (l == null) return false;
+        BbModel m = l.model;
+        Matrix4f[] pose = new Matrix4f[m.bones.size()];
+        BbAnimation a = anim == null ? null : m.animations.get(anim);
+        float t = a == null ? -1 : a.localTime((System.currentTimeMillis() % 3_600_000L) / 1000f * speed);
+        Pose.compute(m, a, t, pose);
+        ps.pushPose();
+        ps.translate(-l.center[0], -l.center[1], -l.center[2]);
+        for (int ti = 0; ti < l.tex.length; ti++) {
+            Identifier tex = l.tex[ti];
+            if (tex == null) continue;
+            final int tIndex = ti;
+            snc.submitCustomGeometry(ps, RenderTypes.entityCutoutNoCull(tex), (p, vc) -> {
+                for (BbModel.Bone b : m.bones) {
+                    if (b.faces.isEmpty() || "hitbox".equals(b.name)) continue;
+                    Matrix4f mat = new Matrix4f(p.pose()).mul(pose[b.index]);
+                    for (BbModel.Face f : b.faces) if (f.texture() == tIndex) quad(vc, mat, f, light);
+                }
+            });
+        }
+        ps.popPose();
+        return true;
+    }
 
     private static Set<Integer> hiddenIndexes(BbModel m, Set<String> names) {
         if (names.isEmpty()) return Set.of();
