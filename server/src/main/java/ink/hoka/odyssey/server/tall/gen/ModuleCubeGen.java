@@ -56,8 +56,9 @@ public final class ModuleCubeGen implements CubeGen {
         this.pg = w instanceof PortableWorldGen p ? p.pg : null;
         this.tag = provider.id() + "@" + provider.version();
         this.det = provider.deterministic();
-        int top = TallWorld.MIN_Y + TallWorld.HEIGHT - 1;
-        this.minCy = Math.max(settings.bounds().minY(), TallWorld.MIN_Y) >> 4;
+        TallWorld.Dims dims = TallWorld.dims(settings.map());                 // своя высота карты
+        int top = dims.maxY();
+        this.minCy = Math.max(settings.bounds().minY(), dims.minY()) >> 4;
         this.maxCy = Math.min(settings.bounds().maxY(), top) >> 4;
     }
 
@@ -278,6 +279,7 @@ public final class ModuleCubeGen implements CubeGen {
         int lo = Math.max(yFrom, minCy << 4), hi = Math.min(yTo, (maxCy << 4) + 15);
         if (lo > hi) return HeightIndex.NONE;
         int h = w.highest(x, z, lo, hi, HeightKind.values()[kind.ordinal()]);
+        if (h == WorldGenerator.NONE) return HeightIndex.NONE;                 // «пусто» генераторов (−15009) → своё
         if (h != WorldGenerator.UNKNOWN) return h;
         GenIndex ix = index;
         if (ix != null) {

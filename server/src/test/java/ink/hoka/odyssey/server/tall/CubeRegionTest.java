@@ -141,8 +141,8 @@ class CubeRegionTest {
         // вернули блок как у генератора — куб уходит из региона
         set(d, 7 * 16 + 3, 12000, -3 * 16 + 3, Block.AIR);
         l2.save(d);
-        assertFalse(d.st().diskCubes.get((12000 >> 4) - CubeRegionLoader.MIN_SECTION));
-        assertNull(l2.cube(7, (12000 >> 4) - CubeRegionLoader.MIN_SECTION, -3));
+        assertFalse(d.st().diskCubes.get((12000 >> 4) - (TallWorld.MIN_Y >> 4)));
+        assertNull(l2.cube(7, (12000 >> 4) - (TallWorld.MIN_Y >> 4), -3));
         l2.close();
         TallColumn e = (TallColumn) new CubeRegionLoader(map, null).loadChunk(inst, 7, -3);
         assertTrue(get(e, 7 * 16 + 3, 12000, -3 * 16 + 3).isAir());
@@ -187,7 +187,7 @@ class CubeRegionTest {
         assertEquals(Block.OAK_PLANKS, get(d, 3, 41, 3), "целые кубы прочитаны");
         assertEquals(Block.GLOWSTONE, get(d, 0, 2000, 0), "битый куб — как генератор (площадка)");
         assertTrue(get(d, 3, 2005, 3).isAir());
-        int bad = (2000 >> 4) - CubeRegionLoader.MIN_SECTION;
+        int bad = (2000 >> 4) - (TallWorld.MIN_Y >> 4);
         assertFalse(d.isModified(), "битая запись остаётся в регионе, пока куб не поменяли");
         assertTrue(d.st().diskCubes.get(bad));
         set(d, 3, 41, 3, Block.STONE_BRICKS);                              // правка другого куба — битый не трогаем

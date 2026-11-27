@@ -235,6 +235,47 @@ final class SpaceGen implements PlanetGenerator {
         return best;
     }
 
+    @Override
+    public double[] lodBodies(int x0, int y0, int z0, int x1, int y1, int z1) {
+        java.util.ArrayList<double[]> l = new java.util.ArrayList<>();
+        int i0 = Math.floorDiv(x0, A), i1 = Math.floorDiv(x1, A), j0 = Math.floorDiv(y0, A), j1 = Math.floorDiv(y1, A);
+        int k0 = Math.floorDiv(z0, A), k1 = Math.floorDiv(z1, A);
+        long cells = (long) (i1 - i0 + 1) * (j1 - j0 + 1) * (k1 - k0 + 1);
+        if (cells > 2_000_000) return new double[0];                         // слишком большая область — не тянем
+        for (int i = i0; i <= i1; i++) for (int j = j0; j <= j1; j++) for (int k = k0; k <= k1; k++) {
+            Body b = asteroid(i, j, k);
+            if (b != null) l.add(new double[]{b.x, b.y, b.z, b.ext});
+        }
+        if (spawn != null) l.add(new double[]{spawn.x, spawn.y, spawn.z, spawn.ext});
+        double[] out = new double[l.size() * 4];
+        for (int n = 0; n < l.size(); n++) System.arraycopy(l.get(n), 0, out, n * 4, 4);
+        return out;
+    }
+
+    @Override
+    public int lodSample(int x, int y, int z) {
+        Body a = asteroid(Math.floorDiv(x, A), Math.floorDiv(y, A), Math.floorDiv(z, A));
+        int s = a != null ? visible(a, x, y, z) : 0;
+        if (s == 0 && spawn != null) s = visible(spawn, x, y, z);
+        return s;
+    }
+
+    /** Видимое состояние тела в точке (как fill, без секретов) или 0. */
+    private int visible(Body b, int x, int y, int z) {
+        double px = x + 0.5, py = y + 0.5, pz = z + 0.5;
+        double dx = (px - b.x) / b.ax, dy = (py - b.y) / b.ay, dz = (pz - b.z) / b.az;
+        double dist = Math.sqrt(dx * dx + dy * dy + dz * dz) / b.r;
+        if (dist > 1.45) return 0;
+        double surf = surface(b, px, py, pz);
+        if (dist >= surf || inCrater(b, px, py, pz)) return 0;
+        double depth = (surf - dist) * b.r;
+        return switch (b.kind) {
+            case ICE -> depth < 1.2 ? snow : ice;
+            case METAL, METEOR -> meteor;
+            default -> depth < 1.4 ? regolith : rock;
+        };
+    }
+
     private static boolean covers(Body b, int x, int z) {
         return x + 1 > b.x - b.ext && x < b.x + b.ext && z + 1 > b.z - b.ext && z < b.z + b.ext;
     }

@@ -199,7 +199,7 @@ final class CubeCacheModel {
             Col c = col(mm, colKey(cx, cz), true);
             for (int k = 0; k < len; k++) {
                 int i = i0 + k;
-                if (i < 0 || i >= TallWorld.HEIGHT >> 4) continue;
+                if (i < 0 || i >= 4096) continue;                   // до 4094 кубов (своя высота карты)
                 if ((blocks[k >> 3] >> (k & 7) & 1) != 0 && !c.b.containsKey(i)) { c.b.put(i, UNKNOWN); mm.entries++; }
                 if ((light[k >> 3] >> (k & 7) & 1) != 0 && !c.l.containsKey(i)) { c.l.put(i, UNKNOWN); mm.entries++; }
             }

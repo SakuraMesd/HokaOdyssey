@@ -37,7 +37,9 @@ final class ClientGenIds implements GenIds {
         List<String> st = new ArrayList<>(n);
         Map<String, Integer> defaults = new HashMap<>(4096);
         for (int i = 0; i < n; i++) {
-            BlockState s = Block.BLOCK_STATE_REGISTRY.byId(i);
+            final int fi = i;
+            // 0.73: номера — как у сервера (носители), без подмены на блоки мода
+            BlockState s = ink.hoka.odyssey.client.block.Remap.raw(() -> Block.BLOCK_STATE_REGISTRY.byId(fi));
             if (s == null) { st.add(null); continue; }
             st.add(canonical(s));
             if (s == s.getBlock().defaultBlockState()) defaults.putIfAbsent(BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString(), i);

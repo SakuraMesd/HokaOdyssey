@@ -142,7 +142,7 @@ public final class ObjectPaste {
         return l.size();
     }
 
-    static long key(int x, int y, int z) { return ((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | (y & 0xFFF); }
+    static long key(int x, int y, int z) { return ((long) (x & 0xFFFFFF) << 40) | ((long) (z & 0xFFFFFF) << 16) | (y & 0xFFFF); }   // Y 16 бит (±32752)
 
     /** Куб мира как GenCube: чтение — из инстанса, запись — в список изменений. */
     static final class WorldCube implements GenCube {

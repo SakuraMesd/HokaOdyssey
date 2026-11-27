@@ -158,7 +158,7 @@ public final class CubeConvert {
         for (int i = 0; i < sa.size(); i++) {
             var pa = sa.get(i).blockPalette();
             var pb = sb.get(i).blockPalette();
-            int cy = i + CubeRegionLoader.MIN_SECTION;
+            int cy = i + ((net.minestom.server.instance.Chunk) a).getMinSection();
             if (pa.count() == 0 && pb.count() == 0) {
                 if (!CubeRegionLoader.samePalette(sa.get(i).biomePalette(), sb.get(i).biomePalette(), 4)) return "биомы куба Y " + cy;
                 continue;

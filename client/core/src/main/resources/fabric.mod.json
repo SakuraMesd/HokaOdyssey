@@ -6,6 +6,9 @@
   "description": "Клиент сервера Hoka Odyssey: загружает клиентские модули с сервера на лету (без переустановки мода).",
   "environment": "client",
   "entrypoints": {
+    "main": [
+      "ink.hoka.odyssey.client.block.PoolBlocks"
+    ],
     "client": [
       "ink.hoka.odyssey.client.HokaOdysseyClient"
     ]

@@ -89,7 +89,7 @@ public sealed interface TallColumn permits TallChunk, CubeColumn {
 
     /** Залить генератором все кубы, кроме skip (их возьмут с диска — CubeRegionLoader); afterLoad — за вызывающим. */
     default void fillGen(BitSet skip) {
-        int chunkX = getChunkX(), chunkZ = getChunkZ(), min = TallWorld.MIN_Y >> 4;
+        int chunkX = getChunkX(), chunkZ = getChunkZ(), min = TallWorld.dims(getInstance()).minSection();
         CubeGen g = ink.hoka.odyssey.server.tall.gen.CubeGens.of(getInstance());
         int n = getSections().size();
         for (int i = 0; i < n; i++) {

@@ -180,6 +180,7 @@ public final class LodRenderer {
 
     /** Всё в мусор (смена карты, выкл): видеопамять — сразу, в потоке рендера. */
     private static void clearAll() {
+        SpaceLod.clear();
         EPOCH.incrementAndGet();
         QUEUE.clear();
         for (Node n : NODES.values()) release(n);
@@ -396,6 +397,8 @@ public final class LodRenderer {
         int rd = mc.options.getEffectiveRenderDistance();
         int dist = distChunks * 16;
         int cutoff = Math.max(48, rd * 16 - 8);                          // ближе — настоящие блоки (иначе кроны LOD торчат над ними)
+        SpaceLod.update(g, k, pos.x, pos.y, pos.z, dist, now());             // 0.74: тела (космос)
+        SpaceLod.uploads(now(), pos.x, pos.y, pos.z, dist);
         float qk = SPLIT_K[LodSetting.quality()];
         voxelR = Math.min(dist, cutoff + VOXEL_RING[LodSetting.quality()]);
         if (dirty != 0 || selVersion != LodSetting.version() || selDistance != dist || selCutoff != cutoff
@@ -421,7 +424,7 @@ public final class LodRenderer {
             } catch (Throwable ignored) {}
             underground = sy != Integer.MIN_VALUE && pos.y < sy - 24;
         }
-        if (underground || !haveMatrices || draws.isEmpty()) { lastDrawn = 0; lastQuads = 0; return; }
+        if (underground || !haveMatrices || (draws.isEmpty() && SpaceLod.count() == 0)) { lastDrawn = 0; lastQuads = 0; return; }
         if (cam.getFluidInCamera() != FogType.NONE) { lastDrawn = 0; lastQuads = 0; return; }
         draw(mc, cam, lvl, dist, cutoff);
         if (now() - lastLog > 30_000) { lastLog = now(); LOG.info("[LOD] {}", debugLine()); }
@@ -491,6 +494,7 @@ public final class LodRenderer {
         var dev = RenderSystem.getDevice();
         if (projBuf == null) projBuf = dev.createBuffer(() -> "Hoka LOD projection", GpuBuffer.USAGE_UNIFORM | GpuBuffer.USAGE_COPY_DST, 64);
         if (paramBuf == null) paramBuf = dev.createBuffer(() -> "Hoka LOD params", GpuBuffer.USAGE_UNIFORM | GpuBuffer.USAGE_COPY_DST, 32);
+        if (bodyParamBuf == null) bodyParamBuf = dev.createBuffer(() -> "Hoka LOD body params", GpuBuffer.USAGE_UNIFORM | GpuBuffer.USAGE_COPY_DST, 32);
         var enc = dev.createCommandEncoder();
         try (MemoryStack ms = MemoryStack.stackPush()) {
             ByteBuffer pb = ms.malloc(64);
@@ -505,6 +509,8 @@ public final class LodRenderer {
             qb.putFloat(0, cutoff).putFloat(4, Float.MAX_VALUE).putFloat(8, dist * 0.6f).putFloat(12, dist)
               .putFloat(16, fr).putFloat(20, fg).putFloat(24, fb).putFloat(28, 1);
             enc.writeToBuffer(paramBuf.slice(), qb);
+            qb.putFloat(0, 0);                                                  // тела: без «ближнего круга» (ваниль поверх)
+            enc.writeToBuffer(bodyParamBuf.slice(), qb);
         }
 
         // сначала все матрицы (writeTransform пишет в буфер — только вне прохода)
@@ -524,9 +530,23 @@ public final class LodRenderer {
             quads += n.quads + n.wquads;
             maxQ = Math.max(maxQ, Math.max(n.quads, n.wquads));
         }
-        lastDrawn = cnt;
+        // 0.74: тела космоса
+        List<SpaceLod.Body> bodies = SpaceLod.visible(px, py, pz, dist, mc.options.getEffectiveRenderDistance() * 16,
+                ink.hoka.odyssey.client.VerticalView.get() * 16);
+        int bn = 0;
+        if (bodySlices.length < bodies.size()) { bodySlices = new GpuBufferSlice[bodies.size() * 2]; bodyVis = new SpaceLod.Body[bodies.size() * 2]; }
+        for (SpaceLod.Body bd : bodies) {
+            float ox = (float) (bd.x0 - px), oy = (float) (bd.y0 - py), oz = (float) (bd.z0 - pz);
+            if (!FRUSTUM.testAab(ox, oy, oz, ox + bd.size, oy + bd.size, oz + bd.size)) continue;
+            OFF.set(ox, oy, oz);
+            bodySlices[bn] = RenderSystem.getDynamicUniforms().writeTransform(VIEW, MOD, OFF, IDENT);
+            bodyVis[bn++] = bd;
+            quads += bd.quads;
+            maxQ = Math.max(maxQ, bd.quads);
+        }
+        lastDrawn = cnt + bn;
         lastQuads = quads;
-        if (cnt == 0) return;
+        if (cnt == 0 && bn == 0) return;
         var target = mc.getMainRenderTarget();
         var color = RenderSystem.outputColorTextureOverride != null ? RenderSystem.outputColorTextureOverride : target.getColorTextureView();
         var depth = RenderSystem.outputDepthTextureOverride != null ? RenderSystem.outputDepthTextureOverride : target.getDepthTextureView();
@@ -557,12 +577,27 @@ public final class LodRenderer {
                     pass.drawIndexed(0, 0, q * 6, 1);
                 }
             }
+            if (bn > 0) {                                                       // тела: свои параметры (без ближнего круга)
+                pass.setPipeline(PIPE);
+                pass.setUniform("HokaLod", bodyParamBuf.slice());
+                pass.bindTexture("Sampler0", atlas.getTextureView(), atlasSampler);
+                pass.bindTexture("Sampler2", mc.gameRenderer.lightTexture().getTextureView(), lightSampler);
+                for (int i = 0; i < bn; i++) {
+                    pass.setUniform("DynamicTransforms", bodySlices[i]);
+                    pass.setVertexBuffer(0, bodyVis[i].vb);
+                    pass.drawIndexed(0, 0, bodyVis[i].quads * 6, 1);
+                }
+            }
             for (int i = 0; i < cnt; i++) { slices[i] = null; vis[i] = null; }
+            for (int i = 0; i < bn; i++) { bodySlices[i] = null; bodyVis[i] = null; }
         }
         enc.clearDepthTexture(depth.texture(), 1.0);                          // ванильная земля — поверх
     }
 
     private static GpuBufferSlice[] slices = new GpuBufferSlice[64];
+    private static GpuBufferSlice[] bodySlices = new GpuBufferSlice[64];
+    private static SpaceLod.Body[] bodyVis = new SpaceLod.Body[64];
+    private static GpuBuffer bodyParamBuf;
     private static Node[] vis = new Node[64];
 
     // ───────────── F3 ─────────────

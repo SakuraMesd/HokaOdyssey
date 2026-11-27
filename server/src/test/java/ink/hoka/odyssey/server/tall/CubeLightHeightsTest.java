@@ -70,7 +70,7 @@ class CubeLightHeightsTest {
     /** Выгрузить куб с y столбца c (остальные — в keep). */
     private void unload(CubeColumn c, int y) {
         BitSet keep = new BitSet();
-        keep.set(0, CubeLight.CUBES);
+        keep.set(0, (TallWorld.HEIGHT >> 4));
         keep.clear(idx(y));
         clock += 2 * CubeStore.IDLE_MS;
         int[] is = c.pickUnload(keep, clock, CubeStore.IDLE_MS);
@@ -104,10 +104,10 @@ class CubeLightHeightsTest {
         b[0].set(5);
         b[0].set(1800);
         b[2].set(70);
-        BitSet[] r = CubeMark.decodeTag(CubeMark.encodeTag(b), CubeLight.CUBES);
+        BitSet[] r = CubeMark.decodeTag(CubeMark.encodeTag(b), (TallWorld.HEIGHT >> 4));
         assertArrayEquals(b, r);
         assertNull(CubeMark.encodeTag(new BitSet[]{new BitSet(), new BitSet(), new BitSet()}));
-        assertNull(CubeMark.decodeTag("zz;;", CubeLight.CUBES), "битый тег — как нет");
+        assertNull(CubeMark.decodeTag("zz;;", (TallWorld.HEIGHT >> 4)), "битый тег — как нет");
     }
 
     /** Яма в земле; её нижний куб выгружен; над ямой крыша → после загрузки в яме темно; сняли крышу → снова светло. */
@@ -174,7 +174,7 @@ class CubeLightHeightsTest {
         w.inst.setBlock(3, 5000, 3, Block.GLASS);
         w.inst.setBlock(8, 12000, 8, Block.STONE);
         unload(c, 5000);
-        BitSet[] tag = CubeMark.decodeTag(w.loader.header(0, 0).tags.get(CubeMark.TAG), CubeLight.CUBES);
+        BitSet[] tag = CubeMark.decodeTag(w.loader.header(0, 0).tags.get(CubeMark.TAG), (TallWorld.HEIGHT >> 4));
         assertNotNull(tag, "сводка «нет вклада» в заголовке столбца");
         assertTrue(tag[HeightIndex.Kind.SKY.ordinal()].get(idx(5000)));
         assertFalse(tag[HeightIndex.Kind.SURFACE.ordinal()].get(idx(5000)), "стекло — поверхность");

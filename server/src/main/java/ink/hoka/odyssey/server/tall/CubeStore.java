@@ -66,7 +66,7 @@ public final class CubeStore {
             try { r = QUEUE.take(); }
             catch (InterruptedException e) { return; }
             try { r.col.loadNow(r.i, r.prio); }
-            catch (Throwable t) { LOG.error("загрузка куба {} {} {}: {}", r.col.getChunkX(), r.i + CubeRegionLoader.MIN_SECTION, r.col.getChunkZ(), t.toString(), t); }
+            catch (Throwable t) { LOG.error("загрузка куба {} {} {}: {}", r.col.getChunkX(), r.i + r.col.getMinSection(), r.col.getChunkZ(), t.toString(), t); }
         }
     }
 
@@ -77,7 +77,7 @@ public final class CubeStore {
         if (now - lastErrorLog > 10_000) {
             lastErrorLog = now;
             LOG.error("куб {} {} {} не прочитан ({}) — повторю; пока он не в памяти, писать в него нельзя",
-                    col.getChunkX(), i + CubeRegionLoader.MIN_SECTION, col.getChunkZ(), e.toString());
+                    col.getChunkX(), i + col.getMinSection(), col.getChunkZ(), e.toString());
         }
         Thread.ofVirtual().start(() -> {
             try { Thread.sleep(2000); } catch (InterruptedException ignored) { return; }
@@ -100,7 +100,7 @@ public final class CubeStore {
         violations.incrementAndGet();
         if (STACK_LOGGED.compareAndSet(false, true))
             LOG.error("правило записи: {} в незагруженный куб {} {} {} — отменено (первый случай, дальше только счётчик)",
-                    what, col.getChunkX(), i + CubeRegionLoader.MIN_SECTION, col.getChunkZ(), new IllegalStateException("cube not loaded"));
+                    what, col.getChunkX(), i + col.getMinSection(), col.getChunkZ(), new IllegalStateException("cube not loaded"));
     }
 
     static int queued() { return QUEUE.size(); }
@@ -153,7 +153,7 @@ public final class CubeStore {
                 boolean far = true;
                 for (int j = 0; j < k && far; j++)
                     if (Math.max(Math.abs(c.getChunkX() - px[j]), Math.abs(c.getChunkZ() - pz[j])) <= pr[j]) far = false;
-                java.util.BitSet keep = new java.util.BitSet(CubeRegionLoader.CUBES);
+                java.util.BitSet keep = new java.util.BitSet(c.getMaxSection() - c.getMinSection());
                 if (!CubeStreamer.interest(c, keep)) continue;             // зритель без окна (только вошёл) — не трогать
                 Cubes.pinned(inst, c.getChunkX(), c.getChunkZ(), keep);
                 if (ents == null) ents = entityCubes(inst);
@@ -170,7 +170,8 @@ public final class CubeStore {
     /** Кубы, занятые сущностями (рамка ±1 блок, в т.ч. соседние столбцы): столбец → индексы кубов. */
     private static java.util.Map<Long, java.util.BitSet> entityCubes(Instance inst) {
         java.util.Map<Long, java.util.BitSet> m = new java.util.HashMap<>();
-        int min = CubeRegionLoader.MIN_SECTION, n = CubeRegionLoader.CUBES;
+        TallWorld.Dims dd = TallWorld.dims(inst);
+        int min = dd.minSection(), n = dd.cubes();
         for (var en : inst.getEntities()) {
             var p = en.getPosition();
             var bb = en.getBoundingBox();
@@ -222,7 +223,7 @@ public final class CubeStore {
     public static boolean isReady(Instance inst, int x, int y, int z) {
         Chunk ch = inst.getChunk(x >> 4, z >> 4);
         if (ch == null) return false;
-        return !(ch instanceof TallColumn tc) || tc.ready((y >> 4) - CubeRegionLoader.MIN_SECTION);
+        return !(ch instanceof TallColumn tc) || tc.ready((y >> 4) - ch.getMinSection());
     }
 
     /**
@@ -233,7 +234,7 @@ public final class CubeStore {
         return inst.loadChunk(cx, cz).thenCompose(ch -> {
             if (!(ch instanceof CubeColumn c)) return CompletableFuture.completedFuture(null);
             List<CompletableFuture<Void>> fs = new ArrayList<>();
-            int a = Math.max(0, cy0 - CubeRegionLoader.MIN_SECTION), b = Math.min(CubeRegionLoader.CUBES - 1, cy1 - CubeRegionLoader.MIN_SECTION);
+            int a = Math.max(0, cy0 - c.getMinSection()), b = Math.min(c.getMaxSection() - c.getMinSection() - 1, cy1 - c.getMinSection());
             for (int i = a; i <= b; i++) {
                 var f = c.whenReady(i, prio);
                 if (!f.isDone()) fs.add(f);

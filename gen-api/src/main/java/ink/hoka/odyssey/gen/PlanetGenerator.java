@@ -39,6 +39,16 @@ public interface PlanetGenerator {
      */
     default boolean lod(LodTile t) { return false; }
 
+    /**
+     * Дальняя прорисовка тел (космос: астероиды и т.п. — объёмные, не рельеф): рамки тел, задевающих область — по 4 числа
+     * (x, y, z центра, полуразмер рамки). null — не умею (дальняя прорисовка — только по {@link #lod}). Дёшево: без
+     * генерации блоков. Секреты не показывать.
+     */
+    default double[] lodBodies(int x0, int y0, int z0, int x1, int y1, int z1) { return null; }
+
+    /** Видимый блок в точке (номер состояния; 0 — пусто) — для грубой сетки тел вдали; −1 — не умею. */
+    default int lodSample(int x, int y, int z) { return -1; }
+
     /** Генератор больше не нужен. */
     default void close() {}
 }

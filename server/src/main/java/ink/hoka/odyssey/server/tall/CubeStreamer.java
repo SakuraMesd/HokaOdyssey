@@ -885,7 +885,7 @@ public final class CubeStreamer {
 
     /** Слой sy в 3×3 столбцах «есть у клиента»: в памяти сервера или (0.59) ушёл меткой — клиент сам не пустит в ждущий генерации куб. */
     private static boolean layerReady(Instance inst, State st, int pcx, int pcz, int sy) {
-        int i = sy - (TallWorld.MIN_Y >> 4);
+        int i = sy - TallWorld.dims(inst).minSection();
         for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++)
             if (inst.getChunk(pcx + dx, pcz + dz) instanceof TallColumn tc && !tc.ready(i)) {
                 BitSet m = st.sent.get(key(pcx + dx, pcz + dz));
@@ -1003,7 +1003,7 @@ public final class CubeStreamer {
         if (st == null || st.sy == Integer.MIN_VALUE || st.instance != p.getInstance()) return false;
         BitSet m = st.sent.get(key(pos.blockX() >> 4, pos.blockZ() >> 4));
         if (m == null) return false;
-        int i = (pos.blockY() >> 4) - (TallWorld.MIN_Y >> 4);
+        int i = (pos.blockY() >> 4) - TallWorld.dims(st.instance).minSection();
         return i >= 0 && i < LIT && (m.get(i) || m.get(LIT + i));
     }
 
@@ -1248,7 +1248,7 @@ public final class CubeStreamer {
         for (int k = 0; k < 16; k++) {
             int ox = dx == 1 ? 15 : dx == -1 ? 0 : k, oz = dz == 1 ? 15 : dz == -1 ? 0 : k;
             r[k] = g.highestCheap(ncx * 16 + ((ox + dx) & 15), ncz * 16 + ((oz + dz) & 15),
-                    TallWorld.MIN_Y, TallWorld.MIN_Y + TallWorld.HEIGHT - 1, HeightIndex.Kind.SURFACE);
+                    TallWorld.Y_MIN, TallWorld.Y_MAX, HeightIndex.Kind.SURFACE);   // весь предел: у карты ниже/выше пусто
         }
         if (GEN_EDGES.size() > 32768) GEN_EDGES.clear();
         GEN_EDGES.put(key, r);
@@ -1848,11 +1848,12 @@ public final class CubeStreamer {
         e[0] = c.getChunkX();
         e[1] = c.getChunkZ();
         HeightIndex h = c.st().heights;
+        int minY = TallWorld.dims(c.getInstance()).minY();
         for (int i = 0; i < 256; i++) {
             int y = h.get(HeightIndex.Kind.MOTION, i & 15, i >> 4);
-            e[2 + i] = y == HeightIndex.NONE ? TallWorld.MIN_Y : y + 1;
+            e[2 + i] = y == HeightIndex.NONE ? minY : y + 1;
             int t = h.get(HeightIndex.Kind.SKY, i & 15, i >> 4);
-            e[258 + i] = t == HeightIndex.NONE ? TallWorld.MIN_Y : t + 1;
+            e[258 + i] = t == HeightIndex.NONE ? minY : t + 1;
         }
         return e;
     }
@@ -2014,11 +2015,11 @@ public final class CubeStreamer {
                 CubeCacheModel.P m = CubeCacheModel.getOrCreate(u);
                 CubeCacheModel.budget(m, mb);
                 int n = Math.min(65536, b.read(NetworkBuffer.VAR_INT));
-                int min = TallWorld.MIN_Y >> 4;
+                int min = TallWorld.dims(p.getInstance()).minSection();
                 for (int k = 0; k < n; k++) {
                     int cx = b.read(NetworkBuffer.INT), cz = b.read(NetworkBuffer.INT), y0 = b.read(NetworkBuffer.INT);
                     int len = b.read(NetworkBuffer.VAR_INT);
-                    if (len < 0 || len > TallWorld.HEIGHT >> 4) throw new IllegalArgumentException("HAVE: длина " + len);
+                    if (len < 0 || len > 4096) throw new IllegalArgumentException("HAVE: длина " + len);
                     byte[] bm = b.read(NetworkBuffer.FixedRawBytes((len + 7) >> 3));
                     byte[] lm = b.read(NetworkBuffer.FixedRawBytes((len + 7) >> 3));
                     if (mb > 0 && key != 0) CubeCacheModel.seed(m, key, cx, cz, y0 - min, bm, lm, len);
@@ -2294,7 +2295,7 @@ public final class CubeStreamer {
             Long pos = st.genFails.poll();
             if (pos == null) break;
             BitSet mask = st.sent.get(key(posX(pos), posZ(pos)));
-            int i = posY(pos) - (TallWorld.MIN_Y >> 4);
+            int i = posY(pos) - TallWorld.dims(p.getInstance()).minSection();
             if (mask == null || i < 0 || i >= LIT || !mask.get(GENB + i)) continue;
             forceReal(p, pos);
             genFailWants++;
@@ -2304,7 +2305,7 @@ public final class CubeStreamer {
         for (Long pos; n < 512 && (pos = st.genWants.poll()) != null; n++) {
             BitSet mask = st.sent.get(key(posX(pos), posZ(pos)));
             if (mask == null) continue;
-            int i = posY(pos) - (TallWorld.MIN_Y >> 4);
+            int i = posY(pos) - TallWorld.dims(p.getInstance()).minSection();
             if (i < 0 || i >= LIT || !mask.get(GENB + i)) continue;
             forceReal(p, pos);
             ClientGen.mismatch(p, pos, "хэш op 21");
@@ -2347,7 +2348,7 @@ public final class CubeStreamer {
         for (Long k : st.sent.keySet()) { if (m == keys.length) break; keys[m++] = k; }
         long[] ord = order(keys, m, pcx, pcz);
         List<Long> out = new ArrayList<>();
-        int min = TallWorld.MIN_Y >> 4;
+        int min = TallWorld.dims(p.getInstance()).minSection();
         for (long k : ord) {
             BitSet mask = st.sent.get(k);
             if (mask == null) continue;

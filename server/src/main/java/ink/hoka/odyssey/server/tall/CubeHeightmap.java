@@ -37,7 +37,10 @@ final class CubeHeightmap extends Heightmap {
     @Override public void loadFrom(long[] data) { }
 
     @Override
-    public int getHeight(int x, int z) { return column.st().heights.get(kind, x, z); }
+    public int getHeight(int x, int z) {
+        int y = column.st().heights.get(kind, x, z);
+        return y == HeightIndex.NONE ? minHeight : y;                          // Minestom: нет блока — minY − 1
+    }
 
     @Override
     public long[] getNBT() {

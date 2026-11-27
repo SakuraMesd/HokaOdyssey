@@ -45,7 +45,7 @@ class CubeGenBiomeAirTest {
         StringBuilder sb = new StringBuilder();
         for (int cx = -6; cx <= 9; cx++) for (int cy = 18; cy <= 21; cy++) for (int cz = -6; cz <= 6; cz++) {
             if (g.uniform(cx, cy, cz) != null) continue;                    // однородные — меткой без хэша
-            CubeRegionLoader.Loaded d = CubeRegionLoader.generate(g, cx, cy - CubeRegionLoader.MIN_SECTION, cz);
+            CubeRegionLoader.Loaded d = CubeRegionLoader.generate(g, cx, cy - (TallWorld.MIN_Y >> 4), cz, TallWorld.MIN_Y >> 4);
             var live = d.section() == null ? TallSections.EMPTY : d.section();
             if (d.section() != null && d.section().blockPalette().count() == 0) airBiome++;
             if (CubeHash.of(live) != g.visHash(cx, cy, cz)) { bad++; if (bad < 10) sb.append(cx).append(' ').append(cy).append(' ').append(cz).append("; "); }

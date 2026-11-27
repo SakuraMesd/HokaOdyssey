@@ -67,8 +67,9 @@ import java.util.concurrent.CompletableFuture;
 public final class CubeColumn extends Chunk implements TallColumn {
 
     private static final Logger LOG = LoggerFactory.getLogger("tall");
-    private static final int MIN_SECTION = TallWorld.MIN_Y >> 4;
-    private static final int CUBES = TallWorld.HEIGHT >> 4;
+    // своя высота у карты (тип измерения): поля — до остальных (их размеры от CUBES)
+    private final int MIN_SECTION = minSection;
+    private final int CUBES = maxSection - minSection;
 
     private final TallSections cubes = new TallSections(CUBES);
     private final List<Section> view = Collections.unmodifiableList(cubes);
@@ -137,7 +138,7 @@ public final class CubeColumn extends Chunk implements TallColumn {
     public CubeColumn(Instance instance, int chunkX, int chunkZ) {
         super(instance, chunkX, chunkZ, false);                             // генератор Minestom не зовём: CubeGen сам
         this.gen = ink.hoka.odyssey.server.tall.gen.CubeGens.of(instance);
-        if (minSection != MIN_SECTION || maxSection - minSection != CUBES)
+        if (CUBES <= 64)
             throw new IllegalStateException("CubeColumn только для высокой карты (" + minSection + "…" + maxSection + ")");
     }
 
@@ -168,7 +169,7 @@ public final class CubeColumn extends Chunk implements TallColumn {
             if (onDisk.get(i) || g.hasBlocks(chunkX, i + MIN_SECTION, chunkZ)) state[i] = ABSENT;
         if (heights != null) st.heights.load(heights);
         else {
-            st.heights.fromGen(g, chunkX, chunkZ, TallWorld.MIN_Y, TallWorld.MIN_Y + TallWorld.HEIGHT - 1);
+            st.heights.fromGen(g, chunkX, chunkZ, MIN_SECTION << 4, ((MIN_SECTION + CUBES) << 4) - 1);
             st.heights.raiseOver(onDisk, MIN_SECTION, new HeightIndex.Clear() {   // кубы с диска — с запасом (уточнит fix при загрузке)
                 @Override public boolean clear(HeightIndex.Kind k, int i) { return st.clear(k, i); }
                 @Override public boolean clear(HeightIndex.Kind k, int i, int c) {
@@ -420,7 +421,7 @@ public final class CubeColumn extends Chunk implements TallColumn {
             CubeRegionLoader.Loaded d;
             try {
                 d = fromDisk.get(i) && source != null ? source.loadCube(chunkX, i, chunkZ)
-                        : CubeRegionLoader.generate(gen, chunkX, i, chunkZ);
+                        : CubeRegionLoader.generate(gen, chunkX, i, chunkZ, MIN_SECTION);
             } catch (Exception e) {                                       // сбой чтения: НЕ генерировать вместо (затёрли бы диск)
                 CubeStore.failed(this, i, prio, e);
                 return;
@@ -538,6 +539,7 @@ public final class CubeColumn extends Chunk implements TallColumn {
 
     /** Доступ CubeLight к кубам столбца: палитры читаются без замка (как ColumnLight); гонку правит событие правки. */
     private final class LightCol implements CubeLight.Column {
+        @Override public int cubes() { return CUBES; }
         @Override public int cx() { return chunkX; }
         @Override public int cz() { return chunkZ; }
         @Override public boolean ready(int i) { return CubeColumn.this.ready(i); }

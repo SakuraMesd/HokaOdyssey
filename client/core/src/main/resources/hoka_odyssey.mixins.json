@@ -3,6 +3,7 @@
   "package": "ink.hoka.odyssey.client.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "IdMapperRemapMixin",
     "HeldFirstPersonMixin",
     "HeldThirdPersonMixin",
     "HeldArmPoseMixin",

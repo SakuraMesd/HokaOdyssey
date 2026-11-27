@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class CubeLightSkyTest {
 
-    static final int MIN = CubeLight.MIN, CUBES = CubeLight.CUBES;
+    static final int MIN = (TallWorld.MIN_Y >> 4), CUBES = (TallWorld.HEIGHT >> 4);
     static RegistryKey<DimensionType> key;
 
     @TempDir(cleanup = org.junit.jupiter.api.io.CleanupMode.NEVER)

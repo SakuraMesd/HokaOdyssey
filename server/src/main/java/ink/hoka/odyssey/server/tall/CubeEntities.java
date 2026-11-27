@@ -76,8 +76,9 @@ public final class CubeEntities {
 
     private static boolean unloaded(Instance inst, double x, double y, double z) {
         int bx = (int) Math.floor(x), by = (int) Math.floor(y), bz = (int) Math.floor(z);
-        if (!(inst.getChunk(bx >> 4, bz >> 4) instanceof TallColumn tc)) return false;   // столбца нет — Minestom туда не двигает
-        int i = (by >> 4) - CubeRegionLoader.MIN_SECTION;
+        var ch = inst.getChunk(bx >> 4, bz >> 4);
+        if (!(ch instanceof TallColumn tc)) return false;   // столбца нет — Minestom туда не двигает
+        int i = (by >> 4) - ch.getMinSection();
         if (tc.ready(i)) return false;
         tc.request(i, PRIO);
         return true;

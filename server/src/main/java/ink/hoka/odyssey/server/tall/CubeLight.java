@@ -49,7 +49,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 final class CubeLight {
 
-    static final int MIN = TallWorld.MIN_Y >> 4, CUBES = TallWorld.HEIGHT >> 4;
+    /** Высота карты в кубах: низ и число (своя у каждой карты — тип измерения). */
+    final int MIN, CUBES;
 
     // ───────────── доступ к миру (CubeColumn или тестовый) ─────────────
 
@@ -80,6 +81,8 @@ final class CubeLight {
          * пересчёт → явный свет изменившимся). CubeColumn кэширует до события столбца.
          */
         default long floorInfo() { return computeFloorInfo(this); }
+        /** Кубов в столбце (высота карты); по умолчанию — как у старых карт. */
+        default int cubes() { return TallWorld.HEIGHT >> 4; }
     }
 
     /** floorInfo без кэша: перебор 256 колонок и кубов сверху вниз до первого непустого в памяти. */
@@ -87,7 +90,7 @@ final class CubeLight {
         int top = Integer.MIN_VALUE;
         for (int k = 0; k < 256; k++) top = Math.max(top, c.skyTop(k));
         int high = -1;
-        for (int i = CUBES - 1; i >= 0; i--) if (c.ready(i) && c.maybeBlocks(i)) { high = i; break; }
+        for (int i = c.cubes() - 1; i >= 0; i--) if (c.ready(i) && c.maybeBlocks(i)) { high = i; break; }
         return (long) top << 32 | (high & 0xFFFFFFFFL);
     }
 
@@ -144,6 +147,8 @@ final class CubeLight {
         int genTop(int x, int z);
         /** В кубе незагруженного столбца могут быть блоки (генератор). */
         boolean genBlocks(int cx, int cy, int cz);
+        /** Высота мира (по умолчанию — как у старых карт). */
+        default TallWorld.Dims dims() { return TallWorld.LEGACY; }
     }
 
     /**
@@ -165,7 +170,7 @@ final class CubeLight {
         final CubeColumn owner;
         /** Посчитанные кубы (null — не посчитан: PT/F) — страницами по 64, страница появляется при первой записи. */
         private final java.util.concurrent.atomic.AtomicReferenceArray<java.util.concurrent.atomic.AtomicReferenceArray<Rec>> pages =
-                new java.util.concurrent.atomic.AtomicReferenceArray<>((CUBES + 63) >> 6);
+                new java.util.concurrent.atomic.AtomicReferenceArray<>((4096 + 63) >> 6);   // до 4094 кубов (Y ±32752)
         /** Свет куба изменился с прошлой рассылки. */
         final BitSet changed = new BitSet();
         /** Кэш {@link Column#mayEmit}: известно / «светящиеся могут быть». Сбрасывают события куба и столбца. */
@@ -176,7 +181,7 @@ final class CubeLight {
 
         /** Опубликованный свет куба i или null (не посчитан). Любой поток. */
         Rec rec(int i) {
-            if (i < 0 || i >= CUBES) return null;
+            if (i < 0 || i >= col.cubes()) return null;
             var p = pages.get(i >> 6);
             return p == null ? null : p.get(i & 63);
         }
@@ -228,13 +233,13 @@ final class CubeLight {
         c.floorDirty();
         CubeLight e = of(c.getInstance());
         if (stale) e.markStale++;
-        e.cubeLoadedAt(c.getChunkX(), i + MIN, c.getChunkZ());
+        e.cubeLoadedAt(c.getChunkX(), i + e.MIN, c.getChunkZ());
     }
 
     /** Шаг 13: skyTop колонок столбца уточнился при загрузке куба (HeightIndex.fix): old/now по клеткам z<<4|x. */
     static void skyFixed(CubeColumn c, int[] old, int[] now) { c.floorDirty(); of(c.getInstance()).skyFixedAt(c.getChunkX(), c.getChunkZ(), old, now); }
 
-    static void cubeUnloaded(CubeColumn c, int i) { c.floorDirty(); of(c.getInstance()).cubeUnloadedAt(c.getChunkX(), i + MIN, c.getChunkZ()); }
+    static void cubeUnloaded(CubeColumn c, int i) { c.floorDirty(); CubeLight e = of(c.getInstance()); e.cubeUnloadedAt(c.getChunkX(), i + e.MIN, c.getChunkZ()); }
 
     static void columnLoaded(CubeColumn c) { c.floorDirty(); of(c.getInstance()).columnLoadedAt(c.getChunkX(), c.getChunkZ()); }
 
@@ -460,6 +465,8 @@ final class CubeLight {
     /** async — свой поток света (тест параллельного расчёта зовёт с true на поддельном мире). */
     CubeLight(World w, boolean async) {
         this.w = w;
+        this.MIN = w.dims().minSection();
+        this.CUBES = w.dims().cubes();
         this.async = async;
         this.budgetNs = w instanceof InstWorld && !async ? TICK_BUDGET_NS : Long.MAX_VALUE;
         if (async) {                                                        // последним: поля уже заданы
@@ -785,7 +792,7 @@ final class CubeLight {
                     nEdit++;
                     infCache.remove(key(e.cx, e.cy, e.cz));
                     forgetEmit(e.cx, e.cy, e.cz);
-                    addNear(k, weak, e.x, e.y, e.z);
+                    addNear(k, weak, e.x, e.y, e.z, MIN, CUBES);
                     if (e.t0 != e.t1) { x.recordOld(e.x, e.z, e.t0); x.range(e.x >> 4, e.z >> 4, Math.min(e.t0, e.t1), Math.max(e.t0, e.t1)); }
                 }
                 case Ev.LOAD -> { nLoad++; infCache.remove(key(e.cx, e.cy, e.cz)); forgetEmit(e.cx, e.cy, e.cz); add3(k, e.cx, e.cy, e.cz); }
@@ -880,7 +887,7 @@ final class CubeLight {
      * только кубы 3×3×3, чья ближняя клетка в пределах 14 по манхэттену (7…12 вместо 27); результат тот же. Дальние
      * из 27 — слабыми: досчитать, только если ещё не посчитаны (стали не PT из-за блока). Смена skyTop — rangePass.
      */
-    static void addNear(LongOpenHashSet k, LongOpenHashSet weak, int x, int y, int z) {
+    static void addNear(LongOpenHashSet k, LongOpenHashSet weak, int x, int y, int z, int MIN, int CUBES) {
         int cx = x >> 4, cy = y >> 4, cz = z >> 4, lx = x & 15, ly = y & 15, lz = z & 15;
         for (int dx = -1; dx <= 1; dx++) for (int dy = -1; dy <= 1; dy++) for (int dz = -1; dz <= 1; dz++) {
             if (cy + dy < MIN || cy + dy >= MIN + CUBES) continue;
@@ -892,14 +899,14 @@ final class CubeLight {
     /** Для тестов: кубы пересчёта правки — [в пересчёт, слабые]. */
     static long[][] nearKeys(int x, int y, int z) {
         LongOpenHashSet k = new LongOpenHashSet(), weak = new LongOpenHashSet();
-        addNear(k, weak, x, y, z);
+        addNear(k, weak, x, y, z, TallWorld.MIN_Y >> 4, TallWorld.HEIGHT >> 4);
         return new long[][]{k.toLongArray(), weak.toLongArray()};
     }
 
     /** Расстояние по оси от клетки l (0…15) до соседнего куба в сторону s (−1/0/+1). */
     private static int gap(int l, int s) { return s == 0 ? 0 : s < 0 ? l + 1 : 16 - l; }
 
-    private static void add3(LongOpenHashSet k, int cx, int cy, int cz) {
+    private void add3(LongOpenHashSet k, int cx, int cy, int cz) {
         for (int dx = -1; dx <= 1; dx++) for (int dy = -1; dy <= 1; dy++) for (int dz = -1; dz <= 1; dz++)
             if (cy + dy >= MIN && cy + dy < MIN + CUBES) k.add(key(cx + dx, cy + dy, cz + dz));
     }
@@ -1045,7 +1052,7 @@ final class CubeLight {
     }
 
     /** Посчитанные (не PT) кубы 3×3 столбцов вокруг (cx, cz) с индексами [a, b] — в пересчёт. */
-    private static void addNonPT(Ctx x, int cx, int cz, int a, int b, LongOpenHashSet k) {
+    private void addNonPT(Ctx x, int cx, int cz, int a, int b, LongOpenHashSet k) {
         a = Math.max(0, a);
         b = Math.min(CUBES - 1, b);
         for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
@@ -1768,18 +1775,19 @@ final class CubeLight {
     }
 
     static long key(int cx, int cy, int cz) {
-        return ((long) (cx & 0xFFFFFF) << 40) | ((long) (cz & 0xFFFFFF) << 16) | ((cy - MIN) & 0xFFFF);
+        return ((long) (cx & 0xFFFFFF) << 40) | ((long) (cz & 0xFFFFFF) << 16) | (cy & 0xFFFF);   // cy со знаком (±2047)
     }
 
     static int kx(long k) { return (int) (k >> 40); }
     static int kz(long k) { return (int) ((k << 24) >> 40); }
-    static int ky(long k) { return (int) (k & 0xFFFF) + MIN; }
+    static int ky(long k) { return (short) (k & 0xFFFF); }
 
     static long colKey(int cx, int cz) { return ((long) cx << 32) | (cz & 0xFFFFFFFFL); }
 
     // ───────────── мир сервера ─────────────
 
     private record InstWorld(Instance inst) implements World {
+        @Override public TallWorld.Dims dims() { return TallWorld.dims(inst); }
         @Override public boolean sky() { return inst.getCachedDimensionType().hasSkylight(); }
 
         @Override public Column column(int cx, int cz) {
@@ -1787,7 +1795,7 @@ final class CubeLight {
         }
 
         @Override public int genTop(int x, int z) {
-            return ink.hoka.odyssey.server.tall.gen.CubeGens.of(inst).highest(x, z, TallWorld.MIN_Y, TallWorld.MIN_Y + TallWorld.HEIGHT - 1, HeightIndex.Kind.SKY);
+            return ink.hoka.odyssey.server.tall.gen.CubeGens.of(inst).highest(x, z, TallWorld.dims(inst).minY(), TallWorld.dims(inst).maxY(), HeightIndex.Kind.SKY);
         }
 
         @Override public boolean genBlocks(int cx, int cy, int cz) { return ink.hoka.odyssey.server.tall.gen.CubeGens.of(inst).hasBlocks(cx, cy, cz); }

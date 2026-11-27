@@ -47,12 +47,13 @@ public final class Cubes {
 
     public static boolean areCubesLoaded(Instance inst, Point min, Point max) {
         int x0 = lo(min, max, 0), x1 = hi(min, max, 0), z0 = lo(min, max, 2), z1 = hi(min, max, 2);
-        int y0 = lo(min, max, 1) - CubeRegionLoader.MIN_SECTION, y1 = hi(min, max, 1) - CubeRegionLoader.MIN_SECTION;
+        int ylo = lo(min, max, 1), yhi = hi(min, max, 1);
         for (int cx = x0; cx <= x1; cx++) for (int cz = z0; cz <= z1; cz++) {
             Chunk ch = inst.getChunk(cx, cz);
             if (ch == null) return false;
+            int y0 = ylo - ch.getMinSection(), y1 = yhi - ch.getMinSection(), n = ch.getMaxSection() - ch.getMinSection();
             if (ch instanceof TallColumn tc)
-                for (int i = Math.max(0, y0); i <= Math.min(CubeRegionLoader.CUBES - 1, y1); i++) if (!tc.ready(i)) return false;
+                for (int i = Math.max(0, y0); i <= Math.min(n - 1, y1); i++) if (!tc.ready(i)) return false;
         }
         return true;
     }
@@ -99,7 +100,8 @@ public final class Cubes {
 
     /** Закреплённые кубы столбца (cx, cz) — в keep (индексы от нижнего куба; шаг 11: их не выгружать). */
     static void pinned(Instance inst, int cx, int cz, java.util.BitSet keep) {
-        int min = CubeRegionLoader.MIN_SECTION, n = CubeRegionLoader.CUBES;
+        TallWorld.Dims dd = TallWorld.dims(inst);
+        int min = dd.minSection(), n = dd.cubes();
         for (List<Pin> l : PINS.values()) for (Pin p : l) {
             if (!p.containsColumn(inst, cx, cz)) continue;
             int a = Math.max(0, p.cy0() - min), b = Math.min(n - 1, p.cy1() - min);

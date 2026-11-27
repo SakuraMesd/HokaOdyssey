@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class CubeLightAsyncTest {
 
-    static final int MIN = CubeLight.MIN, CUBES = CubeLight.CUBES;
+    static final int MIN = (TallWorld.MIN_Y >> 4), CUBES = (TallWorld.HEIGHT >> 4);
     static final int FLOOR = 40, R = 2;
     /** Кубы y 64…79 у новых столбцов «не в памяти» — грузятся позже (LOAD). */
     static final int LATE = (64 >> 4) - MIN;

@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Аудит света неба (sun:true) на кубах: остров, пещера под толщей, башня, крыша над шахтой, замеры. */
 class CubeLightSkyAuditTest {
 
-    static final int MIN = CubeLight.MIN, CUBES = CubeLight.CUBES;
+    static final int MIN = (TallWorld.MIN_Y >> 4), CUBES = (TallWorld.HEIGHT >> 4);
     static RegistryKey<DimensionType> key;
 
     @TempDir(cleanup = org.junit.jupiter.api.io.CleanupMode.NEVER)

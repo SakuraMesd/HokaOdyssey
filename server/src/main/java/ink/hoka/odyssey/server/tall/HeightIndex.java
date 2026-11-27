@@ -27,7 +27,13 @@ public final class HeightIndex {
     public enum Kind { SKY, MOTION, SURFACE }
 
     /** Нет блока в колонке. */
-    public static final int NONE = TallWorld.MIN_Y - 1;
+    /**
+     * «Пусто»: ниже любой карты (своя высота у карты, до −32752) и влезает в short. Раньше было −15009 (низ старых
+     * карт − 1) — так оно лежит в заголовках .hcl старых карт: при загрузке переводится ({@link #LEGACY_NONE}).
+     */
+    public static final int NONE = Short.MIN_VALUE;
+    /** «Пусто» старого формата и генераторов (WorldGenerator.NONE / PlanetGenerator.NONE). */
+    public static final int LEGACY_NONE = -15009;
 
     private final short[] sky = new short[256], motion = new short[256], surface = new short[256];
     /** Счётчик правок высот MOTION (update/fix): сменился — разослать op 17 (CubeStreamer.heightsChanged). */

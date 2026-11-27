@@ -48,7 +48,7 @@ public final class HoCubesCommand extends Command {
         var dz = ArgumentType.Integer("z");
         addSyntax((s, c) -> { if (s instanceof Player p) dump(s, p.getInstance(), c.get(dx), c.get(dy), c.get(dz)); },
                 ArgumentType.Literal("dump"), dx, dy, dz);
-        var y = ArgumentType.Integer("y").between(TallWorld.MIN_Y, TallWorld.MIN_Y + TallWorld.HEIGHT - 3);
+        var y = ArgumentType.Integer("y").between(TallWorld.Y_MIN, TallWorld.Y_MAX - 2);
         addSyntax((s, c) -> go(s, maps, 41), ArgumentType.Literal("go"));
         addSyntax((s, c) -> go(s, maps, c.get(y) + 1), ArgumentType.Literal("go"), y);
         var map = ArgumentType.Word("карта").setSuggestionCallback((sender, ctx, sug) -> {
@@ -391,9 +391,9 @@ public final class HoCubesCommand extends Command {
         if (ch instanceof TallColumn tc) {                               // HeightIndex (шаг 4): Y верхнего блока, «—» — нет
             s.sendMessage(Component.text("колонка " + x + " " + z + ": skyTop " + h(tc.height(HeightIndex.Kind.SKY, x, z))
                     + ", motion " + h(tc.height(HeightIndex.Kind.MOTION, x, z)) + ", surface " + h(tc.height(HeightIndex.Kind.SURFACE, x, z))
-                    + "; генератор: " + h(ink.hoka.odyssey.server.tall.gen.CubeGens.of(inst).highest(x, z, TallWorld.MIN_Y, TallWorld.MIN_Y + TallWorld.HEIGHT - 1, HeightIndex.Kind.SURFACE)),
+                    + "; генератор: " + h(ink.hoka.odyssey.server.tall.gen.CubeGens.of(inst).highest(x, z, TallWorld.dims(inst).minY(), TallWorld.dims(inst).maxY(), HeightIndex.Kind.SURFACE)),
                     NamedTextColor.AQUA));
-            int i = (y >> 4) - (TallWorld.MIN_Y >> 4);
+            int i = (y >> 4) - TallWorld.dims(inst).minSection();
             if (i < 0 || i >= tc.getSections().size()) return;
             StringBuilder b = new StringBuilder("куб ").append(x >> 4).append(' ').append(y >> 4).append(' ').append(z >> 4).append(": ");
             if (tc instanceof CubeColumn cc) {

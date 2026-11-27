@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class CubeSkyFloorTest {
 
-    static final int MIN = CubeLight.MIN;
+    static final int MIN = (TallWorld.MIN_Y >> 4);
 
     @BeforeAll
     static void init() { MinecraftServer.init(); }

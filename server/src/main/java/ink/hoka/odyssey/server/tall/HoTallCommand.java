@@ -18,7 +18,7 @@ public final class HoTallCommand extends Command {
     public HoTallCommand(Maps maps, Ops ops) {
         super("hotall");
         setCondition(ops.admin());
-        var yArg = ArgumentType.Integer("y").between(TallWorld.MIN_Y, TallWorld.MIN_Y + TallWorld.HEIGHT - 3);
+        var yArg = ArgumentType.Integer("y").between(TallWorld.Y_MIN, TallWorld.Y_MAX - 2);
         setDefaultExecutor((s, c) -> go(s, maps, 41));
         addSyntax((s, c) -> go(s, maps, c.get(yArg) + 1), yArg);
         var xArg = ArgumentType.Integer("x");

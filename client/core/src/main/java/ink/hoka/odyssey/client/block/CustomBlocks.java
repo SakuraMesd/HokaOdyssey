@@ -82,6 +82,7 @@ public final class CustomBlocks {
         LAYERS = Map.of();
         SOUNDS = Map.of();
         PLACE = Map.of();
+        Remap.clear();
         CustomItems.set(Map.of(), Map.of());
         LISTENING.clear();
         dirty = false;
@@ -173,6 +174,8 @@ public final class CustomBlocks {
         Map<BlockState, ChunkSectionLayer> layers = new IdentityHashMap<>();
         Map<BlockState, net.minecraft.world.level.block.SoundType> sounds = new IdentityHashMap<>();
         Map<String, Map<Integer, BlockState>> place = new java.util.HashMap<>();
+        Map<Integer, BlockState> remap = new java.util.HashMap<>();             // 0.73: номер носителя → блок мода
+        int[] counters = new int[3];
         int ok = 0, bad = 0;
         for (JsonElement el : root.getAsJsonArray("blocks")) {
             JsonObject d = el.getAsJsonObject();
@@ -191,16 +194,29 @@ public final class CustomBlocks {
                     if (s != null) particle = s.sprite();
                 }
                 boolean ao = !d.has("ao") || d.get("ao").getAsBoolean();
-                models.put(st, new Model(new Part(b.quads, particle, ao)));
+                Model model = new Model(new Part(b.quads, particle, ao));
+                models.put(st, model);                                           // носитель (чанки, пришедшие до списка)
+                BlockState pool = PoolBlocks.forCarrier(st, counters);           // 0.73: настоящий блок мода
+                if (pool != null) {
+                    models.put(pool, model);
+                    remap.put(Block.BLOCK_STATE_REGISTRY.getId(st), pool);
+                    ((PoolBlocks.PoolBlock) pool.getBlock()).title = d.has("name") ? d.get("name").getAsString() : id;
+                }
                 int rot = d.get("rot").getAsInt();
-                place.computeIfAbsent(id, k -> new java.util.HashMap<>()).put(rot, st);
-                if (d.has("sounds")) sounds.put(st, BlockSounds.of(d.getAsJsonObject("sounds"), st.getBlock().defaultBlockState()));
+                place.computeIfAbsent(id, k -> new java.util.HashMap<>()).put(rot, pool != null ? pool : st);
+                if (d.has("sounds")) {
+                    var snd = BlockSounds.of(d.getAsJsonObject("sounds"), st.getBlock().defaultBlockState());
+                    sounds.put(st, snd);
+                    if (pool != null) sounds.put(pool, snd);
+                }
                 if (rot == 0 || !blockItems.containsKey(id)) blockItems.put(id, CustomItems.blockItem(id, b.quads, particle));
-                layers.put(st, switch (d.has("layer") ? d.get("layer").getAsString() : "cutout") {
+                ChunkSectionLayer layer = switch (d.has("layer") ? d.get("layer").getAsString() : "cutout") {
                     case "solid" -> ChunkSectionLayer.SOLID;
                     case "translucent" -> ChunkSectionLayer.TRANSLUCENT;
                     default -> ChunkSectionLayer.CUTOUT;
-                });
+                };
+                layers.put(st, layer);
+                if (pool != null) layers.put(pool, layer);
                 ok++;
             } catch (Exception e) {
                 LOG.warn("{}: не собран: {}", id, e.toString());
@@ -221,7 +237,8 @@ public final class CustomBlocks {
         PLACE = Map.copyOf(place);
         MODELS = Collections.unmodifiableMap(models);
         LAYERS = Collections.unmodifiableMap(layers);
-        LOG.info("свои блоки: {} собрано{}", ok, bad > 0 ? ", с ошибками " + bad : "");
+        Remap.set(remap);
+        LOG.info("свои блоки: {} собрано{}, блоков мода {}", ok, bad > 0 ? ", с ошибками " + bad : "", remap.size());
         remesh();
     }
 

@@ -257,6 +257,7 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
             for (var e : blockOf.getOrDefault(def.id, Map.of()).entrySet()) {
                 JsonObject o = new JsonObject();
                 o.addProperty("id", def.id);
+                o.addProperty("name", def.name);                                   // 0.73: название блока мода
                 Block b = e.getValue();
                 JsonObject state = new JsonObject();
                 state.addProperty("block", b.key().asString());

@@ -95,6 +95,7 @@ class ValeGenTest {
                 if (i % 3 == 1) { lo = 280 + r.nextInt(60); hi = lo + r.nextInt(40); }  // окна по Y
                 int a = g.w.highest(x, z, lo, hi, ink.hoka.odyssey.api.worldgen.HeightKind.values()[k.ordinal()]);
                 assertNotEquals(PlanetGenerator.UNKNOWN, a);
+                if (a == HeightIndex.LEGACY_NONE) a = HeightIndex.NONE;               // «пусто» генератора → ядра
                 int b = GenTest.scanDirect(g, x, z, lo, hi, k);
                 n++;
                 if (a != b) { bad++; if (first.size() < 8) first.add(k + " " + x + " " + z + " [" + lo + "," + hi + "]: " + a + " ≠ " + b); }
@@ -263,6 +264,7 @@ class ValeGenTest {
                 int lo = w == 0 ? b.minY() : Math.max(b.minY(), surf - 40 + r.nextInt(60)), hi = w == 0 ? b.maxY() : Math.min(b.maxY(), lo + r.nextInt(200));
                 for (HeightKind kind : HeightKind.values()) {
                     int a = g.highest(x, z, lo, hi, kind);
+                    if (a == HeightIndex.LEGACY_NONE) a = HeightIndex.NONE;
                     int want = HeightIndex.NONE;
                     scan:
                     for (int y = hi; y >= lo; y--) {

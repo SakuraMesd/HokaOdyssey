@@ -33,7 +33,35 @@ public final class TallWorld {
     private TallWorld() {}
 
     private static final Logger LOG = LoggerFactory.getLogger("tall");
-    public static final int MIN_Y = -15008, HEIGHT = 30016;            // кратно 16: −15008…15007
+    public static final int MIN_Y = -15008, HEIGHT = 30016;            // по умолчанию (кратно 16): −15008…15007
+
+    /**
+     * Высота карты: minY (кратно 16) и height (кратно 16). У каждой высокой карты своя (map.yml {@code min_y}, {@code height};
+     * по умолчанию −15008 / 30016 — как у всех старых карт: их файлы хранят номера кубов от низа мира). Предел упаковки
+     * координат (Y 16 бит): −32752…32751, не больше 4094 кубов в столбце.
+     */
+    public record Dims(int minY, int height) {
+        public int minSection() { return minY >> 4; }
+        public int cubes() { return height >> 4; }
+        public int maxY() { return minY + height - 1; }
+    }
+
+    /** Предел упаковки координат (Y 16 бит). */
+    public static final int Y_MIN = -32752, Y_MAX = 32751;
+
+    /** Высота по умолчанию (старые карты). */
+    public static final Dims LEGACY = new Dims(MIN_Y, HEIGHT);
+    private static final java.util.Map<String, Dims> DIMS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Высота карты (не высокая / не знаем — по умолчанию). */
+    public static Dims dims(String map) { return map == null ? LEGACY : DIMS.getOrDefault(map, LEGACY); }
+
+    /** Высота мира по его типу измерения. */
+    public static Dims dims(net.minestom.server.instance.Instance inst) {
+        if (inst == null) return LEGACY;
+        DimensionType t = inst.getCachedDimensionType();
+        return t.minY() == MIN_Y && t.height() == HEIGHT ? LEGACY : new Dims(t.minY(), t.height());
+    }
     /** Высокий мир включён (формат позиций в сети — наш). */
     public static volatile boolean enabled;
     /** Тип измерения каждой высокой карты (своё солнце/свет): карта → ключ hoka:tall_<карта>. */
@@ -59,11 +87,18 @@ public final class TallWorld {
                 String name = d.getFileName().toString();
                 boolean sun = meta.getBoolean("sun", true);
                 float ambient = (float) Math.max(0, Math.min(1, meta.getDouble("ambient", 0)));
+                int minY = meta.getInt("min_y", MIN_Y), height = meta.getInt("height", HEIGHT);
+                if ((minY & 15) != 0 || (height & 15) != 0 || height <= 0 || minY < -32752 || minY + height > 32752) {
+                    LOG.error("карта «{}»: min_y {} / height {} — нужно кратно 16 и в пределах −32752…32751; беру по умолчанию", name, minY, height);
+                    minY = MIN_Y; height = HEIGHT;
+                }
+                Dims dims = new Dims(minY, height);
+                DIMS.put(name, dims);
                 var key = MinecraftServer.getDimensionTypeRegistry().register(Key.key("hoka:tall_" + name.replaceAll("[^a-z0-9_]", "_")),
-                        tall(sun && overworld != null ? overworld : base, MIN_Y, HEIGHT, sun, ambient));
+                        tall(sun && overworld != null ? overworld : base, minY, height, sun, ambient));
                 KEYS.put(name, key);
                 if (meta.getBoolean("cubes", false)) CUBE_MAPS.add(name);
-                LOG.info("высокая карта «{}»: {}…{}, солнце {}, свет не ниже {}%", name, MIN_Y, MIN_Y + HEIGHT - 1,
+                LOG.info("высокая карта «{}»: {}…{}, солнце {}, свет не ниже {}%", name, minY, dims.maxY(),
                         sun ? "есть" : "нет", Math.round(ambient * 100));
             }
             if (!KEYS.isEmpty()) {

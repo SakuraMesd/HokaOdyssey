@@ -38,8 +38,8 @@ import java.util.Objects;
 public final class CubeRegionLoader implements ChunkLoader {
 
     private static final Logger LOG = LoggerFactory.getLogger("tall");
-    static final int MIN_SECTION = TallWorld.MIN_Y >> 4;
-    static final int CUBES = TallWorld.HEIGHT >> 4;
+    /** Высота карты в кубах (map.yml min_y/height; по умолчанию — как у старых карт: номера кубов на диске — от низа). */
+    final int MIN_SECTION, CUBES;
 
     private final Path cols, cubes;
     /** Папка карты (кэш клиентов: CacheKeys берёт оттуда cubecache.id). */
@@ -99,6 +99,9 @@ public final class CubeRegionLoader implements ChunkLoader {
     public CubeRegionLoader(Path mapDir, Path htwDir, TallLoader.Factory factory) {
         this.factory = factory;
         this.mapDir = mapDir;
+        TallWorld.Dims dims = TallWorld.dims(mapDir.getFileName() == null ? null : mapDir.getFileName().toString());
+        this.MIN_SECTION = dims.minSection();
+        this.CUBES = dims.cubes();
         this.cols = mapDir.resolve("cols");
         this.cubes = mapDir.resolve("cubes");
         this.htw = htwDir != null && Files.isDirectory(htwDir) ? new TallLoader(htwDir, factory) : null;
@@ -162,6 +165,8 @@ public final class CubeRegionLoader implements ChunkLoader {
         c.st().loadSkyCols(CubeMark.decodeCols(h.tags.get(CubeMark.COLS_TAG), CUBES));   // маски колонок неба кубов на диске
         if (c instanceof CubeColumn cc && lazyFor(x)) {                  // шаг 10: кубы — по запросу, высоты — из заголовка
             // генератор сменился (id/версия) — высоты заголовка от старого рельефа: по новому генератору + с запасом над кубами с диска
+            if (genOf(h).equals(gen.tag()) && MIN_SECTION << 4 >= HeightIndex.LEGACY_NONE)   // старая «пустота» −15009 → NONE
+                for (short[] a : h.heights) for (int q = 0; q < a.length; q++) if (a[q] == HeightIndex.LEGACY_NONE) a[q] = (short) HeightIndex.NONE;
             cc.initLazy(this, disk, genOf(h).equals(gen.tag()) ? h.heights : null);
             c.st().diskCubes = disk;
             return cc;
@@ -226,10 +231,10 @@ public final class CubeRegionLoader implements ChunkLoader {
         try { d = cube(x, i, z); }
         catch (RegionFile.Corrupt e) {
             LOG.error("куб {} {} {} битый ({}) — в памяти как генератор, запись в регионе не трогаю", x, i + MIN_SECTION, z, e.toString());
-            return generate(gen, x, i, z);
+            return generate(gen, x, i, z, MIN_SECTION);
         }
         if (d == null) {
-            Loaded g = generate(gen, x, i, z);
+            Loaded g = generate(gen, x, i, z, MIN_SECTION);
             return new Loaded(g.section(), g.data(), true);
         }
         if (d.unknown() > 0) LOG.warn("куб {} {} {}: незнакомых имён {} (стали воздухом/биомом 0)", x, i + MIN_SECTION, z, d.unknown());
@@ -249,8 +254,8 @@ public final class CubeRegionLoader implements ChunkLoader {
      * Куб i столбца генератором g. Недетерминированный генератор: непустой куб — сразу «изменён» (missing → dirty),
      * иначе при выгрузке он пропал бы, а потом сгенерировался другим.
      */
-    static Loaded generate(CubeGen g, int x, int i, int z) {
-        int cy = i + MIN_SECTION;
+    static Loaded generate(CubeGen g, int x, int i, int z, int minSection) {
+        int cy = i + minSection;
         var data = new it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap<Block>();
         if (!g.hasBlocks(x, cy, z)) return new Loaded(null, data, false);
         CubeGen.Cube cube = CubeGen.generate(g, x, cy, z);
@@ -276,7 +281,7 @@ public final class CubeRegionLoader implements ChunkLoader {
     private record Snap(int i, Palette blocks, Palette biomes, Map<Integer, Block> data) {}
 
     /** Отметка высот куба i (шаг 13): skyTop из снимка высот столбца, «нет вклада» — по снимку палитры. */
-    private static int mark(Snap s, short[] sky) {
+    private int mark(Snap s, short[] sky) {
         int y0 = (s.i + MIN_SECTION) << 4;
         return CubeMark.of(y0, c -> sky[c], s.blocks);
     }
