@@ -71,8 +71,7 @@
     (в том числе битый файл не затирается).
 - Сборка без ошибок:
   - `./gradlew :modules:vessels:build test`
-  - из `client/`: `./gradlew :core:build :modules:vessels:build` (если gradle wrapper в `client/` нет — посмотри, как
-    собирается `client/modules/ships`).
+  - из `client/`: `gradle :core:build :modules:vessels:build` (в `client/` нет wrapper — системный Gradle 9.8, Java 25 уже настроены; Sodium лежит в `client/libs`, он не в git).
 - Minecraft здесь запускать нельзя. В игре проверяет человек — в конце напиши короткую инструкцию «как проверить»:
   какие файлы куда положить на сервере, какие команды ввести, что должно получиться.
 
