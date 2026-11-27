@@ -85,7 +85,9 @@
     "HitPredictDamageMixin",
     "SlotAccessor",
     "HokaInventoryOpenMixin",
-    "HokaInventoryLookMixin"
+    "HokaInventoryLookMixin",
+    "ContainerSkinMixin",
+    "AbstractContainerScreenAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -16,7 +16,7 @@ public final class Hooks {
 
     private Hooks() {}
 
-    record Owned<T>(String owner, T hook) {}
+    public record Owned<T>(String owner, T hook) {}
 
     static final List<Owned<Runnable>> TICK = new ArrayList<>();
     static final List<Owned<ClientContext.HudLayer>> HUD = new ArrayList<>();
@@ -42,6 +42,8 @@ public final class Hooks {
     /** В этом кадре рамку нарисовал модуль (второй вызов игры — для прозрачной рамки — тоже пропустить). */
     public static boolean outlineDrawn;
     static final List<Owned<ClientContext.CollisionHook>> COLLISION = new java.util.concurrent.CopyOnWriteArrayList<>();
+    /** 0.80 Оформление окон-контейнеров сервера. */
+    static final List<Owned<ClientContext.ContainerHook>> CONTAINER = new ArrayList<>();
 
     /** Модули, которые просят не рисовать руку от первого лица (кабина корабля и т.п.). */
     static final java.util.Set<String> HIDE_HAND = new java.util.HashSet<>();
@@ -86,6 +88,7 @@ public final class Hooks {
         CLICK.removeIf(o -> o.owner().equals(owner));
         OUTLINE.removeIf(o -> o.owner().equals(owner));
         COLLISION.removeIf(o -> o.owner().equals(owner));
+        if (CONTAINER.removeIf(o -> o.owner().equals(owner))) ink.hoka.odyssey.client.inv.SkinnedScreen.closeOf(owner);
         HIDE_HAND.remove(owner);
         HIDE_HUD.remove(owner);
     }
@@ -113,6 +116,8 @@ public final class Hooks {
         OUTLINE.clear();
         rotation = null;
         COLLISION.clear();
+        if (!CONTAINER.isEmpty()) ink.hoka.odyssey.client.inv.SkinnedScreen.closeOf(null);
+        CONTAINER.clear();
         HIDE_HAND.clear();
         HIDE_HUD.clear();
         roll = 0;
@@ -186,6 +191,23 @@ public final class Hooks {
             if (r[0]) return true;
         }
         return false;
+    }
+
+    /** 0.80 Оформление окна-контейнера: {владелец, оформление} первого модуля, который узнал окно, или null. */
+    public static Owned<ClientContext.ContainerSkin> containerSkin(net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> screen, int id) {
+        for (var o : List.copyOf(CONTAINER)) {
+            Object[] r = {null};
+            safe(o.owner(), () -> r[0] = o.hook().skin(screen, id));
+            if (r[0] instanceof ClientContext.ContainerSkin s) return new Owned<>(o.owner(), s);
+        }
+        return null;
+    }
+
+    /** 0.80 Вызвать оформление окна; модуль упал — выгружается (окно закроет removeOwner). false — упал. */
+    public static boolean skinSafe(String owner, Runnable r) {
+        boolean[] ok = {false};
+        safe(owner, () -> { r.run(); ok[0] = true; });
+        return ok[0];
     }
 
     /** Колёсико мыши — модулям; true — забрал. */

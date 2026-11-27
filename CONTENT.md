@@ -257,6 +257,9 @@ public final class MyModule implements ClientModule {
         ctx.hideHand(true);                                // не рисовать руку от первого лица
         ctx.onEntityTilt((e, pt) -> null);                 // повернуть модель сущности вокруг ног (игрок на палубе корабля)
         ctx.onClick((attack, held) -> false);              // ПКМ/ЛКМ: true — клик забран модулем, игра его не обрабатывает
+        ctx.hideHud(true);                                 // 0.79: спрятать HUD игрока (свой HUD — кабина корабля)
+        ctx.onContainer((screen, windowId) -> null);       // 0.80: своё оформление окна-контейнера сервера (размер, места
+                                                           //       слотов, фон, подписи); слоты — те же, логика сервера не меняется
         ctx.send("привет".getBytes());                     // на сервер
     }
 }

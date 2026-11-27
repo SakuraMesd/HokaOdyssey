@@ -183,7 +183,47 @@ public interface ClientContext {
      */
     default void onEntityEye(EntityEyeHook hook) {}
 
+    /**
+     * 0.80 Своё оформление окна-контейнера сервера (сундук и т.п.): модуль узнаёт окно (по номеру окна — сервер
+     * сообщает его своим пакетом заранее) и отдаёт {@link ContainerSkin}: размер окна, места слотов, фон, подписи.
+     * Слоты остаются слотами игры (клики, Shift, перетаскивание, обмен с сервером — как всегда), меняется только вид и
+     * где стоят слоты. null — окно как у игры. Снимается при выгрузке модуля (открытое окно модуля закрывается).
+     */
+    default void onContainer(ContainerHook hook) {}
+
     interface HudLayer { void render(GuiGraphics g, DeltaTracker delta); }
+
+    interface ContainerHook {
+        /** Окно игры (ещё до раскладки) и номер окна от сервера → оформление модуля или null. */
+        ContainerSkin skin(net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> screen, int containerId);
+    }
+
+    /** 0.80 Оформление окна-контейнера (см. {@link #onContainer}). Всё — в пикселях GUI. */
+    interface ContainerSkin {
+        /** Размер окна {ширина, высота} при экране screenW × screenH. Зовётся при каждой раскладке (и при смене размера). */
+        int[] size(int screenW, int screenH);
+
+        /**
+         * Левый верх предмета слота (номер в menu.slots) в окне, сразу после {@link #size}; null — где у игры. Слот,
+         * которого не должно быть видно и под мышью, — далеко за окном (например, {−10000, −10000}).
+         */
+        int[] slot(int index);
+
+        /** Фон окна вместо текстуры игры; left/top — левый верх окна на экране. */
+        void background(GuiGraphics g, int left, int top, int mouseX, int mouseY, float partialTick);
+
+        /**
+         * Вместо надписей игры («Сундук», «Инвентарь»): поверх фона, под предметами; начало координат — левый верх
+         * окна, мышь — в координатах экрана. hovered — номер слота под мышью (−1 — нет).
+         */
+        default void labels(GuiGraphics g, int mouseX, int mouseY, int hovered) {}
+
+        /** Рамка слота под мышью — как у игры (false — модуль рисует свою в {@link #labels}). */
+        default boolean vanillaHighlight() { return true; }
+
+        /** Окно закрыто. */
+        default void removed() {}
+    }
 
     interface MouseHook { boolean onMouse(double yawDeg, double pitchDeg); }
 

@@ -347,6 +347,7 @@ final class ModuleManager {
         @Override public void hideHand(boolean hide) { if (hide) Hooks.HIDE_HAND.add(id); else Hooks.HIDE_HAND.remove(id); }
         @Override public void hideHud(boolean hide) { if (hide) Hooks.HIDE_HUD.add(id); else Hooks.HIDE_HUD.remove(id); }
         @Override public void onCollision(CollisionHook hook) { Hooks.COLLISION.add(new Hooks.Owned<>(id, hook)); }
+        @Override public void onContainer(ContainerHook hook) { Hooks.CONTAINER.add(new Hooks.Owned<>(id, hook)); }
         @Override public java.util.Optional<byte[]> file(String path) { return FileStore.get(path); }
         @Override public void onFile(String path, Consumer<byte[]> listener) { FileStore.listen(id, path, listener); }
         @Override public net.minecraft.resources.Identifier texture(String path) { return FileStore.texture(path); }
