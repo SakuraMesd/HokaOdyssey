@@ -73,6 +73,23 @@ class SpaceGenTest {
         assertTrue(s.hasBlocks(2600 >> 4, 0, 2600 >> 4));
         // зона исключения пуста
         for (int cx = -40; cx < 40; cx += 3) for (int cz = -40; cz < 40; cz += 3) assertTrue(!s.hasBlocks(cx, 0, cz));
+        // highest = верх по generate (несколько столбцов с телами)
+        long h0 = System.nanoTime(); int checked = 0;
+        for (int[] q : sample.subList(0, Math.min(40, sample.size()))) {
+            GenArrayCube a = new GenArrayCube(false).reset(q[0], q[1], q[2], 42);
+            c.generate(a);
+            for (int lx = 0; lx < 16; lx += 5) for (int lz = 0; lz < 16; lz += 5) {
+                int x = (q[0] << 4) + lx, z = (q[2] << 4) + lz;
+                int h = c.highest(x, z, (q[1] << 4), (q[1] << 4) + 15, null);
+                int want = ink.hoka.odyssey.gen.PlanetGenerator.NONE;
+                for (int ly = 15; ly >= 0; ly--) if (a.get(lx, ly, lz) != 0) { want = (q[1] << 4) + ly; break; }
+                org.junit.jupiter.api.Assertions.assertEquals(want, h, "highest " + x + "," + z);
+                checked++;
+            }
+        }
+        long hc = System.nanoTime();
+        for (int i = 0; i < 256; i++) c.highest(3200 + i % 16, 3200 + i / 16, -12000, 12000, null);
+        System.out.printf("highest сверен в %d точках; столбец целиком (256 ячеек, −12000…12000): %.1f мс%n", checked, (System.nanoTime() - hc) / 1e6);
         System.out.println("пример лута: " + Loot.chest(new ink.hoka.odyssey.gen.GenRandom(5)));
     }
 }

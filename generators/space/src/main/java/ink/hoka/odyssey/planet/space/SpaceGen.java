@@ -213,7 +213,53 @@ final class SpaceGen implements PlanetGenerator {
 
     @Override public boolean mayHaveSecrets(int cx, int cy, int cz) { return hasBlocks(cx, cy, cz); }
 
-    @Override public int highest(int x, int z, int yFrom, int yTo, ink.hoka.odyssey.gen.HeightKind k) { return UNKNOWN; }
+    /**
+     * Верхний блок столбца в [yFrom, yTo] — без генерации кубов (свет сервера спрашивает его для каждого столбца; иначе
+     * ядро перебирало бы все ~1500 кубов по высоте): тела, чья рамка накрывает (x, z), сверху вниз — та же проверка, что
+     * в {@link #generate}.
+     */
+    @Override
+    public int highest(int x, int z, int yFrom, int yTo, ink.hoka.odyssey.gen.HeightKind k) {
+        int best = NONE;
+        for (int j = Math.floorDiv(yTo, A); j >= Math.floorDiv(yFrom, A); j--) {
+            if ((j + 1) * A - 1 < best) break;
+            Body a = asteroid(Math.floorDiv(x, A), j, Math.floorDiv(z, A));
+            if (a != null && covers(a, x, z)) best = Math.max(best, top(a, x, z, yFrom, yTo));
+        }
+        for (int j = Math.floorDiv(yTo, B); j >= Math.floorDiv(yFrom, B); j--) {
+            if ((j + 1) * B - 1 < best) break;
+            Body m = meteorite(Math.floorDiv(x, B), j, Math.floorDiv(z, B));
+            if (m != null && covers(m, x, z)) best = Math.max(best, top(m, x, z, yFrom, yTo));
+        }
+        if (spawn != null && covers(spawn, x, z)) best = Math.max(best, top(spawn, x, z, yFrom, yTo));
+        return best;
+    }
+
+    private static boolean covers(Body b, int x, int z) {
+        return x + 1 > b.x - b.ext && x < b.x + b.ext && z + 1 > b.z - b.ext && z < b.z + b.ext;
+    }
+
+    private int top(Body b, int x, int z, int yFrom, int yTo) {
+        int hi = Math.min(yTo, (int) StrictMath.floor(b.y + b.ext)), lo = Math.max(yFrom, (int) StrictMath.floor(b.y - b.ext));
+        for (int y = hi; y >= lo; y--) if (solid(b, x, y, z)) return y;
+        return NONE;
+    }
+
+    /** Видимый блок тела в точке (форма, кратеры) — как в fill. */
+    private boolean solid(Body b, int x, int y, int z) {
+        double px = x + 0.5, py = y + 0.5, pz = z + 0.5;
+        double dx = (px - b.x) / b.ax, dy = (py - b.y) / b.ay, dz = (pz - b.z) / b.az;
+        double dist = Math.sqrt(dx * dx + dy * dy + dz * dz) / b.r;
+        if (dist > 1.45) return false;
+        return dist < surface(b, px, py, pz) && !inCrater(b, px, py, pz);
+    }
+
+    private double surface(Body b, double px, double py, double pz) {
+        double f = 1.0 / (b.r * 0.55 + 3), f2 = f * 2.7;
+        if (b.kind == METEOR) return 1 + 0.22 * shapeN.noise(px * 0.45 + b.ox, py * 0.45 + b.oy, pz * 0.45 + b.oz);
+        return 1 + 0.3 * shapeN.noise(px * f + b.ox, py * f + b.oy, pz * f + b.oz)
+                + (b.kind == ICE ? 0.04 : 0.12) * shapeN2.noise(px * f2 + b.oz, py * f2 + b.ox, pz * f2 + b.oy);
+    }
 
     // ───────────────────────── генерация ─────────────────────────
 
@@ -227,17 +273,13 @@ final class SpaceGen implements PlanetGenerator {
         int xa = Math.max(x0, (int) StrictMath.floor(b.x - b.ext)), xb = Math.min(x0 + 15, (int) StrictMath.floor(b.x + b.ext));
         int ya = Math.max(y0, (int) StrictMath.floor(b.y - b.ext)), yb = Math.min(y0 + 15, (int) StrictMath.floor(b.y + b.ext));
         int za = Math.max(z0, (int) StrictMath.floor(b.z - b.ext)), zb = Math.min(z0 + 15, (int) StrictMath.floor(b.z + b.ext));
-        double f = 1.0 / (b.r * 0.55 + 3), f2 = f * 2.7;
         boolean sec = out.secrets() && secretsOn;
         for (int y = ya; y <= yb; y++) for (int z = za; z <= zb; z++) for (int x = xa; x <= xb; x++) {
             double px = x + 0.5, py = y + 0.5, pz = z + 0.5;
             double dx = (px - b.x) / b.ax, dy = (py - b.y) / b.ay, dz = (pz - b.z) / b.az;
             double dist = Math.sqrt(dx * dx + dy * dy + dz * dz) / b.r;
             if (dist > 1.45) continue;
-            double surf;
-            if (b.kind == METEOR) surf = 1 + 0.22 * shapeN.noise(px * 0.45 + b.ox, py * 0.45 + b.oy, pz * 0.45 + b.oz);
-            else surf = 1 + 0.3 * shapeN.noise(px * f + b.ox, py * f + b.oy, pz * f + b.oz)
-                    + (b.kind == ICE ? 0.04 : 0.12) * shapeN2.noise(px * f2 + b.oz, py * f2 + b.ox, pz * f2 + b.oy);
+            double surf = surface(b, px, py, pz);
             if (dist >= surf) continue;
             if (inCrater(b, px, py, pz)) continue;
             double depth = (surf - dist) * b.r;                                 // примерно блоков до поверхности
