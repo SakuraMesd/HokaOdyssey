@@ -1,6 +1,6 @@
 {
   "id": "vessels",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "ink.hoka.odyssey.client.vessels.VesselsClientModule",
   "authors": ["Takuyamo"],
   "description": "Корабли-модели (.bbmodel): отрисовка, посадка ПКМ, полёт пилота (ядро мода 0.78+)"

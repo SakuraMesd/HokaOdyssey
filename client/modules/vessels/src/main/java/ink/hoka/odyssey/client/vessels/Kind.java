@@ -49,6 +49,18 @@ final class Kind {
     /** Система модели (пиксели) → система корабля: поворот turn (без масштаба — его даёт ModelHandle). */
     Quaternionf modelTurn() { return new Quaternionf().rotationY((float) Math.toRadians(turn)); }
 
+    /**
+     * Поза корабля (середина модели в мире, поворот «система корабля → мир») → поза модели для ModelHandle: начало
+     * Blockbench (0,0,0) и поворот модели (с turn). Та же формула, что у {@link #shape}, — отрисовка, луч и корпус
+     * считают нос одинаково.
+     */
+    void modelPose(org.joml.Vector3d pos, Quaternionf rot) {
+        rot.mul(modelTurn());
+        float s = scale / 16f;
+        Vector3f c = rot.transform(new Vector3f(-center[0] * s, -center[1] * s, -center[2] * s));
+        pos.add(c.x, c.y, c.z);
+    }
+
     /** Радиус корабля (до угла коробки), блоки. */
     double radius() { return Math.sqrt(half[0] * half[0] + half[1] * half[1] + half[2] * half[2]); }
 

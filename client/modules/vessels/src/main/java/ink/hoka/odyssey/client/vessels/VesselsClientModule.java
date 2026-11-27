@@ -70,11 +70,7 @@ public final class VesselsClientModule implements ClientModule {
             Kind k = kind;
             handle = ctx.model(k.model).scale(k.scale).pose((pt, pos, rot) -> {
                 if (!pose(pt, pos, rot)) return false;
-                // начало модели (0,0,0 Blockbench) = середина − повёрнутый центр модели в блоках
-                Quaternionf full = rot.mul(k.modelTurn());
-                float s = k.scale / 16f;
-                Vector3f c = full.transform(new Vector3f(-k.center[0] * s, -k.center[1] * s, -k.center[2] * s));
-                pos.add(c.x, c.y, c.z);
+                k.modelPose(pos, rot);                                          // середина корабля → начало модели
                 return true;
             });
         }
