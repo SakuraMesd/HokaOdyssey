@@ -30,11 +30,12 @@ public abstract class ContainerSkinMixin implements SkinnedScreen {
     @Shadow protected int imageWidth;
     @Shadow protected int imageHeight;
     @Shadow @Final protected AbstractContainerMenu menu;
-    @Shadow protected Slot hoveredSlot;
 
     @Unique private Hooks.Owned<ClientContext.ContainerSkin> hoka$skin;
     @Unique private boolean hoka$asked;
     @Unique private int[][] hoka$orig;
+    /** Размер окна у игры (до оформления) — вернуть, если модуль отказался от оформления посреди жизни окна. */
+    @Unique private int hoka$origW = -1, hoka$origH = -1;
 
     @Override public String hoka$skinOwner() { return hoka$skin != null ? hoka$skin.owner() : null; }
 
@@ -50,10 +51,11 @@ public abstract class ContainerSkinMixin implements SkinnedScreen {
         }
         var s = hoka$skin;
         if (s == null) return;
+        if (hoka$origW < 0) { hoka$origW = imageWidth; hoka$origH = imageHeight; }
         Screen scr = (Screen) self;
         int[][] size = {null};
         if (!Hooks.skinSafe(s.owner(), () -> size[0] = s.hook().size(scr.width, scr.height)) || size[0] == null || size[0].length < 2) {
-            hoka$skin = null;
+            hoka$drop();
             return;
         }
         imageWidth = Math.max(1, size[0][0]);
@@ -72,13 +74,23 @@ public abstract class ContainerSkinMixin implements SkinnedScreen {
         for (int i = 0; i < slots.size(); i++) {
             int idx = i;
             int[][] at = {null};
-            if (!Hooks.skinSafe(s.owner(), () -> at[0] = s.hook().slot(idx))) { hoka$restore(); hoka$skin = null; return; }
+            if (!Hooks.skinSafe(s.owner(), () -> at[0] = s.hook().slot(idx))) { hoka$drop(); return; }
             int[] p = at[0] != null && at[0].length >= 2 ? at[0] : i < hoka$orig.length ? hoka$orig[i] : null;
             if (p == null) continue;
             SlotAccessor a = (SlotAccessor) slots.get(i);
             a.hoka$setX(p[0]);
             a.hoka$setY(p[1]);
         }
+    }
+
+    /** Оформления больше нет: слоты и размер — как у игры (раскладка окна leftPos/topPos пересчитается при следующей). */
+    @Unique
+    private void hoka$drop() {
+        var s = hoka$skin;
+        hoka$skin = null;
+        hoka$restore();
+        if (hoka$origW >= 0) { imageWidth = hoka$origW; imageHeight = hoka$origH; }
+        if (s != null) Hooks.skinSafe(s.owner(), () -> s.hook().removed());
     }
 
     @Unique
@@ -96,6 +108,7 @@ public abstract class ContainerSkinMixin implements SkinnedScreen {
     private void hoka$skinRemoved(CallbackInfo ci) {
         var s = hoka$skin;
         if (s == null) return;
+        hoka$skin = null;                                                       // окно закрыто — больше не звать модуль
         hoka$restore();
         Hooks.skinSafe(s.owner(), () -> s.hook().removed());
     }
@@ -109,12 +122,25 @@ public abstract class ContainerSkinMixin implements SkinnedScreen {
         Hooks.skinSafe(s.owner(), () -> s.hook().background(g, a.hoka$leftPos(), a.hoka$topPos(), mx, my, pt));
     }
 
+    /** Слот под мышью в этом кадре (как getHoveredSlot игры: 16×16 предмета и по пикселю вокруг). */
+    @Unique
+    private int hoka$hovered(int mx, int my) {
+        AbstractContainerScreenAccessor a = (AbstractContainerScreenAccessor) this;
+        int x = mx - a.hoka$leftPos(), y = my - a.hoka$topPos();
+        var slots = menu.slots;
+        for (int i = 0; i < slots.size(); i++) {
+            Slot sl = slots.get(i);
+            if (sl.isActive() && x >= sl.x - 1 && x < sl.x + 17 && y >= sl.y - 1 && y < sl.y + 17) return i;
+        }
+        return -1;
+    }
+
     @Inject(method = "renderLabels", at = @At("HEAD"), cancellable = true)
     private void hoka$skinLabels(GuiGraphics g, int mx, int my, CallbackInfo ci) {
         var s = hoka$skin;
         if (s == null) return;
         ci.cancel();
-        int hovered = hoveredSlot != null && hoveredSlot.isActive() ? menu.slots.indexOf(hoveredSlot) : -1;
+        int hovered = hoka$hovered(mx, my);                                     // hoveredSlot игры здесь ещё с прошлого кадра
         Hooks.skinSafe(s.owner(), () -> s.hook().labels(g, mx, my, hovered));
     }
 }

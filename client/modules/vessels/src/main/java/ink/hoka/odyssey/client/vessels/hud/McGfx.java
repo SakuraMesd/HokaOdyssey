@@ -27,6 +27,8 @@ public final class McGfx implements Gfx {
         Identifier id;
         DynamicTexture tex;
         int w, h, version = -1;
+        /** Какой холст залит (новый холст того же размера начинает с той же версии — сверять и его). */
+        Canvas from;
     }
 
     /** prefix — своя папка имён текстур (hud, menu). */
@@ -74,9 +76,10 @@ public final class McGfx implements Gfx {
             t.version = -1;
             tm.register(t.id, t.tex);
         }
-        if (t.version != c.version) {
+        if (t.version != c.version || t.from != c) {
             upload(c, t.tex);
             t.version = c.version;
+            t.from = c;
         }
         var pose = g.pose();
         pose.pushMatrix();
