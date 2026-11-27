@@ -110,7 +110,10 @@ public final class Net {
         ClientPlayNetworking.send(new C2S(bytes.toByteArray()));
     }
 
-    interface Writer { void write(DataOutputStream out) throws IOException; }
+    public interface Writer { void write(DataOutputStream out) throws IOException; }
+
+    /** Для пакетов ядра из других пакетов (инвентарь и т.п.). */
+    public static void sendOp(int op, Writer w) { send(op, w); }
 
     /** Для StreamCodec-подсказок типов (не используется). */
     @SuppressWarnings("unused")

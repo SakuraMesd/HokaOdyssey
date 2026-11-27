@@ -87,7 +87,8 @@ public final class HokaOdysseyClient implements ClientModInitializer {
             @Override public void send(byte[] payload) { Net.send(5, out -> out.write(payload)); }
         });
         ink.hoka.odyssey.client.ui.UiHud.register();
-        ink.hoka.odyssey.client.lod.LodRenderer.register();               // 0.64: дальняя прорисовка
+        ink.hoka.odyssey.client.lod.LodRenderer.register();
+        ink.hoka.odyssey.client.inv.HokaInventory.register();               // 0.67: инвентарь выживания               // 0.64: дальняя прорисовка
         net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.END_EXTRACTION.register(ink.hoka.odyssey.client.model.Models::extract);
         net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.AFTER_ENTITIES.register(ink.hoka.odyssey.client.model.Models::render);
         net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.AFTER_ENTITIES.register(Hooks::world);

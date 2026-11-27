@@ -29,7 +29,7 @@ final class PlayerData {
     static Path file(Path dir, UUID id) { return dir.resolve(id + ".dat"); }
 
     /** Записать (поток сервера: снимок берётся сразу, запись на диск — тут же, файл маленький). */
-    static void save(Path dir, Player p, String map, String gameMode, float exhaustion, Logger log) {
+    static void save(Path dir, Player p, String map, String gameMode, float exhaustion, ItemStack[] extra, Logger log) {
         try {
             CompoundBinaryTag.Builder b = CompoundBinaryTag.builder();
             b.putInt("version", 1);
@@ -44,6 +44,13 @@ final class PlayerData {
                 inv.add(CompoundBinaryTag.builder().putInt("slot", i).put("item", t).build());
             }
             b.put("inventory", inv.build());
+            ListBinaryTag.Builder<BinaryTag> ex = ListBinaryTag.builder();
+            for (int i = 0; i < extra.length; i++) {
+                if (extra[i].isAir()) continue;
+                BinaryTag t = ItemStack.CODEC.encode(Transcoder.NBT, extra[i]).orElse(null);
+                if (t != null) ex.add(CompoundBinaryTag.builder().putInt("slot", i).put("item", t).build());
+            }
+            b.put("extra", ex.build());
             b.putFloat("health", p.isDead() ? 20f : p.getHealth());
             b.putInt("food", p.getFood());
             b.putFloat("saturation", p.getFoodSaturation());
@@ -100,6 +107,18 @@ final class PlayerData {
         p.setExp(Math.max(0, Math.min(1, t.getFloat("exp", 0))));
         int fire = t.getInt("fire", 0);
         if (fire > 0) p.setFireTicks(fire);
+    }
+
+    /** Доп. слоты из файла. */
+    static void applyExtras(CompoundBinaryTag t, ItemStack[] out) {
+        java.util.Arrays.fill(out, ItemStack.AIR);
+        for (BinaryTag e : t.getList("extra")) {
+            if (!(e instanceof CompoundBinaryTag c)) continue;
+            int slot = c.getInt("slot", -1);
+            BinaryTag item = c.get("item");
+            if (slot < 0 || slot >= out.length || item == null) continue;
+            out[slot] = ItemStack.CODEC.decode(Transcoder.NBT, item).orElse(ItemStack.AIR);
+        }
     }
 
     static GameMode gameMode(String s) {

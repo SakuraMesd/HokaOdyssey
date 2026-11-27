@@ -76,6 +76,8 @@ public final class SurvivalModule extends OdysseyModule {
     }
 
     private final Map<UUID, St> states = new ConcurrentHashMap<>();
+    /** Доп. слоты (скафандр, джетпак, прочее ×2) — окно рисует мод 0.67+. */
+    final Extras extras = new Extras();
     private Path playersDir;
 
     // настройки
@@ -91,10 +93,12 @@ public final class SurvivalModule extends OdysseyModule {
     protected void onEnable() {
         playersDir = dataFolder().resolve("players");
         readConfig();
+        services().get(ink.hoka.odyssey.clientmods.ClientModsApi.class).ifPresent(extras::attach);
         events().addListener(PlayerSpawnEvent.class, this::onSpawn);
         events().addListener(PlayerDisconnectEvent.class, e -> {
             St s = states.remove(e.getPlayer().getUuid());
             if (s != null && s.loaded) save(e.getPlayer(), s);
+            extras.forget(e.getPlayer());
         });
         events().addListener(EntityDamageEvent.class, this::onDamage);
         events().addListener(EntityAttackEvent.class, this::onAttack);
@@ -116,6 +120,7 @@ public final class SurvivalModule extends OdysseyModule {
     @Override
     protected void onDisable() {
         saveAll();
+        extras.detach();
     }
 
     private void readConfig() {
@@ -167,12 +172,14 @@ public final class SurvivalModule extends OdysseyModule {
         CompoundBinaryTag t = PlayerData.load(playersDir, p.getUuid(), logger());
         if (t != null) {
             PlayerData.apply(p, t);
+            PlayerData.applyExtras(t, extras.of(p));
             s.exhaustion = t.getFloat("exhaustion", 0);
             String gm = t.getString("gamemode", "");
             s.gameMode = gm.isEmpty() ? null : gm;
         }
         GameMode gm = s.gameMode != null ? PlayerData.gameMode(s.gameMode) : null;
         p.setGameMode(gm != null ? gm : defaultGm);
+        scheduler().later(() -> { if (p.isOnline()) extras.send(p); }, 20);   // моду: своё окно инвентаря и доп. слоты
         if (move && restorePos && t != null && t.keySet().contains("map")) {
             String map = t.getString("map");
             Pos at = new Pos(t.getDouble("x"), t.getDouble("y"), t.getDouble("z"), t.getFloat("yaw"), t.getFloat("pitch"));
@@ -190,7 +197,7 @@ public final class SurvivalModule extends OdysseyModule {
 
     private void save(Player p, St s) {
         String map = p.getInstance() == null ? null : server().mapName(p.getInstance()).orElse(null);
-        PlayerData.save(playersDir, p, map, s.gameMode, s.exhaustion, logger());
+        PlayerData.save(playersDir, p, map, s.gameMode, s.exhaustion, extras.of(p), logger());
     }
 
     private void saveAll() {
@@ -519,6 +526,9 @@ public final class SurvivalModule extends OdysseyModule {
             if (!it.isAir()) drop(inst, at, it, 40);
         }
         inv.clear();
+        ItemStack[] ex = extras.of(p);
+        for (int i = 0; i < ex.length; i++) { if (!ex[i].isAir()) drop(inst, at, ex[i], 40); ex[i] = ItemStack.AIR; }
+        extras.send(p);
         p.setLevel(0);
         p.setExp(0);
     }

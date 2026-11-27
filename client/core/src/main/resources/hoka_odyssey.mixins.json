@@ -76,7 +76,9 @@
     "LodLevelRendererMixin",
     "LodFogMixin",
     "HitPredictAttackMixin",
-    "HitPredictDamageMixin"
+    "HitPredictDamageMixin",
+    "SlotAccessor",
+    "HokaInventoryOpenMixin"
   ],
   "injectors": {
     "defaultRequire": 1
