@@ -22,13 +22,18 @@ import net.minecraft.world.item.ItemStack;
 public final class HokaInventoryScreen extends AbstractContainerScreen<InventoryMenu> {
 
     private static final Identifier BG = Identifier.fromNamespaceAndPath("hoka_odyssey", "textures/gui/inventory.png");
-    static final int W = 190, H = 238, CX = 95, CY = 75;
+    static final int W = 190, H = 246, CX = 95, CY = 75;
     /** Левый верх предмета (16×16) в окне: броня (шлем, грудь, ноги, ботинки), вторая рука, доп. слоты. */
     private static final int[][] ARMOR = {{69, 18}, {42, 41}, {36, 76}, {54, 107}};
     private static final int[] OFFHAND = {87, 119};
     static final int[][] EXTRA = {{105, 18}, {132, 41}, {138, 76}, {120, 107}};
     private static final int GRID_X = 15, GRID_Y = 153, HOT_Y = 216;
-    private static final String[] EXTRA_NAME = {"Скафандр", "Джетпак", "Прочее", "Прочее"};
+    /** Подсказки пустых слотов кольца: заголовок и строка-пояснение. */
+    private static final String[][] EXTRA_TIP = {{"Скафандр", "Воздух в космосе"}, {"Джетпак", "Полёт на ранце"},
+            {"Прочее", "Любой полезный предмет"}, {"Прочее", "Любой полезный предмет"}};
+    private static final String[][] ARMOR_TIP = {{"Шлем", "Броня для головы"}, {"Нагрудник", "Броня для тела"},
+            {"Поножи", "Броня для ног"}, {"Ботинки", "Броня для ступней"}};
+    private static final String[] OFFHAND_TIP = {"Вторая рука", "Щит, факел, еда"};
 
     private final int[] ox = new int[46], oy = new int[46];
     private final Player player;
@@ -90,10 +95,31 @@ public final class HokaInventoryScreen extends AbstractContainerScreen<Inventory
                 highlight(g, x, y);
                 if (menu.getCarried().isEmpty()) {
                     if (!it.isEmpty()) g.setTooltipForNextFrame(font, it, mx, my);
-                    else g.setTooltipForNextFrame(font, Component.literal(EXTRA_NAME[i]), mx, my);
+                    else tip(g, EXTRA_TIP[i], mx, my, i < 2 ? 0xFF6FD3FF : 0xFFFFB547);
                 }
             }
         }
+        // подсказки пустых слотов брони и второй руки — в том же стиле
+        if (hoveredSlot != null && !hoveredSlot.hasItem() && menu.getCarried().isEmpty()) {
+            int idx = menu.slots.indexOf(hoveredSlot);
+            if (idx >= 5 && idx <= 8) tip(g, ARMOR_TIP[idx - 5], mx, my, 0xFF8090A8);
+            else if (idx == 45) tip(g, OFFHAND_TIP, mx, my, 0xFFFFB547);
+        }
+    }
+
+    /** Своя подсказка: скруглённая тёмно-синяя плашка с цветной кромкой, заголовок и серое пояснение. */
+    private void tip(GuiGraphics g, String[] t, int mx, int my, int accent) {
+        g.nextStratum();
+        int w = Math.max(font.width(t[0]), font.width(t[1])) + 12, h = 27;
+        int x = mx + 10, y = my - 14;
+        if (x + w > width - 2) x = mx - w - 8;
+        if (y < 2) y = 2;
+        int out = 0xF00A1224, bg = 0xF0142848;
+        g.fill(x + 1, y, x + w - 1, y + h, out); g.fill(x, y + 1, x + w, y + h - 1, out);          // контур со срезанными углами
+        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, bg);
+        g.fill(x + 2, y + 1, x + w - 2, y + 2, accent);                                          // цветная кромка сверху
+        g.drawString(font, t[0], x + 6, y + 5, 0xFFFFFFFF, true);
+        g.drawString(font, t[1], x + 6, y + 16, 0xFF9AB0CC, false);
     }
 
     /** Выделение слота под мышью: скруглённое, голубое, почти прозрачное (поверх предмета — его видно). */
