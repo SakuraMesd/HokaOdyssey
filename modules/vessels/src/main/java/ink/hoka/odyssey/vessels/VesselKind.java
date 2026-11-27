@@ -27,6 +27,13 @@ final class VesselKind {
     final double[] half;
     /** Клетки корпуса (система корабля, блоки, floor): по ним сервер проверяет «не в блоках ли». */
     final List<int[]> hull;
+    /**
+     * Мелкие клетки корпуса — по полблока (индексы floor(x·2)…): по ним игрок стоит на корабле и упирается в него
+     * (как у клиента: Kind.fine), сервер — узнаёт, кто стоит на корабле.
+     */
+    final Set<Long> fine;
+    /** Стволы орудия (система корабля, блоки): стреляют по очереди. */
+    final List<double[]> guns;
     final int triangles;
 
     VesselKind(String id, Map<?, ?> cfg, ModelShape shape) {
@@ -51,6 +58,52 @@ final class VesselKind {
         }
         this.half = h;
         this.hull = hullOf(shape);
+        this.fine = fineOf(shape);
+        List<double[]> g = new ArrayList<>();
+        if (cfg.get("guns") instanceof List<?> l) for (Object o : l) {
+            if (o instanceof List<?> v && v.size() >= 3 && v.get(0) instanceof Number gx && v.get(1) instanceof Number gy && v.get(2) instanceof Number gz)
+                g.add(new double[]{gx.doubleValue(), gy.doubleValue(), gz.doubleValue()});
+        }
+        if (g.isEmpty()) g.add(new double[]{0, 0, half[2] + 0.5});                // нет в конфиге — из носа
+        this.guns = List.copyOf(g);
+    }
+
+    /** Ключ мелкой клетки (индексы полублоков). */
+    static long fineKey(int ix, int iy, int iz) {
+        return ((long) (ix & 0x1FFFFF) << 42) | ((long) (iy & 0x1FFFFF) << 21) | (iz & 0x1FFFFF);
+    }
+
+    /** Мелкая клетка с точкой (система корабля, блоки) — корпус? */
+    boolean fineAt(double x, double y, double z) {
+        return fine.contains(fineKey((int) Math.floor(x * 2), (int) Math.floor(y * 2), (int) Math.floor(z * 2)));
+    }
+
+    /**
+     * Стоит ли игрок (ноги — точка системы корабля, «верх» — +Y корабля) на корпусе: под ступнями (квадрат 0.6) в
+     * пределах below блоков вниз есть мелкая клетка, а сами ноги не в корпусе.
+     */
+    boolean standsOn(double x, double y, double z, double below) {
+        for (double dx : new double[]{-0.3, 0, 0.3}) for (double dz : new double[]{-0.3, 0, 0.3}) {
+            for (double d = 0.05; d <= below + 1e-9; d += 0.25) if (fineAt(x + dx, y - d, z + dz)) return true;
+        }
+        return false;
+    }
+
+    /** Клетки по полблока, которых касаются треугольники (точки по поверхности через ~1/6 блока). */
+    private Set<Long> fineOf(ModelShape shape) {
+        Set<Long> out = new HashSet<>();
+        float[] t = shape.triangles;
+        for (int i = 0; i + 8 < t.length; i += 9) {
+            double[] a = toShip(t[i], t[i + 1], t[i + 2]), b = toShip(t[i + 3], t[i + 4], t[i + 5]), c = toShip(t[i + 6], t[i + 7], t[i + 8]);
+            double len = Math.max(dist(a, b), Math.max(dist(b, c), dist(a, c)));
+            int n = Math.max(1, (int) Math.ceil(len * 6));
+            for (int u = 0; u <= n; u++) for (int v = 0; u + v <= n; v++) {
+                double fu = (double) u / n, fv = (double) v / n, fw = 1 - fu - fv;
+                out.add(fineKey((int) Math.floor((a[0] * fw + b[0] * fu + c[0] * fv) * 2), (int) Math.floor((a[1] * fw + b[1] * fu + c[1] * fv) * 2),
+                        (int) Math.floor((a[2] * fw + b[2] * fu + c[2] * fv) * 2)));
+            }
+        }
+        return out;
     }
 
     /** Точка модели (пиксели) → система корабля (блоки). */

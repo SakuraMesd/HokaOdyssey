@@ -10,10 +10,12 @@ import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Player;
 import net.minestom.server.instance.Instance;
+import net.minestom.server.item.ItemStack;
 
 /**
- * /hovessel (то же — /vessel), только OP: spawn &lt;вид&gt; — поставить перед собой, remove [id] — убрать (по id, на
- * который смотришь или ближайший), list, tp &lt;id&gt;, reload — перечитать виды из config.yml.
+ * /hovessel (то же — /vessel), только OP: spawn &lt;вид&gt; — поставить перед собой (владелец — кто поставил), remove [id]
+ * — убрать (по id, на который смотришь или ближайший; груз выпадает), list, tp &lt;id&gt;, reload — перечитать виды
+ * из config.yml, owner &lt;id&gt; &lt;ник&gt;, fuel [кол-во] [ник], upgrade &lt;вид&gt; [ник].
  */
 final class HoVesselCommand extends Command {
 
@@ -36,11 +38,24 @@ final class HoVesselCommand extends Command {
         addSyntax((s, c) -> list(s), ArgumentType.Literal("list"));
         addSyntax((s, c) -> { if (s instanceof Player p) tp(p, c.get(id)); else err(s, "только в игре"); }, ArgumentType.Literal("tp"), id);
         addSyntax((s, c) -> reload(s), ArgumentType.Literal("reload"));
+
+        var nick = ArgumentType.Word("ник").setSuggestionCallback((sender, ctx, sug) -> {
+            for (Player p : net.minestom.server.MinecraftServer.getConnectionManager().getOnlinePlayers()) sug.addEntry(new SuggestionEntry(p.getUsername()));
+        });
+        var count = ArgumentType.Integer("кол-во").between(1, 64 * 36);
+        var up = ArgumentType.Word("улучшение").from("engine", "tank", "gun", "warp");
+        addSyntax((s, c) -> owner(s, c.get(id), c.get(nick)), ArgumentType.Literal("owner"), id, nick);
+        addSyntax((s, c) -> giveFuel(s, 64, null), ArgumentType.Literal("fuel"));
+        addSyntax((s, c) -> giveFuel(s, c.get(count), null), ArgumentType.Literal("fuel"), count);
+        addSyntax((s, c) -> giveFuel(s, c.get(count), c.get(nick)), ArgumentType.Literal("fuel"), count, nick);
+        addSyntax((s, c) -> giveUpgrade(s, c.get(up), null), ArgumentType.Literal("upgrade"), up);
+        addSyntax((s, c) -> giveUpgrade(s, c.get(up), c.get(nick)), ArgumentType.Literal("upgrade"), up, nick);
     }
 
     private void help(CommandSender s) {
         info(s, "/hovessel (/vessel) spawn <вид> — поставить перед собой  |  remove [id] — убрать (на который смотрите / ближайший)  |  "
-                + "list  |  tp <id>  |  reload — перечитать виды. Сесть — ПКМ по кораблю, выйти — F.");
+                + "list  |  tp <id>  |  reload — перечитать виды  |  owner <id> <ник>  |  fuel [кол-во] [ник]  |  "
+                + "upgrade <engine|tank|gun|warp> [ник]. Сесть — ПКМ по кораблю, выйти — F, меню — G.");
     }
 
     private void spawn(Player p, String kindId) {
@@ -51,9 +66,9 @@ final class HoVesselCommand extends Command {
         double yaw = Math.toRadians(pp.yaw());
         double fx = -Math.sin(yaw), fz = Math.cos(yaw);
         double ahead = k.half[2] + 2;                                           // корма — в 2 блоках перед игроком
-        Vessel v = mod.create(kindId, p.getInstance(), pp.x() + fx * ahead, pp.y() + k.half[1], pp.z() + fz * ahead, rot);
+        Vessel v = mod.create(kindId, p.getInstance(), pp.x() + fx * ahead, pp.y() + k.half[1], pp.z() + fz * ahead, rot, p);
         if (v == null) { err(p, "Этот мир не из maps/ — здесь корабли не сохраняются"); return; }
-        ok(p, "Корабль " + v.id + " (" + kindId + ") поставлен. ПКМ по нему — сесть.");
+        ok(p, "Корабль " + v.id + " (" + kindId + ") поставлен, владелец — вы. ПКМ по нему — сесть, G рядом — меню.");
         if (mod.storeBroken()) err(p, "vessels.json битый — корабль НЕ сохранится после рестарта (см. лог)");
     }
 
@@ -78,15 +93,17 @@ final class HoVesselCommand extends Command {
             }
         }
         if (best == null) { err(p, "Рядом нет кораблей (или /hovessel remove <id>)"); return; }
+        boolean cargo = !best.cargo.isEmpty();
         mod.remove(best);
-        ok(p, "Корабль " + best.id + " убран");
+        ok(p, "Корабль " + best.id + " убран" + (cargo ? " (груз выпал рядом)" : ""));
     }
 
     private void removeId(CommandSender s, int id) {
         Vessel v = mod.vessel(id);
         if (v == null) { err(s, "Нет корабля " + id); return; }
+        boolean cargo = !v.cargo.isEmpty();
         mod.remove(v);
-        ok(s, "Корабль " + id + " убран");
+        ok(s, "Корабль " + id + " убран" + (cargo ? " (груз выпал рядом с ним или записан в лог)" : ""));
     }
 
     private void list(CommandSender s) {
@@ -115,6 +132,56 @@ final class HoVesselCommand extends Command {
         mod.loadKinds();
         mod.client.kindsToAll();
         ok(s, "Видов: " + mod.kinds().size() + " (новые размеры и места пилота — сразу; носители кораблей — как были)");
+    }
+
+    /** Найти игрока в сети по нику; null — нет (и сообщение). */
+    private static Player online(CommandSender s, String nick) {
+        Player p = net.minestom.server.MinecraftServer.getConnectionManager().findOnlinePlayer(nick);
+        if (p == null) err(s, "Игрок «" + nick + "» не в сети");
+        return p;
+    }
+
+    private void owner(CommandSender s, int id, String nick) {
+        Vessel v = mod.vessel(id);
+        if (v == null) { err(s, "Нет корабля " + id); return; }
+        Player p = online(s, nick);
+        if (p == null) return;
+        v.owner = p.getUuid().toString();
+        v.ownerName = p.getUsername();
+        if (v.menu != null) { v.menu.closeAll(); v.menu = null; }               // заголовок окна — с новым владельцем
+        mod.save();
+        ok(s, "Корабль " + id + ": владелец — " + p.getUsername());
+    }
+
+    /** Кому выдать: ник или сам (игрок). */
+    private static Player target(CommandSender s, String nick) {
+        if (nick != null) return online(s, nick);
+        if (s instanceof Player p) return p;
+        err(s, "Укажите ник игрока");
+        return null;
+    }
+
+    private void giveFuel(CommandSender s, int n, String nick) {
+        Player p = target(s, nick);
+        if (p == null) return;
+        int left = n, stack = mod.items.fuelStack();
+        while (left > 0) {
+            int c = Math.min(stack, left);
+            ItemStack it = mod.items.fuel(c);
+            if (!p.getInventory().addItemStack(it)) p.dropItem(it);
+            left -= c;
+        }
+        ok(s, "Топливо ×" + n + " → " + p.getUsername());
+    }
+
+    private void giveUpgrade(CommandSender s, String kind, String nick) {
+        Upgrades.Type t = Upgrades.Type.of(kind);
+        if (t == null) { err(s, "Улучшения: engine (Двигатель+), tank (Бак+), gun (Орудие+), warp (Варп-катушка)"); return; }
+        Player p = target(s, nick);
+        if (p == null) return;
+        ItemStack it = mod.items.upgrade(t);
+        if (!p.getInventory().addItemStack(it)) p.dropItem(it);
+        ok(s, t.title + " → " + p.getUsername());
     }
 
     private static void info(CommandSender s, String t) { s.sendMessage(Component.text(t, NamedTextColor.AQUA)); }

@@ -60,10 +60,15 @@ final class VesselMath {
      * null — можно, иначе причина.
      */
     static String check(double[] p0, Quat q0, double[] p1, Quat q1, long dtTicks, VesselKind k, Limits lim) {
+        return check(p0, q0, p1, q1, dtTicks, k, lim, 1);
+    }
+
+    /** То же, скорость корабля × speedMul (улучшения «Двигатель+», аварийный ход без топлива). */
+    static String check(double[] p0, Quat q0, double[] p1, Quat q1, long dtTicks, VesselKind k, Limits lim, double speedMul) {
         for (double v : p1) if (!Double.isFinite(v)) return "плохие числа";
         if (!q1.finite() || q1.length() < 0.5 || q1.length() > 1.5) return "плохой поворот";
         long dt = Math.max(1, Math.min(dtTicks, lim.maxDtTicks()));
-        double allowed = k.boostSpeed / 20.0 * lim.speedMargin() * dt + lim.slack();
+        double allowed = k.boostSpeed * Math.max(1, speedMul) / 20.0 * lim.speedMargin() * dt + lim.slack();
         double dx = p1[0] - p0[0], dy = p1[1] - p0[1], dz = p1[2] - p0[2];
         if (dx * dx + dy * dy + dz * dz > allowed * allowed) return "слишком быстро";
         double turn = k.maxTurnRate() / 20.0 * lim.turnMargin() * dt + lim.turnSlack();

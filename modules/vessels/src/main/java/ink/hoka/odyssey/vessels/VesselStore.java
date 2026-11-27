@@ -15,7 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Файл кораблей module/vessels/vessels.json: {@code {"version":1,"vessels":[{id, kind, map, x, y, z, rot:[x,y,z,w]}]}}.
+ * Файл кораблей module/vessels/vessels.json: {@code {"version":1,"vessels":[{id, kind, map, x, y, z, rot:[x,y,z,w],
+ * owner, owner-name, cargo:{storage[27], upgrades[8], fuel[4]}}]}} (предметы — ItemStack.CODEC, пустой слот — null).
  * Запись — во временный файл и переименование (обрыв посреди записи не портит старый файл). Файл не прочитался —
  * {@link #broken}: больше не пишем (копия — vessels.json.broken), чтобы не затереть корабли пустым списком.
  */
@@ -50,7 +51,10 @@ final class VesselStore {
                         ? new Quat(r.get(0).getAsDouble(), r.get(1).getAsDouble(), r.get(2).getAsDouble(), r.get(3).getAsDouble()).normalized()
                         : Quat.IDENTITY;
                 Vessel v = new Vessel(o.get("id").getAsInt(), o.get("kind").getAsString(), o.get("map").getAsString(),
-                        o.get("x").getAsDouble(), o.get("y").getAsDouble(), o.get("z").getAsDouble(), q);
+                        o.get("x").getAsDouble(), o.get("y").getAsDouble(), o.get("z").getAsDouble(), q,
+                        Cargo.fromJson(o.getAsJsonObject("cargo")));
+                if (o.has("owner") && !o.get("owner").isJsonNull()) v.owner = o.get("owner").getAsString();
+                if (o.has("owner-name") && !o.get("owner-name").isJsonNull()) v.ownerName = o.get("owner-name").getAsString();
                 if (!Double.isFinite(v.x) || !Double.isFinite(v.y) || !Double.isFinite(v.z)) throw new IllegalStateException("корабль " + v.id + ": плохие координаты");
                 out.add(v);
             }
@@ -79,6 +83,9 @@ final class VesselStore {
             JsonArray r = new JsonArray();
             r.add(v.rot.x()); r.add(v.rot.y()); r.add(v.rot.z()); r.add(v.rot.w());
             o.add("rot", r);
+            if (v.owner != null) o.addProperty("owner", v.owner);
+            if (v.ownerName != null) o.addProperty("owner-name", v.ownerName);
+            o.add("cargo", v.cargo.toJson());
             arr.add(o);
         }
         root.add("vessels", arr);

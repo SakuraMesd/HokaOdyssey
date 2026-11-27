@@ -14,7 +14,10 @@ final class Piloting {
     /** Отклонено подряд (с затуханием) и за период — для журнала. */
     int strikes, rejected;
     /** Скорость корабля (блоков/тик) по последним принятым позам — для загрузки столбцов по курсу. */
-    double vx, vz;
+    double vx, vy, vz;
+    /** Множитель скорости для проверки полёта: улучшение сняли — старый предел держится ещё 5 с (мод тормозит не сразу). */
+    double checkMul = 1;
+    long checkMulAt;
 
     Piloting(Player player, Vessel vessel, long now) {
         this.player = player;

@@ -24,10 +24,20 @@ import java.util.Map;
  *     3 DETACH  int корабль
  *     4 START   int корабль, double x y z, float qx qy qz qw — ты пилот (поза корабля сейчас)
  *     5 END     — ты больше не пилот
- *     6 CORRECT double x y z, float qx qy qz qw — сервер не принял позу: вернуться сюда
+ *     6 CORRECT double x y z, float qx qy qz qw — сервер не принял позу (или варп): встать сюда
+ *     7 STATE   UTF-JSON {fuel, capacity, warp-cost, speed-mul, empty, gun-reload (тики), gun-range, warp-phase
+ *               (0 нет, 1 зарядка, 2 наводка), warp-left (тики до конца зарядки), warp-charge (тики), warp-reload-left,
+ *               warp-reload (тики)} — пилоту: HUD (топливо, перезарядки, варп)
+ *     8 SHOT    int корабль, double x y z (ствол), double x y z (куда), byte что (0 мимо, 1 блок, 2 сущность,
+ *               3 корабль, 4 незагружено) — всем рядом: болт, вспышка, звук, искры
+ *     9 WARP    int корабль, byte что (0 отмена, 1 зарядка: int тиков, 2 прыжок) — пилоту и стоящим на корабле
+ *    10 MSG     UTF текст, byte 1 — предупреждение — строка в HUD пилота (или над хотбаром)
  * C2S 1 POSE    double x y z, float qx qy qz qw — поза своего корабля, 20 раз в секунду
  *     2 BOARD   int корабль — хочу сесть (ПКМ по кораблю)
  *     3 EXIT    — выйти (то же, что F)
+ *     4 MENU    int корабль — открыть меню (G): пилот — свой, иначе — на который смотрит
+ *     5 FIRE    float x y z — выстрел по направлению прицела (ЛКМ пилота)
+ *     6 WARP    — начать зарядку варпа / отменить (R)
  * </pre>
  * Поза — середина модели в мире и поворот «система корабля → мир» (нос +Z, верх +Y, левый борт +X).
  */
@@ -100,6 +110,77 @@ final class VesselsClient {
         }));
     }
 
+    /** Пилоту: сводка для HUD. */
+    void state(Vessel v) {
+        if (v.pilot == null) return;
+        VesselsModule.Status s = mod.status(v);
+        long now = mod.ticks();
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("fuel", s.fuel());
+        m.put("capacity", s.capacity());
+        m.put("warp-cost", s.warpCost());
+        m.put("speed-mul", s.speedMul());
+        m.put("empty", s.empty());
+        m.put("gun-reload", Math.round(s.gunReloadSec() * 20));
+        m.put("gun-range", s.gunRange());
+        m.put("warp-phase", v.warpPhase);
+        m.put("warp-left", v.warpPhase == WarpDrive.CHARGING ? Math.max(0, v.warpAt - now) : 0);
+        m.put("warp-charge", Math.round(s.warpChargeSec() * 20));
+        m.put("warp-reload-left", Math.max(0, v.warpReady - now));
+        m.put("warp-reload", Math.round(s.warpReloadSec() * 20));
+        String js = new Gson().toJson(m);
+        send(v.pilot.player, bytes(out -> {
+            out.writeByte(7);
+            out.writeUTF(js);
+        }));
+    }
+
+    /** Выстрел — всем в мире в 512 блоках от ствола. */
+    void shot(net.minestom.server.instance.Instance inst, Vessel v, double[] from, double[] to, ShotRay.Kind kind) {
+        byte[] b = bytes(out -> {
+            out.writeByte(8);
+            out.writeInt(v.id);
+            for (double d : from) out.writeDouble(d);
+            for (double d : to) out.writeDouble(d);
+            out.writeByte(kind.ordinal());
+        });
+        for (Player p : inst.getPlayers()) {
+            var pp = p.getPosition();
+            double dx = pp.x() - from[0], dy = pp.y() - from[1], dz = pp.z() - from[2];
+            if (dx * dx + dy * dy + dz * dz <= 512 * 512) send(p, b);
+        }
+    }
+
+    /** Варп: пилоту (и стоящим на корабле — прыжок, см. warpFxTo). what: 0 отмена, 1 зарядка (ticks), 2 прыжок. */
+    void warpFx(Vessel v, int what, int ticks) {
+        if (v.pilot != null) send(v.pilot.player, warp(v, what, ticks));
+    }
+
+    void warpFxTo(Player p, Vessel v, int what) { send(p, warp(v, what, 0)); }
+
+    private static byte[] warp(Vessel v, int what, int ticks) {
+        return bytes(out -> {
+            out.writeByte(9);
+            out.writeInt(v.id);
+            out.writeByte(what);
+            out.writeInt(ticks);
+        });
+    }
+
+    /** Строка в HUD пилота; у игрока без модуля — над хотбаром. */
+    void message(Player p, String text, boolean warn) {
+        if (!isReady(p)) {
+            p.sendActionBar(net.kyori.adventure.text.Component.text(text, warn ? net.kyori.adventure.text.format.NamedTextColor.RED
+                    : net.kyori.adventure.text.format.NamedTextColor.AQUA));
+            return;
+        }
+        send(p, bytes(out -> {
+            out.writeByte(10);
+            out.writeUTF(text);
+            out.writeByte(warn ? 1 : 0);
+        }));
+    }
+
     private static void pose(DataOutputStream out, double x, double y, double z, Quat q) throws IOException {
         out.writeDouble(x);
         out.writeDouble(y);
@@ -128,7 +209,7 @@ final class VesselsClient {
             all.put(k.id, m);
         }
         Map<String, Object> common = new LinkedHashMap<>();                   // общие настройки мода (как у ships: aim, camera, hud)
-        for (String s : new String[]{"aim", "camera", "hud", "control"}) {
+        for (String s : new String[]{"aim", "camera", "hud", "control", "hull"}) {
             Object o = mod.config().get(s);
             if (o != null) common.put(s, o);
         }
@@ -172,6 +253,9 @@ final class VesselsClient {
                 }
                 case 2 -> mod.board(p, in.readInt());
                 case 3 -> mod.exit(p, true);
+                case 4 -> mod.openMenu(p, in.readInt());
+                case 5 -> mod.combat.fire(p, in.readFloat(), in.readFloat(), in.readFloat());
+                case 6 -> mod.warp.toggle(p);
                 default -> { }
             }
         } catch (IOException e) {
