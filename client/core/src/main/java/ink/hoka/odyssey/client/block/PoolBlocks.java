@@ -12,6 +12,11 @@ import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
  * 0.73 Настоящие блоки мода для своих блоков сервера. Сервер (Minestom) новых блоков не знает — у него свой блок
@@ -32,7 +37,23 @@ public final class PoolBlocks implements ModInitializer {
         /** id своего блока сервера (F3: hoka_odyssey:<id>). */
         public volatile String customId;
 
-        PoolBlock(Properties p) { super(p); }
+        /** 0.84: хитбокс от сервера (shape своего блока, уже повёрнутый) — коллизия и рамка; null — полный куб. */
+        public volatile VoxelShape shape;
+        final boolean passable;
+
+        PoolBlock(Properties p, boolean passable) { super(p); this.passable = passable; }
+
+        @Override
+        protected VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
+            VoxelShape s = shape;
+            return s != null ? s : super.getShape(state, level, pos, ctx);
+        }
+
+        @Override
+        protected VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
+            VoxelShape s = shape;
+            return s != null && !passable ? s : super.getCollisionShape(state, level, pos, ctx);
+        }
 
         @Override
         public net.minecraft.network.chat.MutableComponent getName() {
@@ -55,8 +76,9 @@ public final class PoolBlocks implements ModInitializer {
                 .mapColor(MapColor.STONE).strength(1.5f, 6f).sound(SoundType.STONE);
         if (kind >= 1) p = p.noOcclusion().isViewBlocking((s, l, pos) -> false).isSuffocating((s, l, pos) -> false)
                 .isRedstoneConductor((s, l, pos) -> false);
+        if (kind >= 1) p = p.dynamicShape();      // 0.84: форма от сервера (shape), выше блока — без кэша формы у ванили
         if (kind == 2) p = p.noCollision().instabreak();
-        return Registry.register(BuiltInRegistries.BLOCK, id, new PoolBlock(p));
+        return Registry.register(BuiltInRegistries.BLOCK, id, new PoolBlock(p, kind == 2));
     }
 
     /** Свободный блок запаса для носителя (по виду носителя) с номером n в своём виде; null — запас кончился / не наш вид. */
@@ -73,4 +95,15 @@ public final class PoolBlocks implements ModInitializer {
     }
 
     static boolean isPool(Block b) { return b instanceof PoolBlock; }
+
+    /** Хитбокс по описанию (px, уже повёрнутый) или null — полный куб. */
+    static VoxelShape shapeOf(double[] box) {
+        if (box == null) return null;
+        return Shapes.box(box[0] / 16, box[1] / 16, box[2] / 16, box[3] / 16, box[4] / 16, box[5] / 16);
+    }
+
+    /** Перед раскладкой блоков: формы всех блоков запаса — снова полный куб (привязка к блокам сервера новая). */
+    static void resetShapes() {
+        for (PoolBlock[] arr : new PoolBlock[][]{solid, clear, pass}) for (PoolBlock b : arr) if (b != null) b.shape = null;
+    }
 }

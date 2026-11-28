@@ -83,6 +83,8 @@ public final class CustomBlocks {
         SOUNDS = Map.of();
         PLACE = Map.of();
         Remap.clear();
+        PoolBlocks.resetShapes();
+        ink.hoka.odyssey.client.model.BlockAnims.set(Map.of());
         HokaTab.clear();
         CustomItems.set(Map.of(), Map.of());
         LISTENING.clear();
@@ -176,6 +178,9 @@ public final class CustomBlocks {
         Map<BlockState, net.minecraft.world.level.block.SoundType> sounds = new IdentityHashMap<>();
         Map<String, Map<Integer, BlockState>> place = new java.util.HashMap<>();
         Map<Integer, BlockState> remap = new java.util.HashMap<>();             // 0.73: номер носителя → блок мода
+        Map<BlockState, ink.hoka.odyssey.client.model.BlockAnims.Type> anims = new IdentityHashMap<>();   // 0.84
+        Map<String, Built> builtCache = new java.util.HashMap<>();
+        PoolBlocks.resetShapes();
         int[] counters = new int[3];
         int ok = 0, bad = 0;
         for (JsonElement el : root.getAsJsonArray("blocks")) {
@@ -184,8 +189,21 @@ public final class CustomBlocks {
             try {
                 BlockState st = state(d.getAsJsonObject("state"));
                 if (st == null) { LOG.warn("{}: носитель не найден", id); bad++; continue; }
-                Built b = d.has("model") ? fromModel(d.get("model").getAsString(), d.get("rot").getAsInt())
-                        : fromCube(d.getAsJsonObject("faces"), d.get("rot").getAsInt());
+                int rot = d.get("rot").getAsInt();
+                BlockForm form = BlockForm.parse(d);                             // 0.84: часть, размер, хитбокс, анимация
+                String modelPath = d.has("model") ? d.get("model").getAsString() : null;
+                boolean animated = modelPath != null && form.animation() != null && form.main();
+                Built b;
+                if (modelPath != null) {
+                    // главная клетка с анимацией — в меше только неподвижные кости (подвижные рисует BlockAnims)
+                    String key = modelPath + "@" + rot + (animated ? "#" + form.animation() : "") + "/" + form.size()[0] + "x" + form.size()[2];
+                    b = builtCache.get(key);
+                    if (b == null && !builtCache.containsKey(key)) {
+                        b = fromModel(modelPath, rot, form, animated ? form.animation() : null, false);
+                        builtCache.put(key, b);
+                    }
+                    if (b != null && !form.main()) b = new Built(lists(), b.particle); // прочие части — пустые, только хитбокс
+                } else b = fromCube(d.getAsJsonObject("faces"), rot);
                 if (b == null) { bad++; continue; }
                 TextureAtlasSprite particle = b.particle;
                 if (d.has("particle")) {
@@ -203,15 +221,28 @@ public final class CustomBlocks {
                     remap.put(Block.BLOCK_STATE_REGISTRY.getId(st), pool);
                     ((PoolBlocks.PoolBlock) pool.getBlock()).title = d.has("name") ? d.get("name").getAsString() : id;
                     ((PoolBlocks.PoolBlock) pool.getBlock()).customId = id;
+                    ((PoolBlocks.PoolBlock) pool.getBlock()).shape = PoolBlocks.shapeOf(form.box());   // 0.84
                 }
-                int rot = d.get("rot").getAsInt();
+                if (animated) {
+                    var at = new ink.hoka.odyssey.client.model.BlockAnims.Type(modelPath, form.animation(), placement(rot, form, javaBlock(modelPath), 1));
+                    anims.put(st, at);
+                    if (pool != null) anims.put(pool, at);
+                }
                 place.computeIfAbsent(id, k -> new java.util.HashMap<>()).put(rot, pool != null ? pool : st);
                 if (d.has("sounds")) {
                     var snd = BlockSounds.of(d.getAsJsonObject("sounds"), st.getBlock().defaultBlockState());
                     sounds.put(st, snd);
                     if (pool != null) sounds.put(pool, snd);
                 }
-                if (rot == 0 || !blockItems.containsKey(id)) blockItems.put(id, CustomItems.blockItem(id, b.quads, particle));
+                if (form.main() && (rot == 0 || !blockItems.containsKey(id))) {
+                    // иконка предмета: модель целиком (и подвижные кости), большая — уменьшена в одну клетку
+                    Built icon = b;
+                    if (modelPath != null && (animated || form.size()[0] > 1 || form.size()[2] > 1)) {
+                        Built full = fromModel(modelPath, 0, form, null, true);
+                        if (full != null) icon = full;
+                    }
+                    blockItems.put(id, CustomItems.blockItem(id, icon.quads, particle));
+                }
                 ChunkSectionLayer layer = switch (d.has("layer") ? d.get("layer").getAsString() : "cutout") {
                     case "solid" -> ChunkSectionLayer.SOLID;
                     case "translucent" -> ChunkSectionLayer.TRANSLUCENT;
@@ -242,6 +273,7 @@ public final class CustomBlocks {
         MODELS = Collections.unmodifiableMap(models);
         LAYERS = Collections.unmodifiableMap(layers);
         Remap.set(remap);
+        ink.hoka.odyssey.client.model.BlockAnims.set(Collections.unmodifiableMap(anims));
         Remap.applyLoaded(remap);                                           // чанки, пришедшие до списка блоков
         LOG.info("свои блоки: {} собрано{}, блоков мода {}", ok, bad > 0 ? ", с ошибками " + bad : "", remap.size());
         remesh();
@@ -323,14 +355,38 @@ public final class CustomBlocks {
         return BlockSlots.slot(path, file(path));
     }
 
-    /** Модель .bbmodel в позе по умолчанию. Блок Blockbench «Java Block» — 0..16; прочие форматы — центр в 0. */
-    static Built fromModel(String path, int rot) {
+    /** Формат модели «Java Block» (координаты 0..16) — иначе центр в 0. */
+    private static boolean javaBlock(String path) {
+        byte[] bytes = source.get(path);
+        if (bytes == null) return false;
+        JsonObject json = JsonParser.parseString(new String(bytes, StandardCharsets.UTF_8)).getAsJsonObject();
+        return javaBlock(json);
+    }
+
+    private static boolean javaBlock(JsonObject json) {
+        return json.has("meta") && json.getAsJsonObject("meta").has("model_format")
+                && "java_block".equals(json.getAsJsonObject("meta").get("model_format").getAsString());
+    }
+
+    /**
+     * Пиксели модели → клетка главной клетки блока: поворот вокруг середины главной клетки, сдвиг модели
+     * ({@link BlockForm#modelOffset}), 1/16; fit — уменьшить до одной клетки (иконка большого блока).
+     */
+    static Matrix4f placement(int rot, BlockForm form, boolean javaBlock, float fit) {
+        float[] off = form.modelOffset(javaBlock);
+        return rotation(rot).scale(fit).translate(off[0] / 16f, 0, off[1] / 16f).scale(1 / 16f);
+    }
+
+    /**
+     * Модель .bbmodel в позе по умолчанию. Блок Blockbench «Java Block» — 0..16; прочие форматы — центр в 0 (в середине
+     * габарита блока). skipAnim — не класть кости, которые двигает эта анимация (их рисует BlockAnims); icon — вся
+     * модель, уменьшенная до одной клетки.
+     */
+    static Built fromModel(String path, int rot, BlockForm form, String skipAnim, boolean icon) {
         listen(path);
         byte[] bytes = source.get(path);
         if (bytes == null) return null;
         JsonObject json = JsonParser.parseString(new String(bytes, StandardCharsets.UTF_8)).getAsJsonObject();
-        boolean javaBlock = json.has("meta") && json.getAsJsonObject("meta").has("model_format")
-                && "java_block".equals(json.getAsJsonObject("meta").get("model_format").getAsString());
         BbModel bb = BbModel.parse(path, json);
         BlockSlots.Slot[] slots = new BlockSlots.Slot[bb.texturePngs.size()];
         TextureAtlasSprite particle = null;
@@ -341,11 +397,17 @@ public final class CustomBlocks {
         if (particle == null) { LOG.warn("{}: у модели нет текстур", path); return null; }
         Matrix4f[] pose = new Matrix4f[bb.bones.size()];
         Pose.compute(bb, null, -1, pose);
-        float off = javaBlock ? 0 : 8;
-        Matrix4f base = rotation(rot).translate(off / 16f, 0, off / 16f).scale(1 / 16f);
+        boolean[] skip = new boolean[bb.bones.size()];
+        if (skipAnim != null) {
+            var a = bb.animations.get(skipAnim);
+            if (a != null) skip = a.moving(bb);
+            else LOG.warn("{}: нет анимации {}", path, skipAnim);
+        }
+        int big = Math.max(form.size()[0], form.size()[2]);
+        Matrix4f base = placement(rot, form, javaBlock(json), icon ? 1f / big : 1f);
         List<BakedQuad>[] q = lists();
         for (BbModel.Bone b : bb.bones) {
-            if ("hitbox".equals(b.name)) continue;
+            if ("hitbox".equals(b.name) || skip[b.index]) continue;
             Matrix4f m = new Matrix4f(base).mul(pose[b.index]);
             for (BbModel.Face f : b.faces) {
                 BlockSlots.Slot s = f.texture() < slots.length ? slots[f.texture()] : null;

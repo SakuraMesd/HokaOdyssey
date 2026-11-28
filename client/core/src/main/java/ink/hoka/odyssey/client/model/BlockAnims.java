@@ -1,0 +1,207 @@
+package ink.hoka.odyssey.client.model;
+
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.LevelChunkSection;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
+
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 0.84 Анимированные модели блоков (поле {@code animation} своего блока). Неподвижные кости модели лежат в меше
+ * чанка, как у всех своих блоков; подвижные (у которых в анимации есть ключи, и их потомки) рисуются здесь каждый
+ * кадр — конвейером моделей ({@link Pose}, текстуры {@link Models}), в позиции блока с его поворотом. Сущностей нет.
+ * <p>
+ * Время анимации общее по миру (игровое время сервера) — у всех игроков и всех блоков одинаковое. Ближе
+ * {@link #ANIM_RANGE} блоков — анимация, до {@link #SCAN_RANGE} — подвижные кости в позе по умолчанию, дальше — только
+ * меш (мелкие подвижные детали не рисуются). Блоки ищутся раз в {@link #SCAN_TICKS} тиков по палитрам секций рядом
+ * с игроком; на кадр объекты не создаются (позы и матрицы — заранее).
+ */
+public final class BlockAnims {
+
+    private BlockAnims() {}
+
+    public static final int ANIM_RANGE = 48, SCAN_RANGE = 64, SCAN_TICKS = 10;
+
+    /** Вид анимированного блока: модель, анимация и переход «пиксели модели → клетка блока» (поворот, сдвиг, 1/16). */
+    public record Type(String path, String anim, Matrix4f local) {}
+
+    private static volatile Map<BlockState, Type> TYPES = Map.of();
+
+    /** Состояние вида на кадр: модель (меняется, если файл обновили), позы, подвижные кости. */
+    private static final class Live {
+        BbModel model;
+        BbAnimation anim;
+        boolean[] moving;
+        Matrix4f[] pose = new Matrix4f[0], rest = new Matrix4f[0];
+        Identifier[] tex = new Identifier[0];
+        boolean ready;
+    }
+
+    private static final class At {
+        final BlockPos pos;
+        final BlockState state;
+        final Type type;
+        final AABB box;
+        At(BlockPos pos, BlockState state, Type type) {
+            this.pos = pos;
+            this.state = state;
+            this.type = type;
+            this.box = new AABB(pos).inflate(1.5);                                // модель больше клетки (2×2 и т.п.)
+        }
+    }
+
+    private static final Map<Type, Live> LIVE = new IdentityHashMap<>();
+    private static List<At> found = List.of();
+    private static int ticks;
+    private static final Pose.Scratch SCRATCH = new Pose.Scratch();
+    private static final Matrix4f BASE = new Matrix4f(), M = new Matrix4f();
+
+    /** Новый список своих блоков: какие состояния анимированные (главные клетки). */
+    public static void set(Map<BlockState, Type> types) {
+        TYPES = types;
+        LIVE.clear();
+        found = List.of();
+        ticks = SCAN_TICKS;                                                      // искать сразу
+    }
+
+    public static boolean any() { return !TYPES.isEmpty(); }
+
+    // ───────────────────────── поиск ─────────────────────────
+
+    public static void tick() {
+        Map<BlockState, Type> types = TYPES;
+        var mc = Minecraft.getInstance();
+        if (types.isEmpty() || mc.level == null || mc.player == null) { if (!found.isEmpty()) found = List.of(); return; }
+        if (++ticks < SCAN_TICKS) return;
+        ticks = 0;
+        var lvl = mc.level;
+        int r = SCAN_RANGE >> 4;
+        BlockPos pp = mc.player.blockPosition();
+        int pcx = pp.getX() >> 4, pcy = pp.getY() >> 4, pcz = pp.getZ() >> 4;
+        List<At> out = new ArrayList<>();
+        for (int cx = pcx - r; cx <= pcx + r; cx++) for (int cz = pcz - r; cz <= pcz + r; cz++) {
+            if (!(lvl.getChunkSource().getChunk(cx, cz, net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false) instanceof LevelChunk ch)) continue;
+            LevelChunkSection[] secs = ch.getSections();
+            for (int sy = pcy - r; sy <= pcy + r; sy++) {
+                int idx = ch.getSectionIndexFromSectionY(sy);
+                if (idx < 0 || idx >= secs.length) continue;
+                LevelChunkSection sec = secs[idx];
+                if (sec == null || sec.hasOnlyAir() || !sec.maybeHas(types::containsKey)) continue;
+                for (int y = 0; y < 16; y++) for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
+                    BlockState st = sec.getBlockState(x, y, z);
+                    Type t = types.get(st);
+                    if (t != null) out.add(new At(new BlockPos((cx << 4) + x, (sy << 4) + y, (cz << 4) + z), st, t));
+                }
+            }
+        }
+        found = out;
+    }
+
+    // ───────────────────────── рисование ─────────────────────────
+
+    private static Live live(Type t) {
+        Live l = LIVE.computeIfAbsent(t, k -> new Live());
+        BbModel m = Models.model(t.path);
+        if (m == null) { l.ready = false; return l; }
+        if (m != l.model) {                                                       // модель пришла или обновилась
+            l.model = m;
+            l.anim = m.animations.get(t.anim);
+            l.moving = l.anim != null ? l.anim.moving(m) : new boolean[m.bones.size()];
+            l.pose = new Matrix4f[m.bones.size()];
+            l.rest = new Matrix4f[m.bones.size()];
+            Pose.compute(m, null, -1, l.rest, SCRATCH);
+            l.tex = Models.textures(t.path);
+        }
+        l.ready = l.anim != null;
+        return l;
+    }
+
+    public static void render(WorldRenderContext ctx) {
+        List<At> list = found;
+        if (list.isEmpty()) return;
+        var mc = Minecraft.getInstance();
+        var level = mc.level;
+        if (level == null) return;
+        Vec3 cam = Models.camera();
+        Frustum frustum = Models.frustum();
+        float pt = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        float sec = ((level.getGameTime() % 1_728_000L) + pt) / 20f;           // общее время мира (сутки по 24 000 тиков × 72)
+        for (Live l : LIVE.values()) l.ready = false;
+        for (At at : list) {
+            Live l = LIVE.get(at.type);
+            if (l == null || !l.ready) {
+                l = live(at.type);
+                if (!l.ready) continue;
+                Pose.compute(l.model, l.anim, l.anim.localTime(sec), l.pose, SCRATCH);   // поза на кадр — одна на вид
+            }
+        }
+        MultiBufferSource src = ctx.consumers();
+        Matrix4f view = ctx.matrices().last().pose();
+        double range2 = (double) ANIM_RANGE * ANIM_RANGE;
+        for (Live l : LIVE.values()) {
+            if (!l.ready) continue;
+            for (int ti = 0; ti < l.tex.length; ti++) {
+                Identifier tex = l.tex[ti];
+                if (tex == null) continue;
+                RenderType type = RenderTypes.entityCutoutNoCull(tex);
+                VertexConsumer vc = null;
+                for (At at : list) {
+                    if (LIVE.get(at.type) != l) continue;
+                    if (frustum != null && !frustum.isVisible(at.box)) continue;
+                    if (level.getBlockState(at.pos) != at.state) continue;          // сломали (до следующего поиска)
+                    double dx = at.pos.getX() + 0.5 - cam.x, dy = at.pos.getY() + 0.5 - cam.y, dz = at.pos.getZ() + 0.5 - cam.z;
+                    Matrix4f[] pose = dx * dx + dy * dy + dz * dz <= range2 ? l.pose : l.rest;
+                    if (vc == null) vc = src.getBuffer(type);
+                    int light = LevelRenderer.getLightColor(level, at.pos);
+                    BASE.set(view).translate((float) (at.pos.getX() - cam.x), (float) (at.pos.getY() - cam.y), (float) (at.pos.getZ() - cam.z))
+                            .mul(at.type.local);
+                    for (BbModel.Bone b : l.model.bones) {
+                        if (!l.moving[b.index] || b.faces.isEmpty() || "hitbox".equals(b.name)) continue;
+                        M.set(BASE).mul(pose[b.index]);
+                        for (BbModel.Face f : b.faces) if (f.texture() == ti) quad(vc, M, f, light);
+                    }
+                }
+                if (vc != null && src instanceof MultiBufferSource.BufferSource bs) bs.endBatch(type);
+            }
+        }
+    }
+
+    private static final Vector3f P0 = new Vector3f(), P1 = new Vector3f(), P2 = new Vector3f(), P3 = new Vector3f(),
+            N = new Vector3f(), T = new Vector3f();
+
+    private static void quad(VertexConsumer vc, Matrix4f m, BbModel.Face f, int light) {
+        float[] p = f.xyz(), uv = f.uv();
+        m.transformPosition(p[0], p[1], p[2], P0);
+        m.transformPosition(p[3], p[4], p[5], P1);
+        m.transformPosition(p[6], p[7], p[8], P2);
+        m.transformPosition(p[9], p[10], p[11], P3);
+        N.set(P1).sub(P0).cross(T.set(P3).sub(P0)).normalize();
+        if (!Float.isFinite(N.x)) N.set(0, 1, 0);
+        vertex(vc, P0, uv[0], uv[1], light);
+        vertex(vc, P1, uv[2], uv[3], light);
+        vertex(vc, P2, uv[4], uv[5], light);
+        vertex(vc, P3, uv[6], uv[7], light);
+    }
+
+    private static void vertex(VertexConsumer vc, Vector3f p, float u, float v, int light) {
+        vc.addVertex(p.x, p.y, p.z).setColor(-1).setUv(u, v).setOverlay(OverlayTexture.NO_OVERLAY).setLight(light).setNormal(N.x, N.y, N.z);
+    }
+}

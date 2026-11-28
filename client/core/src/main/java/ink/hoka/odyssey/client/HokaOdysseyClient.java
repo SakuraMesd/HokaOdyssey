@@ -95,6 +95,8 @@ public final class HokaOdysseyClient implements ClientModInitializer {
         ink.hoka.odyssey.client.inv.HokaHud.register();                     // 0.68: HUD выживания               // 0.64: дальняя прорисовка
         net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.END_EXTRACTION.register(ink.hoka.odyssey.client.model.Models::extract);
         net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.AFTER_ENTITIES.register(ink.hoka.odyssey.client.model.Models::render);
+        ClientTickEvents.END_CLIENT_TICK.register(c -> ink.hoka.odyssey.client.model.BlockAnims.tick());                                    // 0.84: анимированные блоки
+        net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.AFTER_ENTITIES.register(ink.hoka.odyssey.client.model.BlockAnims::render);
         net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.AFTER_ENTITIES.register(Hooks::world);
         LOG.info("Hoka Odyssey {}: ждём сервер", ModuleManager.coreVersion());
     }

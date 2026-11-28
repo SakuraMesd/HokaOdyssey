@@ -133,7 +133,7 @@ public final class CustomItems {
                 }
                 if (d.has("model")) {
                     String path = d.get("model").getAsString();
-                    CustomBlocks.Built b = CustomBlocks.fromModel(path, 0);
+                    CustomBlocks.Built b = CustomBlocks.fromModel(path, 0, BlockForm.CUBE, null, false);
                     if (b != null) {
                         List<BakedQuad> all = new ArrayList<>();
                         for (List<BakedQuad> l : b.quads()) all.addAll(l);

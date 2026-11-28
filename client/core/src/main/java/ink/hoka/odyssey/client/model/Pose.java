@@ -14,9 +14,18 @@ public final class Pose {
 
     /** {@code anim == null} или {@code t < 0} — поза по умолчанию. */
     public static void compute(BbModel model, BbAnimation anim, float t, Matrix4f[] out) {
-        Matrix4f identity = new Matrix4f();
-        Vector3f rot = new Vector3f(), pos = new Vector3f(), scl = new Vector3f(), tmp = new Vector3f();
-        for (BbModel.Bone root : model.roots) walk(root, identity, anim, t, out, rot, pos, scl, tmp);
+        compute(model, anim, t, out, new Scratch());
+    }
+
+    /** 0.84 Рабочие объекты расчёта — чтобы каждый кадр ничего не создавать (один на поток). */
+    public static final class Scratch {
+        final Matrix4f identity = new Matrix4f();
+        final Vector3f rot = new Vector3f(), pos = new Vector3f(), scl = new Vector3f(), tmp = new Vector3f();
+    }
+
+    /** То же без новых объектов: {@code out} заполнен заранее (или создаётся при первом вызове). */
+    public static void compute(BbModel model, BbAnimation anim, float t, Matrix4f[] out, Scratch s) {
+        for (BbModel.Bone root : model.roots) walk(root, s.identity, anim, t, out, s.rot, s.pos, s.scl, s.tmp);
     }
 
     private static void walk(BbModel.Bone b, Matrix4f parent, BbAnimation anim, float t, Matrix4f[] out,

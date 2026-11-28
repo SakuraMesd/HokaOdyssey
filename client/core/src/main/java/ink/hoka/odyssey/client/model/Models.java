@@ -313,6 +313,18 @@ public final class Models {
 
     private static VertexConsumer currentVc;
 
+    /** 0.84 Разобранная модель (для анимированных блоков) или null — файла ещё нет. */
+    static BbModel model(String path) {
+        Lib l = lib(path);
+        return l == null ? null : l.model;
+    }
+
+    /** 0.84 Текстуры модели (по номеру; null — нет). */
+    static Identifier[] textures(String path) {
+        Lib l = lib(path);
+        return l == null ? new Identifier[0] : l.tex;
+    }
+
     /** Середина габарита модели (пиксели) или null — модели ещё нет. */
     public static float[] center(String path) {
         Lib l = lib(path);

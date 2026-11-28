@@ -96,6 +96,23 @@ public final class BbAnimation {
         }
     }
 
+    /**
+     * 0.84 Какие кости двигает анимация: у кости есть ключи, и все её потомки. Для модели блока: подвижное рисуется
+     * каждый кадр, остальное — в меше чанка.
+     */
+    public boolean[] moving(BbModel m) {
+        boolean[] out = new boolean[m.bones.size()];
+        for (BbModel.Bone r : m.roots) mark(r, false, out);
+        return out;
+    }
+
+    private void mark(BbModel.Bone b, boolean parent, boolean[] out) {
+        Track t = b.index < tracks.length ? tracks[b.index] : null;
+        boolean mv = parent || (t != null && (t.rot != null || t.pos != null || t.scale != null));
+        out[b.index] = mv;
+        for (BbModel.Bone c : b.children) mark(c, mv, out);
+    }
+
     /** Время внутри анимации с учётом режима; {@code < 0} = анимация кончилась (once) — поза по умолчанию. */
     public float localTime(float t) {
         if (length <= 0f) return 0f;
