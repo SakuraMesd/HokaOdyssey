@@ -115,7 +115,8 @@ public final class VesselsModule extends OdysseyModule {
         events().addListener(PlayerDeathEvent.class, e -> exit(e.getPlayer(), false));
         events().addListener(PlayerSpawnEvent.class, e -> {                   // сменил мир — корабль остаётся, пилот снимается
             Piloting pl = pilotOf(e.getPlayer());
-            if (pl != null && !Landings.busy(pl.vessel) && pl.vessel.carrier != null && e.getInstance() != pl.vessel.carrier.getInstance()) exit(e.getPlayer(), false);
+            boolean moving = pl != null && Landings.busy(pl.vessel) && e.getInstance() == pl.vessel.trip.to;   // переход: пилот едет к кораблю
+            if (pl != null && !moving && pl.vessel.carrier != null && e.getInstance() != pl.vessel.carrier.getInstance()) exit(e.getPlayer(), false);
             client.world(e.getPlayer(), e.getInstance());                      // планета или космос — моду (подушка, лучи)
         });
         registerCommand(new HoVesselCommand(this));
@@ -861,15 +862,22 @@ public final class VesselsModule extends OdysseyModule {
         dirty = false;
         if (store == null || store.broken()) return;
         String json = VesselStore.json(new ArrayList<>(vessels.values()));
-        scheduler().async(() -> write(json));
+        long n = saveSeq.incrementAndGet();
+        scheduler().async(() -> write(n, json));
     }
 
     private void saveNow() {
         if (store == null || store.broken()) return;
-        write(VesselStore.json(new ArrayList<>(vessels.values())));
+        write(saveSeq.incrementAndGet(), VesselStore.json(new ArrayList<>(vessels.values())));
     }
 
-    private void write(String json) {
+    /** Номер последнего снимка и записанного: фоновые записи могут выполниться не по порядку — старый снимок не пишем. */
+    private final java.util.concurrent.atomic.AtomicLong saveSeq = new java.util.concurrent.atomic.AtomicLong();
+    private long savedSeq;
+
+    private synchronized void write(long n, String json) {
+        if (n < savedSeq) return;
+        savedSeq = n;
         try {
             store.write(json);
         } catch (Exception e) {

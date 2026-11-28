@@ -73,6 +73,9 @@ final class Landings {
         Glide glide;
         int t;
         boolean acked;
+        /** Носитель на новой карте поставлен; сколько из экипажа ещё в переносе. */
+        boolean carrierReady;
+        int crewPending;
         long blackAt;
 
         Trip(Kind kind, Vessel v, Player pilot, LandingMath.Planet planet, String toMap, Instance from, Instance to, LandingMath.Heights h, long now) {
@@ -194,8 +197,11 @@ final class Landings {
         if (l < 1e-6) { dx = 0; dy = 1; dz = 0; l = 1; }
         double d = pl.approach() * 0.6 + 20;
         mod.warp.cancel(v, null);
-        v.x += dx / l * d; v.y += dy / l * d; v.z += dz / l * d;
+        List<Player> riders = mod.riders(v);                                     // стоящие на корабле — вместе с ним
+        double mx = dx / l * d, my = dy / l * d, mz = dz / l * d;
+        v.x += mx; v.y += my; v.z += mz;
         moveCarrier(v);
+        for (Player r : riders) { r.teleport(r.getPosition().add(mx, my, mz)); r.setVelocity(Vec.ZERO); }
         mod.client.correct(v);
         v.tripReady = mod.ticks() + 20;
         if (msg != null && v.pilot != null) mod.client.message(v.pilot.player, msg, true);
@@ -228,7 +234,7 @@ final class Landings {
         begin(t, k);
         double r = k.radius();
         double[] at = LandingMath.exitPoint(pl, t.face, v.x, v.z, pl.approach() + exitMargin() + r);
-        double len = Glide.exitLength(k.speed / 20.0, exitTicks()) + 40;   // путь разгона + запас на сдвиг
+        double len = Glide.exitLength(k.speed / 20.0, exitTicks()) + 16 * 11 + 8;   // путь разгона + все сдвиги поиска (findExit)
         double[] far = {at[0] + t.face[0] * len, at[1] + t.face[1] * len, at[2] + t.face[2] * len};
         t.spot = at;
         load(t, new Vec(Math.min(at[0], far[0]) - r - 2, Math.min(at[1], far[1]) - r - 2, Math.min(at[2], far[2]) - r - 2),
@@ -275,9 +281,9 @@ final class Landings {
         Vessel v = t.v;
         VesselKind k = mod.kinds().get(v.kind);
         if (k == null) { abort(t, "Вид корабля пропал из config.yml"); return; }
+        if (v.pilot != null && v.pilot.player == t.pilot) v.pilot.lastPose = now;   // мод замер / в переносе — не «молчит»
         if (!t.committed()) {
             if (v.pilot == null || v.pilot.player != t.pilot || !t.pilot.isOnline()) { abort(t, null); return; }
-            v.pilot.lastPose = now;                                             // мод замер — не «молчит»
             if (now % 2 == 0) mod.client.correct(v);                            // корабль стоит, пока темнеет и грузится
             if (now - t.blackAt > HOLD - 60) keepBlack(t, now);
         }
@@ -325,8 +331,10 @@ final class Landings {
                     abort(t, null);
                 }
             }
-            case PLACE -> {
-                if (now - t.phaseAt > 20 * 15 && (v.carrier == null || v.carrier.getInstance() == null)) {
+            case PLACE -> {                                                     // ждём носитель и экипаж (не дольше 5 с)
+                if (now % 4 == 0) keepCrew(t);
+                if (t.carrierReady && (t.crewPending <= 0 || now - t.phaseAt > 100)) glideStart(t, k);
+                else if (now - t.phaseAt > 20 * 15) {
                     mod.logger().warn("корабль {}: носитель на карте {} не поставлен за 15 с — спуск без него", v.id, t.toMap);
                     glideStart(t, k);
                 }
@@ -404,10 +412,15 @@ final class Landings {
     private void movePilot(Trip t, VesselKind k) {
         Vessel v = t.v;
         Player p = t.pilot;
-        for (Player r : mod.riders(v)) t.crew.putIfAbsent(r, null);
+        List<Player> riders = mod.riders(v);
+        for (Player r : riders) if (!t.crew.containsKey(r)) { t.crew.put(r, null); link.fade(r, FADE_IN / 2, HOLD, FADE_OUT); }
         for (var e : List.copyOf(t.crew.entrySet())) {                          // места на палубе (кто ещё на корабле)
             Player r = e.getKey();
-            if (!r.isOnline() || r.getInstance() != t.from || !mod.riders(v).contains(r)) { t.crew.remove(r); continue; }
+            if (!r.isOnline() || r.getInstance() != t.from || !riders.contains(r)) {
+                t.crew.remove(r);                                               // сошёл с палубы — остаётся, экран — назад
+                if (r.isOnline()) link.fade(r, 0, 2, FADE_OUT);
+                continue;
+            }
             Pos rp = r.getPosition();
             t.crew.put(r, VesselMath.toLocal(rp.x(), rp.y(), rp.z(), v.pos(), v.rot));
         }
@@ -439,7 +452,8 @@ final class Landings {
         relocate(v, t.toMap, t.start, t.rot);
         t.phase = Phase.PLACE;
         t.phaseAt = mod.ticks();
-        mod.spawnCarrier(v, () -> { if (v.trip == t && t.phase == Phase.PLACE) glideStart(t, k); });
+        mod.spawnCarrier(v, () -> { if (v.trip == t) t.carrierReady = true; });
+        for (var e : List.copyOf(t.crew.entrySet())) moveRider(t, e.getKey(), e.getValue());   // корабль стоит — на палубу точно
     }
 
     /** Корабль — на другую карту (данные): старый носитель прочь, vessels.json — сразу. */
@@ -480,7 +494,6 @@ final class Landings {
             link.fade(p, 0, 4, FADE_OUT);
             mod.pvpZone(v, v.pilot, true);
         }
-        for (var e : List.copyOf(t.crew.entrySet())) moveRider(t, e.getKey(), e.getValue());
         sound(t.to, v, t.kind == Kind.ENTRY ? SoundEvent.ENTITY_BLAZE_SHOOT : SoundEvent.ENTITY_FIREWORK_ROCKET_LAUNCH, 3f, 0.5f);
     }
 
@@ -488,10 +501,12 @@ final class Landings {
     private void moveRider(Trip t, Player r, double[] local) {
         if (local == null || !r.isOnline() || r.getInstance() != t.from) { t.crew.remove(r); return; }
         Vessel v = t.v;
+        t.crewPending++;
         double[] w = VesselMath.toWorld(local[0], local[1], local[2], v.pos(), v.rot);
         Beams.safe(r, 40_000);
         mod.server().transfer(r, t.to, new Pos(w[0], w[1] + 0.05, w[2], r.getPosition().yaw(), r.getPosition().pitch()))
                 .whenComplete((ok, err) -> mod.scheduler().run(() -> {
+                    t.crewPending--;
                     if (r.isOnline() && r.getInstance() == t.to) {
                         link.fade(r, 0, 4, FADE_OUT);
                         mod.client.warpFxTo(r, v, 2);
@@ -520,7 +535,7 @@ final class Landings {
             double[] vel = g.velocity(t.t);
             pl.vx = vel[0]; pl.vy = vel[1]; pl.vz = vel[2];
             pl.lastPose = now;
-            if (!t.acked || t.t == 1) mod.client.correct(v);                     // старый мод (не ответил на AUTO) — ведём позами
+            if (!t.acked) mod.client.correct(v);                                 // старый мод (не ответил на AUTO) — ведём позами
         }
         fx(t, k);
         if (t.t % 4 == 0) keepCrew(t);
@@ -578,7 +593,7 @@ final class Landings {
         if (v.trip != t) return;
         v.trip = null;
         mod.server().unpin(t.pin);
-        v.tripReady = mod.ticks() + cooldownTicks() / 2;
+        v.tripReady = mod.ticks() + (t.kind == Kind.EXIT ? cooldownTicks() * 3 : cooldownTicks() / 2);   // взлёт: корабль всё ещё выше — не мигать затемнением
         for (Player p : people(t)) if (p.isOnline()) link.fade(p, 0, 2, FADE_OUT);
         if (v.pilot != null && v.pilot.player == t.pilot && t.pilot.isOnline()) {
             v.pilot.lastPose = mod.ticks();
@@ -607,9 +622,10 @@ final class Landings {
         for (Vessel v : List.copyOf(mod.vessels())) {
             Trip t = v.trip;
             if (t == null) continue;
+            for (Player p : people(t)) if (p.isOnline()) link.fade(p, 0, 2, FADE_OUT);
             switch (t.phase) {
                 case GLIDE, PLACE -> finish(t, false);
-                case MOVING -> { relocate(v, t.toMap, t.end, t.rot); v.trip = null; mod.server().unpin(t.pin); }
+                case MOVING -> { relocate(v, t.toMap, t.start, t.rot); v.trip = null; mod.server().unpin(t.pin); }   // туда же, куда едет пилот
                 default -> abort(t, null);
             }
         }
