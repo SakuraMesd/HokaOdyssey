@@ -44,6 +44,7 @@ final class WarpDrive {
         Instance inst = v.carrier != null ? v.carrier.getInstance() : null;
         if (k == null || inst == null) return;
         if (v.warpPhase != IDLE) { cancel(v, "Варп отменён"); return; }
+        if (mod.effects(v).warpBroken()) { mod.client.message(p, "Варп-привод повреждён — нужен ремонт корпуса", true); return; }
         long now = mod.ticks();
         if (now < v.warpReady) { mod.client.message(p, "Варп перезаряжается: " + secs(v.warpReady - now) + " с", true); return; }
         VesselsModule.Status s = mod.status(v);
@@ -75,6 +76,7 @@ final class WarpDrive {
 
     /** Каждый тик для корабля с пилотом. */
     void tick(Vessel v) {
+        if (v.warpPhase != IDLE && mod.effects(v).warpBroken()) { cancel(v, "Варп-привод повреждён"); return; }   // корпус разбился иначе (команда, конфиг)
         if (v.warpPhase == IDLE) return;
         long now = mod.ticks();
         if (v.warpPhase == CHARGING) {

@@ -56,7 +56,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * </ul>
  * Креатив и наблюдатель урона не получают (как в ванили). Воздух в космосе — модуль oxygen.
  */
-public final class SurvivalModule extends OdysseyModule {
+public final class SurvivalModule extends OdysseyModule implements PvpZones {
 
     /** Состояние игрока между тиками. */
     private static final class St {
@@ -79,10 +79,17 @@ public final class SurvivalModule extends OdysseyModule {
     /** Доп. слоты (скафандр, джетпак, прочее ×2) — окно рисует мод 0.67+. */
     final Extras extras = new Extras();
     private Path playersDir;
+    /** PvP-зоны (снимок, правка — новый) и их файл. */
+    private volatile ZoneBook zones = ZoneBook.EMPTY;
+    private ZoneBook.Store zoneStore;
+    private PvpCommand pvpCommand;
+    /** Карта мира — по последнему спрошенному миру (проверка зон зовётся часто, мир почти всегда тот же). */
+    private volatile Object[] lastMap = {null, null};
 
     // настройки
     private GameMode defaultGm;
-    private boolean pvp, keepInv, hunger, fallOn, blockDrops, restorePos;
+    private String pvpMode = "all";
+    private boolean keepInv, hunger, fallOn, blockDrops, restorePos;
     private float starveTo, lava, inFire, suffocation, magma, burning, voidDmg;
     private int fallFree, voidBelow, iTicks;
 
@@ -93,12 +100,18 @@ public final class SurvivalModule extends OdysseyModule {
     protected void onEnable() {
         playersDir = dataFolder().resolve("players");
         readConfig();
+        zoneStore = new ZoneBook.Store(dataFolder().resolve("pvp-zones.json"));
+        zones = zoneStore.load();
+        if (zoneStore.broken())
+            logger().error("pvp-zones.json не прочитан ({}) — файл не будет перезаписан (копия — pvp-zones.json.broken); исправьте его и перезагрузите модуль", zoneStore.brokenWhy());
+        services().register(PvpZones.class, this);
         services().get(ink.hoka.odyssey.clientmods.ClientModsApi.class).ifPresent(extras::attach);
         events().addListener(PlayerSpawnEvent.class, this::onSpawn);
         events().addListener(PlayerDisconnectEvent.class, e -> {
             St s = states.remove(e.getPlayer().getUuid());
             if (s != null && s.loaded) save(e.getPlayer(), s);
             extras.forget(e.getPlayer());
+            if (pvpCommand != null) pvpCommand.forget(e.getPlayer().getUuid());
         });
         events().addListener(EntityDamageEvent.class, this::onDamage);
         events().addListener(EntityAttackEvent.class, this::onAttack);
@@ -111,9 +124,10 @@ public final class SurvivalModule extends OdysseyModule {
         int every = Math.max(1, config().getInt("save.interval-minutes", 5)) * 60 * 20;
         scheduler().repeat(this::saveAll, every, every);
         registerCommand(gmCommand());
+        registerCommand(pvpCommand = new PvpCommand(this));
         // модуль включили на ходу — уже вошедшим применить
         for (Player p : MinecraftServer.getConnectionManager().getOnlinePlayers()) join(p, false);
-        logger().info("выживание включено: режим по умолчанию {}, PvP {}, вещи при смерти {}", defaultGm, pvp ? "вкл" : "выкл",
+        logger().info("выживание включено: режим по умолчанию {}, PvP {} (зон {}), вещи при смерти {}", defaultGm, pvpMode, zones.zones().size(),
                 keepInv ? "остаются" : "выпадают");
     }
 
@@ -121,13 +135,65 @@ public final class SurvivalModule extends OdysseyModule {
     protected void onDisable() {
         saveAll();
         extras.detach();
+        writeZones();                                                           // не записанное в фоне — сейчас
+        if (pvpCommand != null) pvpCommand.stop();                            // сервис PvpZones снимет загрузчик
+    }
+
+    // ───────────────────────── PvP-зоны (сервис PvpZones) ─────────────────────────
+
+    ZoneBook zones() { return zones; }
+
+    /** Новый снимок зон: сразу в силе, файл — в фоне. false — файл битый (правка не принята). */
+    boolean editZones(ZoneBook next) {
+        if (zoneStore == null || zoneStore.broken()) return false;
+        zones = next;
+        zonesDirty = true;
+        scheduler().async(this::writeZones);                                    // пишет последний снимок: порядок фоновых задач не важен
+        return true;
+    }
+
+    private volatile boolean zonesDirty;
+
+    private synchronized void writeZones() {
+        if (!zonesDirty || zoneStore == null || zoneStore.broken()) return;
+        zonesDirty = false;
+        try { zoneStore.write(zones.toJson()); }
+        catch (Exception e) { zonesDirty = true; logger().error("pvp-zones.json не записан: {}", e.toString()); }
+    }
+
+    private String mapOf(Instance inst) {
+        if (inst == null) return null;
+        Object[] l = lastMap;
+        if (l[0] == inst) return (String) l[1];
+        String n = server().mapName(inst).orElse(null);
+        lastMap = new Object[]{inst, n};
+        return n;
+    }
+
+    @Override public boolean isPvp(String map, double x, double y, double z) { return zones.isPvp(map, x, y, z); }
+
+    @Override public boolean isPvp(Instance inst, double x, double y, double z) { return zones.isPvp(mapOf(inst), x, y, z); }
+
+    @Override public String zoneAt(Instance inst, double x, double y, double z) {
+        ZoneBook.Zone zn = zones.zoneAt(mapOf(inst), x, y, z);
+        return zn == null ? null : zn.name();
+    }
+
+    @Override public String playerMode() { return pvpMode; }
+
+    @Override public boolean playerPvp(Instance inst, double ax, double ay, double az, double tx, double ty, double tz) {
+        if (pvpMode.equals("all")) return true;
+        if (pvpMode.equals("off")) return false;
+        ZoneBook b = zones;
+        String map = mapOf(inst);
+        return ZoneBook.playerPvp(pvpMode, b.isPvp(map, ax, ay, az), b.isPvp(map, tx, ty, tz));
     }
 
     private void readConfig() {
         var c = config();
         defaultGm = PlayerData.gameMode(c.getString("default-gamemode", "survival"));
         if (defaultGm == null) defaultGm = GameMode.SURVIVAL;
-        pvp = c.getBoolean("pvp", true);
+        pvpMode = ZoneBook.mode(c.contains("pvp-mode") ? c.getString("pvp-mode", "all") : null, c.getBoolean("pvp", true));
         keepInv = c.getBoolean("keep-inventory", false);
         hunger = c.getBoolean("hunger.enabled", true);
         starveTo = (float) c.getDouble("hunger.starve-to", 1.0);
@@ -417,7 +483,8 @@ public final class SurvivalModule extends OdysseyModule {
     private void onAttack(EntityAttackEvent e) {
         if (!(e.getEntity() instanceof Player a) || !(e.getTarget() instanceof LivingEntity t)) return;
         if (a.getGameMode() == GameMode.SPECTATOR || t.isDead()) return;
-        if (t instanceof Player tp && (!pvp || tp.getGameMode() == GameMode.CREATIVE || tp.getGameMode() == GameMode.SPECTATOR)) return;
+        if (t instanceof Player tp && (tp.getGameMode() == GameMode.CREATIVE || tp.getGameMode() == GameMode.SPECTATOR)) return;
+        if (t instanceof Player && !pvpBetween(a, t)) return;                 // PvP по режиму pvp-mode (zones — оба в зоне)
         St s = st(a);
         // откат удара: доля силы по времени с прошлого удара (скорость атаки — атрибут, у кулака 4)
         double speed = Math.max(0.1, a.getAttributeValue(Attribute.ATTACK_SPEED));
@@ -435,6 +502,12 @@ public final class SurvivalModule extends OdysseyModule {
             if (a.getGameMode() != GameMode.CREATIVE) wearHand(a, 1);
         }
         if (hunger) s.exhaustion += 0.1f;
+    }
+
+    private boolean pvpBetween(Player a, LivingEntity t) {
+        var ap = a.getPosition();
+        var tp = t.getPosition();
+        return playerPvp(a.getInstance(), ap.x(), ap.y(), ap.z(), tp.x(), tp.y(), tp.z());
     }
 
     /** Износ оружия/инструмента в руке. */

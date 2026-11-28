@@ -1,6 +1,7 @@
 package ink.hoka.odyssey.client.vessels;
 
 import ink.hoka.odyssey.client.vessels.hud.MenuArt;
+import ink.hoka.odyssey.client.vessels.hud.HudView;
 import ink.hoka.odyssey.client.vessels.hud.MenuInfo;
 import ink.hoka.odyssey.client.vessels.hud.MenuLayout;
 import ink.hoka.odyssey.client.vessels.hud.PngGfx;
@@ -87,5 +88,12 @@ class MenuPreviewTest {
         few[0] = "iron_ingot"; fc[0] = 7; few[MenuLayout.FUEL0] = "fuel"; fc[MenuLayout.FUEL0] = 40;
         few[MenuLayout.PLAYER0 + 4] = "engine"; few[MenuLayout.WORKSHOP] = "crafting_table"; few[MenuLayout.REPAIR] = "anvil"; few[MenuLayout.HOTBAR0] = "iron_pickaxe";
         render("menu-2-low-fuel-gui4-320x240", 320, 240, 4, info(40, 0, false), few, fc, MenuLayout.FUEL0 + 1);
+
+        // vessels-5: разбиты нос, корпус, левый борт и двигатели — сводка показывает, что сломано
+        MenuInfo b = info(150, 4, true);
+        b.hp = 38; b.zones[0] = 0; b.zones[1] = 0; b.zones[2] = 0; b.zones[3] = 0.7f; b.zones[4] = 0;
+        b.broken = HudView.GUN | HudView.WARP | HudView.LEFT | HudView.ENGINE; b.turn = 0.7; b.gunReload = 0.68; b.speedMul = 0.77;
+        render("menu-3-broken", 640, 360, 3, b, items, counts, -1);
+        render("menu-4-broken-gui4-320x240", 320, 240, 4, b, few, fc, -1);
     }
 }

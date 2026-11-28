@@ -20,6 +20,9 @@ final class Piloting {
     /** Множитель скорости для проверки полёта: улучшение сняли — старый предел держится ещё 5 с (мод тормозит не сразу). */
     double checkMul = 1;
     long checkMulAt;
+    /** Корабль в PvP-зоне (метка в HUD) и имя зоны — для сообщений при входе/выходе. */
+    boolean pvpZone;
+    String pvpZoneName;
 
     Piloting(Player player, Vessel vessel, long now) {
         this.player = player;

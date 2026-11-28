@@ -27,7 +27,9 @@ import java.util.Map;
  *     6 CORRECT double x y z, float qx qy qz qw — сервер не принял позу (или варп): встать сюда
  *     7 STATE   UTF-JSON {fuel, capacity, warp-cost, speed-mul, empty, gun-reload (тики), gun-range, warp-phase
  *               (0 нет, 1 зарядка, 2 наводка), warp-left (тики до конца зарядки), warp-charge (тики), warp-reload-left,
- *               warp-reload (тики)} — пилоту: HUD (топливо, перезарядки, варп)
+ *               warp-reload (тики), broken (биты разбитых зон с эффектом: 1 нос/орудие, 2 корпус/варп, 4 левый,
+ *               8 правый, 16 двигатели), turn-mul (поворот), pvp (корабль в PvP-зоне)} — пилоту: HUD (топливо,
+ *               перезарядки, варп, поломки, метка PvP)
  *     8 SHOT    int корабль, double x y z (ствол), double x y z (куда), byte что (0 мимо, 1 блок, 2 сущность,
  *               3 корабль, 4 незагружено) — всем рядом: болт, вспышка, звук, искры
  *     9 WARP    int корабль, byte что (0 отмена, 1 зарядка: int тиков, 2 прыжок) — пилоту и стоящим на корабле
@@ -35,7 +37,7 @@ import java.util.Map;
  *    11 MENU    UTF-JSON {window (номер окна Minestom), title (заголовок окна текстом), id, kind, owner, fuel, capacity,
  *               warp-cost, warp-distance, warp-charge (с), warp-reload (с), gun-damage, gun-reload (с), gun-range,
  *               speed-mul, burn (в минуту), upgrades (сколько стоит), mul {speed, warp-cost, gun-reload, gun-damage,
- *               warp-reload}} — перед открытием окна корабля и при смене груза (тем, кто смотрит): мод рисует окно
+ *               warp-reload} (только улучшения), broken, effects {speed, gun-reload, spread, turn}} — перед открытием окна корабля и при смене груза (тем, кто смотрит): мод рисует окно
  *               по-своему (vessels-3); старый мод пакет пропускает — у него обычный сундук
  *    12 HIT     byte 1 — попадание по цели, 2 — убийство, 3 — по кораблю, 4 — корабль разрушен — стрелявшему, когда
  *               болт долетел (маркер у прицела; по кораблю — своим цветом)
@@ -45,6 +47,12 @@ import java.util.Map;
  *               мастерской и при смене груза: мод рисует окно мастерской по-своему
  *    15 WORLD   UTF-JSON {planet, clearance, soft, beam-reach} — карта игрока: планета (подушка у пилота, лучи) или
  *               космос; при входе в модуль и смене мира
+ *    16 CAMERAS UTF-JSON {first: камера | null, f5: [камера…]} — камеры корабля в деле (корабль поверх вида) — пилоту при
+ *               посадке и при каждой правке камер (vessels-5). Камера: {pos[3] (система корабля), yaw, pitch, fov (нет —
+ *               как у игрока), look[3] (нет — по углам), smooth (нет — camera.chase-smoothing)}
+ *    17 CAMEDIT UTF-JSON {scope ("kind" | "ship"), key, title, which (0 — первое лицо, n — вид F5 n), own {first, f5}
+ *               (камеры области правки), eff {first, f5} (в деле)} — открыть редактор камер (OP, пилот); мод отвечает C2S 9 1
+ *    18 CAMSAVED UTF-JSON {which, own, eff, msg} — камера сохранена: редактор обновляет «уже есть», пилот — камеры
  * C2S 1 POSE    double x y z, float qx qy qz qw — поза своего корабля, 20 раз в секунду
  *     2 BOARD   int корабль — хочу сесть (ПКМ по кораблю)
  *     3 EXIT    — выйти (то же, что F)
@@ -52,6 +60,8 @@ import java.util.Map;
  *     5 FIRE    float x y z — выстрел по направлению прицела (ЛКМ пилота)
  *     6 WARP    — начать зарядку варпа / отменить (R)
  *     7 IMPACT  float скорость (бл/с), float x y z (направление, мир) — мод пилота врезался в блоки на скорости
+ *     8 CAMSAVE UTF-JSON {which, cam} — редактор: сохранить камеру (сервер проверяет OP и что это пилот того корабля)
+ *     9 CAMEDIT byte 1 — редактор открыт, 0 — закрыт
  * </pre>
  * Поза — середина модели в мире и поворот «система корабля → мир» (нос +Z, верх +Y, левый борт +X).
  */
@@ -87,7 +97,7 @@ final class VesselsClient {
         send(p, kinds());
         for (Vessel v : mod.vessels()) if (v.carrier != null && !v.carrier.isRemoved()) send(p, attach(v));
         world(p, p.getInstance());
-        for (Vessel v : mod.vessels()) if (v.pilot != null && v.pilot.player == p) { start(v); state(v); hull(v, false, -1); }   // модуль перезагрузился посреди полёта
+        for (Vessel v : mod.vessels()) if (v.pilot != null && v.pilot.player == p) { start(v); state(v); hull(v, false, -1); cameras(v); }   // модуль перезагрузился посреди полёта
     }
 
     private void send(Player p, byte[] b) {
@@ -143,6 +153,10 @@ final class VesselsClient {
         m.put("warp-charge", Math.round(s.warpChargeSec() * 20));
         m.put("warp-reload-left", Math.max(0, v.warpReady - now));
         m.put("warp-reload", Math.round(s.warpReloadSec() * 20));
+        HullEffects.Effects ef = mod.effects(v);                                // vessels-5: разбитые зоны, PvP-зона
+        m.put("broken", ef.broken());
+        m.put("turn-mul", ef.turn());
+        m.put("pvp", v.pilot.pvpZone);
         String js = new Gson().toJson(m);
         send(v.pilot.player, bytes(out -> {
             out.writeByte(7);
@@ -186,7 +200,7 @@ final class VesselsClient {
     void menu(Player p, Vessel v, VesselMenu m) {
         if (!isReady(p)) return;
         VesselsModule.Status s = mod.status(v);
-        Upgrades.Stats st = mod.stats(v);
+        Upgrades.Stats st = mod.upgradeStats(v);
         int ups = 0;
         for (int c : v.cargo.upgradeCounts()) ups += c;
         Map<String, Object> o = new LinkedHashMap<>();
@@ -218,6 +232,9 @@ final class VesselsClient {
         mul.put("gun-damage", st.gunDamage());
         mul.put("warp-reload", st.warpReload());
         o.put("mul", mul);
+        HullEffects.Effects ef = mod.effects(v);                                // vessels-5: что сломано (сводка)
+        o.put("broken", ef.broken());
+        o.put("effects", Map.of("speed", ef.speed(), "gun-reload", ef.gunReload(), "spread", ef.spread(), "turn", ef.turn()));
         String js = new Gson().toJson(o);
         send(p, bytes(out -> {
             out.writeByte(11);
@@ -247,6 +264,46 @@ final class VesselsClient {
         send(p, bytes(out -> {
             out.writeByte(14);
             out.writeUTF(json);
+        }));
+    }
+
+    /** Пилоту: камеры его корабля (S2C CAMERAS). */
+    void cameras(Vessel v) {
+        if (v.pilot == null) return;
+        String js = CameraBook.setJson(mod.cameras.of(v)).toString();
+        send(v.pilot.player, bytes(out -> {
+            out.writeByte(16);
+            out.writeUTF(js);
+        }));
+    }
+
+    /** Открыть редактор камер (S2C CAMEDIT). */
+    void camEdit(Player p, Vessel v, CameraBook.Scope scope, int which, CameraBook.Set own, CameraBook.Set eff) {
+        com.google.gson.JsonObject o = new com.google.gson.JsonObject();
+        o.addProperty("scope", scope.ship() ? "ship" : "kind");
+        o.addProperty("key", scope.key());
+        o.addProperty("title", scope.title());
+        o.addProperty("which", which);
+        o.add("own", CameraBook.setJson(own));
+        o.add("eff", CameraBook.setJson(eff));
+        String js = o.toString();
+        send(p, bytes(out -> {
+            out.writeByte(17);
+            out.writeUTF(js);
+        }));
+    }
+
+    /** Камера сохранена (S2C CAMSAVED). */
+    void camSaved(Player p, int which, CameraBook.Set own, CameraBook.Set eff, String msg) {
+        com.google.gson.JsonObject o = new com.google.gson.JsonObject();
+        o.addProperty("which", which);
+        o.add("own", CameraBook.setJson(own));
+        o.add("eff", CameraBook.setJson(eff));
+        o.addProperty("msg", msg);
+        String js = o.toString();
+        send(p, bytes(out -> {
+            out.writeByte(18);
+            out.writeUTF(js);
         }));
     }
 
@@ -364,6 +421,8 @@ final class VesselsClient {
                 case 5 -> mod.combat.fire(p, in.readFloat(), in.readFloat(), in.readFloat());
                 case 6 -> mod.warp.toggle(p);
                 case 7 -> mod.hull.impact(p, in.readFloat(), in.readFloat(), in.readFloat(), in.readFloat());
+                case 8 -> mod.cameras.onSave(p, in.readUTF());
+                case 9 -> mod.cameras.onEditState(p, in.readUnsignedByte());
                 default -> { }
             }
         } catch (IOException e) {

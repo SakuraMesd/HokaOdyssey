@@ -16,6 +16,12 @@ final class ShipState {
     double hp, hpMax;
     final float[] zones = {1, 1, 1, 1, 1};
     boolean hullKnown;
+    /** vessels-5: разбитые зоны с эффектом (биты как у сервера: 1 нос/орудие, 2 корпус/варп, 4 левый, 8 правый, 16 двигатели), поворот, PvP-зона. */
+    int broken;
+    double turnMul = 1;
+    boolean pvp;
+
+    static final int GUN = 1, WARP = 2, LEFT = 4, RIGHT = 8, ENGINE = 16;
 
     /** S2C HULL. Вернуть true — это попадание/удар (встряска, красный край). */
     boolean readHull(JsonObject o) {
@@ -44,6 +50,9 @@ final class ShipState {
         warpReload = Math.max(1, i(o, "warp-reload", warpReload));
         warpChargeEnd = now + i(o, "warp-left", 0);
         warpReloadEnd = now + i(o, "warp-reload-left", 0);
+        broken = i(o, "broken", 0);
+        turnMul = Math.clamp(d(o, "turn-mul", 1), 0.05, 1);
+        pvp = o.has("pvp") && o.get("pvp").getAsBoolean();
         known = true;
     }
 

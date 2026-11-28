@@ -110,6 +110,8 @@ final class VesselMenu {
         double[] zh = mod.hull.zoneHealth(vessel);
         java.util.List<String> zl = new java.util.ArrayList<>();
         for (int i = 0; i < Zones.COUNT; i++) zl.add(Zones.NAMES[i] + ": " + Math.round(zh[i] * 100) + "%");
+        HullEffects.Effects ef = mod.effects(vessel);                           // vessels-5: что сломано
+        for (String b : brokenLines(ef)) zl.add("⚠ " + b);
         zl.add("Клик — ремонт ремкомплектом (+" + Math.round(mod.hull.repairKit()) + "):");
         zl.add("из инвентаря, иначе из груза корабля.");
         double f = hp / Math.max(1, max);
@@ -122,6 +124,17 @@ final class VesselMenu {
         inv.setItemStack(INFO_GUN, label(Material.BLAZE_ROD, "Орудие: урон " + fmt(s.gunDamage()), NamedTextColor.RED,
                 List.of("Перезарядка " + fmt(s.gunReloadSec()) + " с, дальность " + Math.round(s.gunRange()) + ".", "ЛКМ — огонь (пилот).",
                         "Скорость ×" + fmt(s.speedMul()) + ".")));
+    }
+
+    /** Что сломано (для сводки): строки по разбитым зонам с включённым эффектом. */
+    static List<String> brokenLines(HullEffects.Effects e) {
+        List<String> l = new java.util.ArrayList<>();
+        int b = e.broken();
+        if ((b & HullEffects.ENGINE) != 0) l.add("Двигатели разбиты: ход " + Math.round(e.speed() * 100) + "%");
+        if ((b & HullEffects.GUN) != 0) l.add("Нос разбит: перезарядка ×" + fmt(e.gunReload()) + ", разброс +" + fmt(e.spread()) + "°");
+        if ((b & (HullEffects.LEFT | HullEffects.RIGHT)) != 0) l.add("Борт разбит: поворот " + Math.round(e.turn() * 100) + "%");
+        if ((b & HullEffects.WARP) != 0) l.add("Корпус разбит: варп недоступен");
+        return l;
     }
 
     private static String fmt(double v) {

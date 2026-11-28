@@ -43,11 +43,19 @@ class HudPreviewTest {
     static HudView view(int w, int h, float[] tris, float aimDx, float aimDy, float heading, float pitch, float roll,
                         double speed, int throttle, boolean boost, double alt, double vs, int fuel, float gun, int warp, float warpK,
                         int warpLeft, String msg, boolean warn, float hints, float hit, int hitKind, double hp, float[] zones, float hurt) throws Exception {
+        return view(w, h, tris, aimDx, aimDy, heading, pitch, roll, speed, throttle, boost, alt, vs, fuel, gun, warp, warpK, warpLeft,
+                msg, warn, hints, hit, hitKind, hp, zones, hurt, false, 0);
+    }
+
+    static HudView view(int w, int h, float[] tris, float aimDx, float aimDy, float heading, float pitch, float roll,
+                        double speed, int throttle, boolean boost, double alt, double vs, int fuel, float gun, int warp, float warpK,
+                        int warpLeft, String msg, boolean warn, float hints, float hit, int hitKind, double hp, float[] zones, float hurt,
+                        boolean pvp, int broken) throws Exception {
         int[] tz = KindTest.corabll(KindTest.tris(), 180).triZone;
         return new HudView(w / 2f, h / 2f, true, w / 2f + aimDx, h / 2f + aimDy, true, heading, rungs(w, h, pitch, roll),
                 speed, 30, 50, throttle, boost, alt, vs, true, fuel, 256, 64, false, gun, (1 - gun) * 0.5f,
                 warp, warpK, warpLeft, msg, warn, msg == null ? 0 : 1, hints, hit, hitKind, "corabll", tris,
-                true, hp, 200, zones, tz, hurt);
+                true, hp, 200, zones, tz, hurt, pvp, broken);
     }
 
     @Test
@@ -69,6 +77,11 @@ class HudPreviewTest {
                         new float[]{0.2f, 0.75f, 0.5f, 0.9f, 0f}, 0.75f)),
                 new Scene("hud-8-damage-gui4-320x240", 320, 240, 4, view(320, 240, tris, 0, 0, 12, 0, 0, 20, 1, false, 90, 0, 120, 1,
                         HudView.WARP_READY, 1, 0, null, false, 0, 0.9f, 4, 31, new float[]{0.6f, 0.3f, 1f, 0.1f, 0.5f}, 0.4f)),
+                new Scene("hud-9-pvp-broken", 640, 360, 3, view(640, 360, tris, -10, 6, 214, 1, -6, 21, 1, false, 340, 0.2, 150, 0.4f,
+                        HudView.WARP_READY, 1, 0, "Вход в PvP-зону «arena» — здесь корабли бьют друг друга", true, 0, 0.8f, 3, 41,
+                        new float[]{0f, 0f, 0f, 0.8f, 0f}, 0.3f, true, HudView.GUN | HudView.WARP | HudView.LEFT | HudView.ENGINE)),
+                new Scene("hud-10-pvp-gui4-320x240", 320, 240, 4, view(320, 240, tris, 0, 0, 90, 0, 0, 25, 1, false, 120, 0, 150, 1,
+                        HudView.WARP_READY, 1, 0, null, false, 0, 0, 1, 120, new float[]{0f, 0f, 1f, 1f, 1f}, 0, true, HudView.GUN | HudView.WARP)),
                 new Scene("hud-6-gui2-960x540", 960, 540, 2, view(960, 540, tris, 30, -18, 33, 8, 25, 44, 1, true, 2210, 4.8, 220, 1,
                         HudView.WARP_READY, 1, 0, null, false, 1, 0, false)),
         };

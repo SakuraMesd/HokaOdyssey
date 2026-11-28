@@ -16,7 +16,8 @@ import net.minestom.server.item.ItemStack;
  * /hovessel (то же — /vessel), только OP: spawn &lt;вид&gt; — поставить перед собой (владелец — кто поставил), remove [id]
  * — убрать (по id, на который смотришь или ближайший; груз выпадает), list, tp &lt;id&gt;, reload — перечитать виды
  * из config.yml, owner &lt;id&gt; &lt;ник&gt;, fuel [кол-во] [ник], upgrade &lt;вид&gt; [ник], give &lt;repair|crystal&gt; [кол-во] [ник],
- * repair &lt;id&gt; [hp], hp &lt;id&gt; &lt;hp&gt; (0 — разрушить), call &lt;вид&gt; [ник] — новый корабль прилетает к игроку.
+ * repair &lt;id&gt; [hp], hp &lt;id&gt; &lt;hp&gt; (0 — разрушить), call &lt;вид&gt; [ник] — новый корабль прилетает к игроку,
+ * camera … — камеры корабля ({@link CameraCommand}).
  */
 final class HoVesselCommand extends Command {
 
@@ -64,12 +65,23 @@ final class HoVesselCommand extends Command {
         addSyntax((s, c) -> giveItem(s, c.get(item), 1, null), ArgumentType.Literal("give"), item);
         addSyntax((s, c) -> giveItem(s, c.get(item), c.get(count), null), ArgumentType.Literal("give"), item, count);
         addSyntax((s, c) -> giveItem(s, c.get(item), c.get(count), c.get(nick)), ArgumentType.Literal("give"), item, count, nick);
+
+        CameraCommand cams = new CameraCommand(mod);                            // vessels-5: камеры кораблей
+        var camArgs = ArgumentType.StringArray("аргументы").setSuggestionCallback((sender, ctx, sug) -> {
+            String in = sug.getInput();
+            int at = in.toLowerCase(java.util.Locale.ROOT).indexOf(" camera ");
+            String rest = at < 0 ? "" : in.substring(at + 8);
+            String[] parts = rest.isEmpty() ? new String[0] : rest.split(" ", -1);
+            for (String o : cams.suggest(parts.length == 0 ? new String[]{""} : parts)) sug.addEntry(new SuggestionEntry(o));
+        });
+        addSyntax((s, c) -> info(s, CameraCommand.HELP), ArgumentType.Literal("camera"));
+        addSyntax((s, c) -> cams.run(s, c.get(camArgs)), ArgumentType.Literal("camera"), camArgs);
     }
 
     private void help(CommandSender s) {
         info(s, "/hovessel (/vessel) spawn <вид> — поставить перед собой  |  remove [id] — убрать (на который смотрите / ближайший)  |  "
                 + "list  |  tp <id>  |  reload — перечитать виды  |  owner <id> <ник>  |  fuel [кол-во] [ник]  |  "
-                + "upgrade <engine|tank|gun|warp> [ник]  |  call <вид> [ник] — прилёт корабля к игроку  |  give <repair|crystal> [кол-во] [ник]  |  repair <id> [hp]  |  hp <id> <hp>. "
+                + "upgrade <engine|tank|gun|warp> [ник]  |  call <вид> [ник] — прилёт корабля к игроку  |  give <repair|crystal> [кол-во] [ник]  |  repair <id> [hp]  |  hp <id> <hp>  |  camera … — камеры корабля (/hovessel camera — подробно). "
                 + "Сесть — ПКМ по кораблю, выйти — F, меню — G.");
     }
 

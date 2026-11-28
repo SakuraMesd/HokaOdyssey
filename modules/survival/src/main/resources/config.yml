@@ -4,8 +4,10 @@
 # Режим при входе для всех, у кого нет своего (/gm запоминается за игроком).
 default-gamemode: survival
 
-# Бой игрок против игрока.
-pvp: true
+# Бой игрок против игрока: all — везде (как раньше), zones — только в PvP-зонах (оба игрока в зоне), off — нигде.
+# Зоны — командой /hopvp (OP), хранятся в module/survival/pvp-zones.json. Старый ключ pvp: true/false — то же, что all/off
+# (если pvp-mode нет). Бой кораблей (орудия vessels) — своя настройка в config.yml модуля vessels (combat.mode).
+pvp-mode: all
 
 # true — вещи остаются у игрока после смерти; false — выпадают на месте смерти (как в ванили).
 keep-inventory: false

@@ -74,6 +74,11 @@ SpaceApi space = services().require(SpaceApi.class);
 
 Классы модуля видны только модулям, у которых он в `depends`/`softdepends`.
 
+Готовые сервисы: `ClientModsApi` (clientmods), `HoBlocks` (blocks), `HoItems` (hoitems), `HoSounds` (hosounds),
+`HoUi`/`HoHud` (houi), `PvpZones` (survival: PvP ли в точке — зоны `/hopvp` и режим `pvp-mode`; так vessels решает,
+бить ли корабли). Модуль из `softdepends` может не стоять — тогда класса его сервиса нет: обращайтесь к нему в
+`try { … } catch (Throwable e)` (пример — `vessels/ZoneLink`).
+
 ## Правила (чтобы перезагрузка не ломала сервер)
 
 1. Слушатели — только через `events()`, команды — `registerCommand`, задачи — `scheduler()`.

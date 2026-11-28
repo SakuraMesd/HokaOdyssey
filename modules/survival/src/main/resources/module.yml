@@ -1,8 +1,8 @@
 id: survival
 name: Выживание
-version: 0.2.1
+version: 0.3.0
 main: ink.hoka.odyssey.survival.SurvivalModule
 authors: [Takuyamo]
-description: Выживание — здоровье, урон (падение, лава, огонь, удушье, пустота, бой), голод, еда, смерть, сохранение игроков, /gm
+description: Выживание — здоровье, урон (падение, лава, огонь, удушье, пустота, бой), голод, еда, смерть, сохранение игроков, /gm, PvP-зоны (/hopvp, сервис PvpZones)
 depends: []
 softdepends: [clientmods]

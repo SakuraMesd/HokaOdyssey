@@ -27,7 +27,8 @@ import java.io.IOException;
 /**
  * Полёт пилота — целиком здесь, без задержки на сервер (как Pilot старых кораблей ships, те же клавиши): мышь ведёт
  * прицел, нос доводится к нему (повороты в осях корабля, без пределов); W/S — ход с разгоном, Ctrl+W — форсаж,
- * A/D — крен, пробел/Shift — вверх/вниз по «верху» корабля; F5 — кабина / сзади; F — выйти (ловит сервер).
+ * A/D — крен, пробел/Shift — вверх/вниз по «верху» корабля; F5 — кабина → виды F5 корабля (камеры вида/корабля с
+ * сервера, нет — «сзади») → кабина; F — выйти (ловит сервер). Редактор камер (OP) — {@link CamEditor}: корабль стоит.
  * Столкновения с блоками мира — по клеткам корпуса модели. Поза (середина модели + кватернион) 20 раз в секунду
  * уходит серверу; не принял — присылает, куда вернуться.
  */
@@ -43,7 +44,17 @@ final class Pilot {
     private double yawRate, pitchRate, rollRate;
     /** Прицел — отклонение от носа в осях корабля (°): вбок и вверх/вниз. */
     private float offYaw, offPitch;
-    private int view;                       // 0 — кабина, 1 — сзади
+    private int view;                       // 0 — кабина, n — вид F5 n (своих видов нет — 1 — «сзади»)
+    /** Камеры корабля от сервера (S2C CAMERAS; пусто — как раньше) и редактор камер (null — не открыт). */
+    ShipCams.Set cams = ShipCams.Set.EMPTY;
+    CamEditor editor;
+    private final ink.hoka.odyssey.client.vessels.hud.EditorHud editorHud = new ink.hoka.odyssey.client.vessels.hud.EditorHud();
+    /** FOV кадра от камеры (0 — как у игрока) — для проекции HUD; ядро старше 0.82 — FOV не задать. */
+    private float frameFov;
+    private boolean fovOk = true;
+    /** Редактор: клавиши в прошлом тике (нажатие — по фронту) и выбранный слот (колёсико). */
+    private final boolean[] edWas = new boolean[12];
+    private int edSlot = -1, edSlotStart = -1;
     private boolean boost;
     private final CameraType cameraBefore;
     private Quaternionf chase;
@@ -160,6 +171,7 @@ final class Pilot {
 
     /** Мышь двигает прицел (каждый кадр, без задержки); игрок не поворачивается. */
     boolean mouse(double dyaw, double dpitch) {
+        if (editor != null) { editor.mouse(dyaw, dpitch); return true; }
         double sens = c("aim", "sensitivity", 0.5);
         offYaw += (float) (dyaw * sens);
         offPitch += (float) (dpitch * sens);
@@ -178,22 +190,38 @@ final class Pilot {
     void tick() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return;
-        if (mc.options.getCameraType() != CameraType.FIRST_PERSON) {           // F5 — переключить вид (камеру ставим мы)
-            view = 1 - view;
+        if (mc.options.getCameraType() != CameraType.FIRST_PERSON) {           // F5 — следующий вид (камеру ставим мы)
+            if (editor == null) { view = ShipCams.nextView(view, cams.f5().size()); chase = null; }
             mc.options.setCameraType(CameraType.FIRST_PERSON);
         }
+        if (view > Math.max(1, cams.f5().size())) { view = 0; chase = null; }   // видов стало меньше
         px = x; py = y; pz = z;
         pq.set(q);
         tickNo++;
+        if (editor != null) {                                                    // редактор камер: корабль стоит
+            vx = vy = vz = 0;
+            yawRate = pitchRate = rollRate = 0;
+            offYaw = offPitch = 0;
+            throttle = 0;
+            boost = false;
+            editorTick(mc);
+            Vector3d eye = seatWorld(x, y, z, q);
+            mc.player.setPos(eye.x, eye.y - mc.player.getEyeHeight(), eye.z);
+            mc.player.setDeltaMovement(Vec3.ZERO);
+            mc.player.resetFallDistance();
+            send();
+            return;
+        }
 
         // поворот носа к прицелу — в осях корабля
-        double turnMax = kind.turnSpeed / 20.0, turnAcc = c("control", "turn-accel", 360) / 400.0, k = c("control", "turn-smoothing", 0.08);
+        double tm = state.known ? state.turnMul : 1;                            // разбитые борта — поворот медленнее
+        double turnMax = kind.turnSpeed * tm / 20.0, turnAcc = c("control", "turn-accel", 360) / 400.0, k = c("control", "turn-smoothing", 0.08);
         yawRate = approach(yawRate, offYaw, k, turnMax, turnAcc);
         pitchRate = approach(pitchRate, offPitch, k, turnMax, turnAcc);
         var o = mc.options;
         boolean free = mc.screen == null;
         int side = (o.keyRight.isDown() && free ? 1 : 0) - (o.keyLeft.isDown() && free ? 1 : 0);
-        double rollMax = kind.rollSpeed / 20.0, rollAcc = c("control", "roll-accel", 480) / 400.0;
+        double rollMax = kind.rollSpeed * tm / 20.0, rollAcc = c("control", "roll-accel", 480) / 400.0;
         rollRate += Math.clamp(side * rollMax - rollRate, -rollAcc, rollAcc);
         Quaternionf nq = new Quaternionf(q)
                 .rotateY((float) Math.toRadians(-yawRate))
@@ -430,6 +458,7 @@ final class Pilot {
 
     /** ЛКМ (и зажатая ЛКМ — каждый тик): орудие готово — выстрел по прицелу (попадание считает сервер). */
     void fire() {
+        if (editor != null) return;
         if (tickNo < gunReadyAt) return;
         gunReadyAt = tickNo + Math.max(1, state.gunReload);
         Vector3f d = aimDir();
@@ -466,29 +495,45 @@ final class Pilot {
         rot.set(pq).slerp(q, pt);
     }
 
-    /** Камера: из кабины (жёстко, по кораблю — с креном) или сзади (мягко догоняет). */
+    /**
+     * Камера: первое лицо (жёстко, по кораблю — с креном; камера вида/корабля или место пилота) или вид F5 (мягко
+     * догоняет поворот корабля; свои виды или «сзади»; не залезает в блоки — придвигается к кораблю). Редактор —
+     * свободная камера в системе корабля.
+     */
     void camera(CameraState s, float pt) {
         Vector3d pos = new Vector3d();
         Quaternionf o = new Quaternionf();
         poseAt(pt, pos, o);
         Quaternionf view;
-        if (this.view == 0) {
-            view = o;
-            float eh = (float) c("camera", "eye-height", 0);
-            Vector3f eye = o.transform(new Vector3f((float) kind.seat[0], (float) kind.seat[1] + eh, (float) kind.seat[2]));
-            s.x = pos.x + eye.x; s.y = pos.y + eye.y; s.z = pos.z + eye.z;
+        double fov;
+        if (editor != null) {
+            CamEditor e = editor;
+            ShipCams.Cam c = e.cur;
+            Vector3d w = ShipCams.toWorld(Mth.lerp(pt, e.px, c.x()), Mth.lerp(pt, e.py, c.y()), Mth.lerp(pt, e.pz, c.z()), pos, o);
+            s.x = w.x; s.y = w.y; s.z = w.z;
+            double[] a = ShipCams.angles(c);
+            view = ShipCams.viewWorld(o, a[0], a[1]);
+            fov = c.fov();
+            chase = null;
+        } else if (this.view == 0) {
+            ShipCams.Cam c = cams.first() != null ? cams.first() : defaultFirst();
+            Vector3d w = ShipCams.toWorld(c.x(), c.y(), c.z(), pos, o);
+            s.x = w.x; s.y = w.y; s.z = w.z;
+            double[] a = ShipCams.angles(c);
+            view = ShipCams.viewWorld(o, a[0], a[1]);
+            fov = c.fov();
             chase = null;
         } else {
-            float sm = (float) c("camera", "chase-smoothing", 0.15);
+            ShipCams.Cam c = this.view - 1 < cams.f5().size() ? cams.f5().get(this.view - 1) : defaultChase();
+            float sm = (float) (Double.isNaN(c.smooth()) ? c("camera", "chase-smoothing", 0.15) : c.smooth());
             if (chase == null) chase = new Quaternionf(o);
-            chase.slerp(o, sm).normalize();
-            double size = kind.radius();
-            double back = size * c("camera", "chase-per-size", 1.2), up = size * c("camera", "chase-height", 0.35);
-            Vector3f f = chase.transform(new Vector3f(0, 0, 1)), u = chase.transform(new Vector3f(0, 1, 0));
-            s.x = pos.x - f.x * back + u.x * up;
-            s.y = pos.y - f.y * back + u.y * up;
-            s.z = pos.z - f.z * back + u.z * up;
-            view = new Quaternionf(chase).rotateX((float) Math.atan2(up, back) * 0.5f);   // чуть вниз, на корабль
+            chase.slerp(o, Math.clamp(sm, 0.01f, 1f)).normalize();
+            Vector3d w = ShipCams.toWorld(c.x(), c.y(), c.z(), pos, chase);
+            w = keepOutOfBlocks(pos, w);
+            s.x = w.x; s.y = w.y; s.z = w.z;
+            double[] a = ShipCams.angles(c);
+            view = ShipCams.viewWorld(chase, a[0], a[1]);
+            fov = c.fov();
         }
         float shake = hurtPower();
         if (shake > 0.01f) {                                                    // встряска: небольшая, быстро гаснет
@@ -503,6 +548,140 @@ final class Pilot {
         s.pitch = e[1];
         s.roll = -e[2];                                                         // крен камеры игры — с обратным знаком
         s.rotation = new Quaternionf(view).rotateY((float) Math.PI);           // камера игры смотрит по −Z
+        frameFov = 0;
+        if (fov > 0 && fovOk) {
+            try {                                                               // ядро 0.82+: поле зрения камеры
+                s.fov = (float) fov;
+                frameFov = (float) fov;
+            } catch (LinkageError old) {
+                fovOk = false;
+                ctx.logger().warn("ядро мода старше 0.82 — FOV камер корабля не применяется до обновления мода");
+            }
+        }
+    }
+
+    /** Камера по умолчанию: место пилота (+ camera.eye-height) / «сзади» (camera.chase-per-size, chase-height). */
+    ShipCams.Cam defaultFirst() { return ShipCams.defaultFirst(kind.seat, c("camera", "eye-height", 0)); }
+
+    ShipCams.Cam defaultChase() { return ShipCams.defaultChase(kind.radius(), c("camera", "chase-per-size", 1.2), c("camera", "chase-height", 0.35)); }
+
+    /** Вид F5 не в блоках: луч от середины корабля к камере, блок по пути — камера ближе (как ванильная F5). */
+    private Vector3d keepOutOfBlocks(Vector3d from, Vector3d to) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || mc.player == null) return to;
+        Vec3 a = new Vec3(from.x, from.y, from.z), b = new Vec3(to.x, to.y, to.z);
+        double len = a.distanceTo(b);
+        if (len < 0.5) return to;
+        var hit = mc.level.clip(new net.minecraft.world.level.ClipContext(a, b, net.minecraft.world.level.ClipContext.Block.VISUAL,
+                net.minecraft.world.level.ClipContext.Fluid.NONE, net.minecraft.world.phys.shapes.CollisionContext.empty()));
+        if (hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS) return to;
+        double t = ShipCams.pullIn(hit.getLocation().distanceTo(a) / len, len);
+        return new Vector3d(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t, from.z + (to.z - from.z) * t);
+    }
+
+    // ───────────────────────── редактор камер ─────────────────────────
+
+    /** S2C CAMEDIT: открыть редактор (ответ серверу — C2S CAMEDIT 1). */
+    void startEditor(com.google.gson.JsonObject o) {
+        boolean ship = "ship".equals(o.has("scope") ? o.get("scope").getAsString() : "kind");
+        String key = o.has("key") ? o.get("key").getAsString() : "";
+        String title = o.has("title") ? o.get("title").getAsString() : key;
+        int which = o.has("which") ? o.get("which").getAsInt() : 0;
+        editor = new CamEditor(ship, key, title, which, ShipCams.Set.read(o.get("own")), ShipCams.Set.read(o.get("eff")), defaultFirst(), defaultChase());
+        Minecraft mc = Minecraft.getInstance();
+        edSlot = edSlotStart = mc.player != null ? mc.player.getInventory().getSelectedSlot() : -1;
+        java.util.Arrays.fill(edWas, true);                                     // зажатое при открытии — не нажатие
+        editor.status(editor.saved(editor.which) != null ? "Правка сохранённой камеры" : "Новая камера — ЛКМ/Enter, чтобы сохранить", false);
+        ctx.send(new byte[]{9, 1});
+    }
+
+    /** S2C CAMSAVED. */
+    void editorSaved(com.google.gson.JsonObject o) {
+        ShipCams.Set eff = ShipCams.Set.read(o.get("eff"));
+        cams = eff;
+        if (editor != null) editor.saved(o.has("which") ? o.get("which").getAsInt() : -1, ShipCams.Set.read(o.get("own")), eff,
+                o.has("msg") ? o.get("msg").getAsString() : "Сохранено");
+    }
+
+    /** Выйти из редактора (без сохранения несохранённого); серверу — C2S CAMEDIT 0. */
+    void stopEditor() {
+        if (editor == null) return;
+        editor = null;
+        chase = null;
+        Minecraft mc = Minecraft.getInstance();                                 // колёсико крутило слот хотбара — вернуть
+        if (mc.player != null && edSlotStart >= 0 && edSlotStart < 9) mc.player.getInventory().setSelectedSlot(edSlotStart);
+        ctx.send(new byte[]{9, 0});
+        message("Редактор камер закрыт", false);
+    }
+
+    /** ЛКМ / Enter: сохранить текущую камеру (C2S CAMSAVE). */
+    void editorSave() {
+        if (editor == null) return;
+        String js = editor.saveJson();
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        try (DataOutputStream out = new DataOutputStream(bo)) {
+            out.writeByte(8);
+            out.writeUTF(js);
+        } catch (IOException ignored) {
+        }
+        ctx.send(bo.toByteArray());
+        editor.status("Сохраняю…", false);
+    }
+
+    private static final int[] ED_KEYS = {org.lwjgl.glfw.GLFW.GLFW_KEY_1, org.lwjgl.glfw.GLFW.GLFW_KEY_2, org.lwjgl.glfw.GLFW.GLFW_KEY_3,
+            org.lwjgl.glfw.GLFW.GLFW_KEY_4, org.lwjgl.glfw.GLFW.GLFW_KEY_5, org.lwjgl.glfw.GLFW.GLFW_KEY_6, org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER,
+            org.lwjgl.glfw.GLFW.GLFW_KEY_BACKSPACE, org.lwjgl.glfw.GLFW.GLFW_KEY_R, org.lwjgl.glfw.GLFW.GLFW_KEY_V,
+            org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_BRACKET, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_BRACKET};
+
+    /** Тик редактора: клавиши (по фронту), колёсико (по смене слота хотбара), полёт камеры. Esc (меню игры) — выйти. */
+    private void editorTick(Minecraft mc) {
+        CamEditor e = editor;
+        if (mc.screen instanceof net.minecraft.client.gui.screens.PauseScreen) { stopEditor(); return; }
+        boolean free = mc.screen == null;
+        var win = mc.getWindow();
+        boolean[] now = new boolean[ED_KEYS.length];
+        int num = -1;
+        for (int i = 0; i < ED_KEYS.length; i++) {
+            now[i] = free && com.mojang.blaze3d.platform.InputConstants.isKeyDown(win, ED_KEYS[i]);
+            boolean press = now[i] && !edWas[i];
+            edWas[i] = !free || now[i];                                          // зажатое под окном (Enter в чате) — не нажатие
+            if (!press) continue;
+            switch (i) {
+                case 0, 1, 2, 3, 4, 5 -> num = i;
+                case 6 -> { editorSave(); }
+                case 7 -> { stopEditor(); return; }
+                case 8 -> e.reset();
+                case 9 -> e.toggleLook();
+                case 10 -> e.smooth(-1, c("camera", "chase-smoothing", 0.15));
+                case 11 -> e.smooth(1, c("camera", "chase-smoothing", 0.15));
+                default -> { }
+            }
+        }
+        int slot = mc.player.getInventory().getSelectedSlot();
+        if (num >= 0) {
+            if (e.available(num)) e.select(num); else e.status("Сначала — вид F5 " + (e.own.f5().size() + 1), true);
+        } else if (edSlot >= 0 && slot != edSlot) {
+            int d = Math.floorMod(slot - edSlot + 4, 9) - 4;
+            if (Math.abs(d) > 1 && slot < CamEditor.SLOTS) {                     // цифра нажата быстрее тика — это выбор камеры
+                if (e.available(slot)) e.select(slot);
+            } else {
+                boolean ctrl = free && (com.mojang.blaze3d.platform.InputConstants.isKeyDown(win, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_CONTROL)
+                        || com.mojang.blaze3d.platform.InputConstants.isKeyDown(win, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_CONTROL));
+                boolean alt = free && (com.mojang.blaze3d.platform.InputConstants.isKeyDown(win, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_ALT)
+                        || com.mojang.blaze3d.platform.InputConstants.isKeyDown(win, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_ALT));
+                if (ctrl) e.cycle(d > 0 ? 1 : -1);
+                else if (alt) e.wheelFov(d, mc.options.fov().get());
+                else e.wheelSpeed(d);
+            }
+        }
+        edSlot = slot;
+        var o = mc.options;
+        int fwd = (o.keyUp.isDown() && free ? 1 : 0) - (o.keyDown.isDown() && free ? 1 : 0);
+        int side = (o.keyLeft.isDown() && free ? 1 : 0) - (o.keyRight.isDown() && free ? 1 : 0);
+        int vert = (o.keyJump.isDown() && free ? 1 : 0) - (free && com.mojang.blaze3d.platform.InputConstants.isKeyDown(win, org.lwjgl.glfw.GLFW.GLFW_KEY_C) ? 1 : 0);
+        boolean slow = o.keyShift.isDown() && free;
+        boolean fast = free && (o.keySprint.isDown() || com.mojang.blaze3d.platform.InputConstants.isKeyDown(win, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_CONTROL));
+        e.move(fwd, side, vert, slow, fast);
     }
 
     static Quaternionf orient(float yaw, float pitch, float roll) {
@@ -557,6 +736,10 @@ final class Pilot {
         try {
             if (!common.getAsJsonObject("hud").get("enabled").getAsBoolean()) return;
         } catch (Exception ignored) {
+        }
+        if (editor != null) {                                                   // редактор камер — свой HUD
+            editorHud.draw(gfx.frame(g), editor.view(frameFov > 0 ? frameFov : mc.options.fov().get(), c("camera", "chase-smoothing", 0.15), System.currentTimeMillis()));
+            return;
         }
         int w = g.guiWidth(), h = g.guiHeight();
         float pt = d.getGameTimeDeltaPartialTick(false);
@@ -614,7 +797,8 @@ final class Pilot {
                 msg, msgWarn, alpha,
                 hints.alpha(now), Math.max(0, hitA), hitKind,
                 kind.id, kind.tris,
-                state.hullKnown, state.hp, state.hpMax, state.zones.clone(), kind.triZone, hurtA);
+                state.hullKnown, state.hp, state.hpMax, state.zones.clone(), kind.triZone, hurtA,
+                state.known && state.pvp, state.known ? state.broken : 0);
         hudDraw.draw(gfx.frame(g), v, now);
     }
 
@@ -623,7 +807,7 @@ final class Pilot {
         Minecraft mc = Minecraft.getInstance();
         Vector3f dir = new Quaternionf(camView).conjugate().transform(new Vector3f(dirWorld));
         if (dir.z <= 0.01f) return null;
-        double fov = Math.toRadians(mc.options.fov().get());
+        double fov = Math.toRadians(frameFov > 0 ? frameFov : mc.options.fov().get());
         double f = (h / 2.0) / Math.tan(fov / 2);
         return new float[]{(float) (w / 2.0 - dir.x / dir.z * f), (float) (h / 2.0 - dir.y / dir.z * f)};
     }

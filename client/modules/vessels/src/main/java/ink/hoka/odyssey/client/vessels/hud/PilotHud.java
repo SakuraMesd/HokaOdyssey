@@ -315,6 +315,20 @@ public final class PilotHud {
             g.text(m.label(), b.x() + b.w() / 2 + m.off() * ppd, b.y() + (card ? 2 : 3), k, argb(card ? WHITE : GRAY, (card ? 0.95f : 0.75f) * fade), 0, true);
         }
         g.text(Compass.readout(v.heading()), b.x() + b.w() / 2, b.y() + base + 7, 1, argb(WHITE, 0.95f), 0, true);
+        if (v.pvp()) pvpTag(g, b.x() + b.w() / 2 + 19, b.y() + base + 5.5f, gs);
+    }
+
+    /** Метка «PvP-ЗОНА» справа от числа курса: янтарная рамка и текст (здесь корабли бьют друг друга). */
+    static void pvpTag(Gfx g, float x, float y, float gs) {
+        String t = "PvP-ЗОНА";
+        float tw = g.textWidth(t), w = tw + 6, h = 9.5f, px = 1 / gs;
+        g.fill(x, y, x + w, y + h, argb(DARK, 0.6f));
+        int c = argb(AMBER, 0.9f);
+        g.fill(x, y, x + w, y + px, c);
+        g.fill(x, y + h - px, x + w, y + h, c);
+        g.fill(x, y, x + px, y + h, c);
+        g.fill(x + w - px, y, x + w, y + h, c);
+        g.text(t, x + 3, y + 1.5f, 1, argb(AMBER, 1), -1, true);
     }
 
     private void message(Gfx g, HudView v, HudLayout L) {
@@ -497,7 +511,8 @@ public final class PilotHud {
         float x = b.x() + 6, y = b.y(), iw = b.w() - 12;
         // орудие
         boolean ready = v.gunReady() >= 1;
-        g.text("ОРУДИЕ", x, y + 4 + (1 - small) * 7, small, argb(GRAY, 0.6f), -1, true);
+        boolean gunBroken = (v.broken() & HudView.GUN) != 0, warpBroken = (v.broken() & HudView.WARP) != 0;
+        g.text(gunBroken ? "НОС РАЗБИТ" : "ОРУДИЕ", x, y + 4 + (1 - small) * 7, small, gunBroken ? argb(AMBER, 0.95f) : argb(GRAY, 0.6f), -1, true);
         g.text(ready ? "ГОТОВО" : String.format(java.util.Locale.ROOT, "%.1f с", v.gunLeftSec()), x + iw, y + 4, 1, argb(ready ? WHITE : AMBER, 0.95f), 1, true);
         thinBar(g, x, y + 14, iw, Math.clamp(v.gunReady(), 0, 1), ready ? GRAY : AMBER, gs);
         // варп
@@ -511,7 +526,8 @@ public final class PilotHud {
             case HudView.WARP_NO_FUEL -> { s = "НЕТ ТОПЛ."; col = RED; k = v.warpProgress(); }
             default -> { s = "ГОТОВ"; col = WHITE; k = 1; }
         }
-        g.text("ВАРП", x, y + 21 + (1 - small) * 7, small, argb(GRAY, 0.6f), -1, true);
+        if (warpBroken && v.warp() != HudView.WARP_CHARGING) { s = "ПОВРЕЖДЁН"; col = RED; k = 0; }   // варп-привод: разбит корпус
+        g.text("ВАРП", x, y + 21 + (1 - small) * 7, small, warpBroken ? argb(RED, 0.9f) : argb(GRAY, 0.6f), -1, true);
         float room = iw - g.textWidth("ВАРП") * small - 4;
         if (g.textWidth(s) > room && v.warp() == HudView.WARP_CHARGING) s = Math.round(v.warpProgress() * 100) + "%";
         g.text(s, x + iw, y + 21, 1, argb(col, 0.95f), 1, true);

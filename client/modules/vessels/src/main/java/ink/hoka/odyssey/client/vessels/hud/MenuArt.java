@@ -182,7 +182,9 @@ public final class MenuArt {
             g.text("Прочность", x, y + (1 - small) * 7, small, argb(GRAY, 0.62f), -1, true);
             g.text(Math.round(m.hp) + " / " + Math.round(m.hpMax), x + w, y, 1, argb(Silhouette.color(f), 0.95f), 1, true);
             y += step + 0.5f;
-            g.text("Зоны", x, y + (1 - small) * 7, small, argb(GRAY, 0.62f), -1, true);
+            boolean sides = (m.broken & (HudView.LEFT | HudView.RIGHT)) != 0;   // разбит борт — вместо «Зоны» — поворот
+            g.text(sides ? "Поворот " + Math.round(m.turn * 100) + "%" : "Зоны", x, y + (1 - small) * 7, small,
+                    sides ? argb(AMBER, 0.95f) : argb(GRAY, 0.62f), -1, true);
             String[] letters = {"Н", "К", "Л", "П", "Д"};
             float zx = x + w;
             for (int i = letters.length - 1; i >= 0; i--) {
@@ -194,19 +196,20 @@ public final class MenuArt {
             }
             y += step + 0.5f;
         }
-        Object[][] rows = {
-                {"Варп: цена", m.warpCost + " топл.", m.mulWarpCost < 0.999},
-                {"Варп: прыжок", Hud.thousands(Math.round(m.warpDistance)) + " бл", false},
-                {"Варп: перезар.", num(m.warpReload) + " с", m.mulWarpReload < 0.999},
-                {"Урон орудия", num(m.gunDamage), m.mulGunDamage > 1.001},
-                {"Темп огня", num(m.gunReload) + " с", m.mulGunReload < 0.999},
-                {"Скорость", "×" + num(m.speedMul), m.mulSpeed > 1.001},
-                {"Улучшения", m.upgrades + " / " + UPGRADES, m.upgrades > 0},
+        boolean warpBroken = (m.broken & HudView.WARP) != 0, gunBroken = (m.broken & HudView.GUN) != 0, engBroken = (m.broken & HudView.ENGINE) != 0;
+        Object[][] rows = {                                                     // цвет: лучше, чем без улучшений, — зелёным; сломано — янтарным/красным
+                {"Варп: цена", m.warpCost + " топл.", m.mulWarpCost < 0.999 ? GOOD : WHITE},
+                {"Варп: прыжок", warpBroken ? "ПОВРЕЖДЁН" : Hud.thousands(Math.round(m.warpDistance)) + " бл", warpBroken ? RED : WHITE},
+                {"Варп: перезар.", num(m.warpReload) + " с", m.mulWarpReload < 0.999 ? GOOD : WHITE},
+                {"Урон орудия", num(m.gunDamage), m.mulGunDamage > 1.001 ? GOOD : WHITE},
+                {"Темп огня", num(m.gunReload) + " с", gunBroken ? AMBER : m.mulGunReload < 0.999 ? GOOD : WHITE},
+                {"Скорость", "×" + num(m.speedMul), engBroken ? AMBER : m.mulSpeed > 1.001 ? GOOD : WHITE},
+                {"Улучшения", m.upgrades + " / " + UPGRADES, m.upgrades > 0 ? GOOD : WHITE},
         };
         for (int i = 0; i < rows.length; i++) {
             float ry = y + i * (m.hpMax > 0 ? step : 10);
             g.text((String) rows[i][0], x, ry + (1 - small) * 7, small, argb(GRAY, 0.62f), -1, true);
-            g.text((String) rows[i][1], x + w, ry, 1, argb((Boolean) rows[i][2] ? GOOD : WHITE, 0.92f), 1, true);
+            g.text((String) rows[i][1], x + w, ry, 1, argb((Integer) rows[i][2], 0.92f), 1, true);
         }
     }
 

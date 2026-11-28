@@ -12,6 +12,8 @@ package ink.hoka.odyssey.client.vessels.hud;
  * @param hitKind  что за попадание: 1 — по цели, 2 — убийство, 3 — по кораблю, 4 — корабль разрушен
  * @param zones    целость зон корпуса 0…1 (нос, корпус, левый борт, правый борт, двигатели), triZone — зона
  *                 каждого треугольника модели (для силуэта); hurt — 0..1 красный край экрана (по нам попали)
+ * @param pvp      корабль в PvP-зоне — янтарная метка «PvP-ЗОНА» у компаса (vessels-5)
+ * @param broken   разбитые зоны с эффектом: {@link #GUN} — орудие, {@link #WARP} — варп-привод, борта, двигатели
  */
 public record HudView(
         float noseX, float noseY, boolean noseOn, float aimX, float aimY, boolean aimOn,
@@ -24,7 +26,11 @@ public record HudView(
         String msg, boolean msgWarn, float msgAlpha,
         float hintsAlpha, float hit, int hitKind,
         String kindName, float[] tris,
-        boolean hullKnown, double hp, double hpMax, float[] zones, int[] triZone, float hurt) {
+        boolean hullKnown, double hp, double hpMax, float[] zones, int[] triZone, float hurt,
+        boolean pvp, int broken) {
+
+    /** Биты broken (как у сервера). */
+    public static final int GUN = 1, WARP = 2, LEFT = 4, RIGHT = 8, ENGINE = 16;
 
     public static final int WARP_READY = 0, WARP_CHARGING = 1, WARP_AIMING = 2, WARP_RELOAD = 3, WARP_NO_FUEL = 4;
 
