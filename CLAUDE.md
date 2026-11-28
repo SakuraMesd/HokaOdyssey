@@ -27,10 +27,11 @@ server/         ядро → server/build/libs/server.jar
                 CubeStreamer, CubeLight, HeightIndex, AheadLoad (предзагрузка по курсу)
   gen/          генерация по кубам (ModuleCubeGen), objects/ — вставка объектов, perms/ — операторы
 gen-api/        переносимый API генераторов планет (один код и на сервере, и в моде у клиента)
+stubs/          заглушки API чужих модулей для компиляции (gravity-api: VacuumService) — в jar не идут
 generators/     генераторы: space (космос: астероиды, руды, лут), planet, vale, noise-test
 modules/        серверные модули (jar → module/<id>.jar на сервере)
 client/core     ядро мода: сеть, кубы, LOD, свет, модели, блоки мода, окна, звук, миксины
-client/modules  клиентские мини-модули: sky, planets, ships, hello (шаблон)
+client/modules  клиентские мини-модули: sky, planets, ships, vessels, stations, hello (шаблон)
 demo-objects/   исходники контента (текстуры, yml карт и блоков, модели)
 tasks/          задачи для агентов и их отчёты
 ```
@@ -38,7 +39,7 @@ tasks/          задачи для агентов и их отчёты
 Серверные модули: `axiom` (редактор Axiom, только OP), `blocks` (свои блоки), `clientmods` (раздача клиентских
 модулей, связь сервер↔клиентский модуль), `containers` (сундуки, бочки), `hoitems` (свои предметы, модели в руке),
 `hosounds`, `houi` (окна и HUD из JSON), `mining` (ломать только инструментами, лазер Аксиома), `planets`,
-`ships` (старые корабли из блоков), `sky`, `survival` (здоровье, голод, смерть, сохранение игроков), `example` и
+`ships` (старые корабли из блоков), `sky`, `stations` (регионы станций: границы, гравитация через сервис `gravity`), `survival` (здоровье, голод, смерть, сохранение игроков), `example` и
 `noisegen` (шаблоны).
 
 На боевом сервере есть ещё модули другого разработчика (tearsmilk): `items, gravity, gravzones, oxygen, starmap,
