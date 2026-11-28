@@ -55,6 +55,7 @@ public final class HokaTab {
         if (blocks != null && blocks.has("blocks")) for (JsonElement el : blocks.getAsJsonArray("blocks")) {
             JsonObject d = el.getAsJsonObject();
             if (d.has("rot") && d.get("rot").getAsInt() != 0) continue;
+            if (d.has("part") && d.get("part").getAsInt() != 0) continue;   // 0.84: части многоклеточного блока — один предмет
             String carrier = d.getAsJsonObject("state").get("block").getAsString();
             Item it = carrier.endsWith("note_block") ? Items.NOTE_BLOCK : carrier.endsWith("_leaves") ? Items.OAK_LEAVES : Items.STRING;
             String id = d.get("id").getAsString();

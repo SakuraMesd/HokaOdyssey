@@ -228,7 +228,7 @@ public final class CustomBlocks {
                     anims.put(st, at);
                     if (pool != null) anims.put(pool, at);
                 }
-                place.computeIfAbsent(id, k -> new java.util.HashMap<>()).put(rot, pool != null ? pool : st);
+                if (form.main()) place.computeIfAbsent(id, k -> new java.util.HashMap<>()).put(rot, pool != null ? pool : st);   // ставится главная клетка
                 if (d.has("sounds")) {
                     var snd = BlockSounds.of(d.getAsJsonObject("sounds"), st.getBlock().defaultBlockState());
                     sounds.put(st, snd);

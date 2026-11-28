@@ -416,6 +416,15 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
                 return;
             }
             Multi.place(w, parts, def.size, pos.blockX(), pos.blockY(), pos.blockZ(), rot, true);   // главную ставит событие
+            // постановку мог отменить другой модуль после нас — тогда убрать уже поставленные части (без «половинки»)
+            Instance in = e.getInstance();
+            int fr = rot;
+            scheduler().later(() -> {
+                if (!in.isRegistered() || !in.isChunkLoaded(pos.blockX() >> 4, pos.blockZ() >> 4)) return;
+                if (in.getBlock(pos).stateId() == parts[0].stateId()) return;
+                int[] o = Multi.offset(def.size, 1, fr);
+                Multi.remove(world(in), parts, def.size, pos.blockX() + o[0], pos.blockY() + o[1], pos.blockZ() + o[2], 1, fr);
+            }, 1);
         }
         e.setBlock(parts[0]);
         e.setDoBlockUpdates(false);
