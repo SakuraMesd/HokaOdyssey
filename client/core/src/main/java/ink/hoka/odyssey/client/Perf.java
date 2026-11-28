@@ -92,6 +92,8 @@ public final class Perf {
             double secs = (now - windowStart) / 1e9;
             b.append(String.format(java.util.Locale.ROOT, "[проф] %.0f с: снимков %d (в медленных кадрах %d); сборки мусора %d за %d мс; главный поток выделил %d МБ (%.0f МБ/с)",
                     secs, samples, slowSamples, gcN - gcCount0, gcMs - gcMs0, (alloc - alloc0) >> 20, ((alloc - alloc0) >> 20) / secs));
+            b.append("; обход секций: ").append(AutoCull.last.isEmpty() ? "—" : AutoCull.last)
+                    .append("; плавность: потолок ").append(Smooth.target() > 0 ? Smooth.target() + " FPS" : "нет");
             top(b, "\n  всё время:", ALL, samples, 14);
             top(b, "\n  наш код (сколько всего времени):", OURS, samples, 10);
             top(b, "\n  медленные кадры (>" + SLOW_MS + " мс):", SLOW, slowSamples, 12);

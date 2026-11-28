@@ -89,41 +89,82 @@ public final class BlockAnims {
         TYPES = types;
         LIVE.clear();
         found = List.of();
-        ticks = SCAN_TICKS;                                                      // искать сразу
+        COLS.clear();
+        ticks = 0;
     }
 
     public static boolean any() { return !TYPES.isEmpty(); }
 
     // ───────────────────────── поиск ─────────────────────────
 
+    /**
+     * 0.90: поиск — по частям, за {@link #SCAN_TICKS} тиков все столбцы рядом (раньше — все разом раз в 10 тиков: в
+     * секциях с общей палитрой, где «может быть» всегда «да», это 4096 блоков × десятки секций за тик — рывок кадра
+     * ~10 мс дважды в секунду). Секцию сначала проверяем по набору её состояний (getAll — без перебора 4096 клеток с
+     * подменой номеров), перебираем клетки только если нужный блок в ней правда есть.
+     */
     public static void tick() {
         Map<BlockState, Type> types = TYPES;
         var mc = Minecraft.getInstance();
-        if (types.isEmpty() || mc.level == null || mc.player == null) { if (!found.isEmpty()) found = List.of(); return; }
-        if (++ticks < SCAN_TICKS) return;
-        ticks = 0;
+        if (types.isEmpty() || mc.level == null || mc.player == null) {
+            if (!found.isEmpty() || !COLS.isEmpty()) { found = List.of(); COLS.clear(); }
+            return;
+        }
+        int phase = ticks++ % SCAN_TICKS;
         var lvl = mc.level;
         int r = SCAN_RANGE >> 4;
         BlockPos pp = mc.player.blockPosition();
         int pcx = pp.getX() >> 4, pcy = pp.getY() >> 4, pcz = pp.getZ() >> 4;
-        Map<String, Group> out = new LinkedHashMap<>();
+        boolean changed = false;
+        if (phase == 0) changed = COLS.keySet().removeIf(k -> Math.abs(ChunkPosX(k) - pcx) > r || Math.abs(ChunkPosZ(k) - pcz) > r);
         for (int cx = pcx - r; cx <= pcx + r; cx++) for (int cz = pcz - r; cz <= pcz + r; cz++) {
-            if (!(lvl.getChunkSource().getChunk(cx, cz, net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false) instanceof LevelChunk ch)) continue;
-            LevelChunkSection[] secs = ch.getSections();
-            for (int sy = pcy - r; sy <= pcy + r; sy++) {
-                int idx = ch.getSectionIndexFromSectionY(sy);
-                if (idx < 0 || idx >= secs.length) continue;
-                LevelChunkSection sec = secs[idx];
-                if (sec == null || sec.hasOnlyAir() || !sec.maybeHas(types::containsKey)) continue;
-                for (int y = 0; y < 16; y++) for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
-                    BlockState st = sec.getBlockState(x, y, z);
-                    Type t = types.get(st);
-                    if (t != null) out.computeIfAbsent(t.path + "#" + t.anim, k -> new Group(t.path, t.anim))
-                            .ats.add(new At(new BlockPos((cx << 4) + x, (sy << 4) + y, (cz << 4) + z), st, t));
-                }
+            if (Math.floorMod(cx * 7 + cz * 3, SCAN_TICKS) != phase) continue;     // свой тик у каждого столбца
+            long key = (((long) cx) << 32) | (cz & 0xFFFFFFFFL);
+            List<At> col = scanColumn(lvl, cx, cz, pcy, r, types);
+            List<At> was = COLS.get(key);
+            if (col.isEmpty()) { if (was != null) { COLS.remove(key); changed = true; } }
+            else if (was == null || !same(was, col)) { COLS.put(key, col); changed = true; }
+        }
+        if (!changed && !(found.isEmpty() && !COLS.isEmpty())) return;
+        Map<String, Group> out = new LinkedHashMap<>();
+        for (List<At> col : COLS.values()) for (At at : col)
+            out.computeIfAbsent(at.type.path + "#" + at.type.anim, k -> new Group(at.type.path, at.type.anim)).ats.add(at);
+        found = List.copyOf(out.values());
+    }
+
+    /** Найденные блоки по столбцам: (x << 32 | z) → блоки. */
+    private static final Map<Long, List<At>> COLS = new HashMap<>();
+
+    private static int ChunkPosX(long k) { return (int) (k >> 32); }
+    private static int ChunkPosZ(long k) { return (int) k; }
+
+    private static boolean same(List<At> a, List<At> b) {
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); i++) if (!a.get(i).pos.equals(b.get(i).pos) || a.get(i).state != b.get(i).state) return false;
+        return true;
+    }
+
+    private static List<At> scanColumn(net.minecraft.client.multiplayer.ClientLevel lvl, int cx, int cz, int pcy, int r, Map<BlockState, Type> types) {
+        if (!(lvl.getChunkSource().getChunk(cx, cz, net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false) instanceof LevelChunk ch)) return List.of();
+        LevelChunkSection[] secs = ch.getSections();
+        List<At> out = null;
+        for (int sy = pcy - r; sy <= pcy + r; sy++) {
+            int idx = ch.getSectionIndexFromSectionY(sy);
+            if (idx < 0 || idx >= secs.length) continue;
+            LevelChunkSection sec = secs[idx];
+            if (sec == null || sec.hasOnlyAir() || !sec.maybeHas(types::containsKey)) continue;
+            boolean[] has = {false};
+            sec.getStates().getAll(st -> { if (types.containsKey(st)) has[0] = true; });   // набор состояний секции
+            if (!has[0]) continue;
+            for (int y = 0; y < 16; y++) for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
+                BlockState st = sec.getBlockState(x, y, z);
+                Type t = types.get(st);
+                if (t == null) continue;
+                if (out == null) out = new ArrayList<>();
+                out.add(new At(new BlockPos((cx << 4) + x, (sy << 4) + y, (cz << 4) + z), st, t));
             }
         }
-        found = List.copyOf(out.values());
+        return out == null ? List.of() : out;
     }
 
     /** Сколько анимированных блоков найдено рядом (отладка, тесты). */

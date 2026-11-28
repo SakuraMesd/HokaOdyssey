@@ -504,12 +504,39 @@ public abstract class SodiumTallMixin implements ink.hoka.odyssey.client.SodiumP
             cir.setReturnValue(true);
             return;
         }
-        if (!ContentRange.cut) return;
-        int y = cam.y();
-        if (y > ContentRange.hi + 1 || y < ContentRange.lo - 1) {
+        if (ContentRange.cut) {
+            int y = cam.y();
+            if (y > ContentRange.hi + 1 || y < ContentRange.lo - 1) {
+                hoka$tree = true;
+                cir.setReturnValue(true);
+                return;
+            }
+        }
+        // 0.90: граф или дерево — по пробе (AutoCull): в космосе граф тратит кадр на секции пустого воздуха
+        if (ink.hoka.odyssey.client.AutoCull.wantTree(cam.x(), cam.y(), cam.z(), System.nanoTime())) {
             hoka$tree = true;
             cir.setReturnValue(true);
         }
+    }
+
+    @Shadow(remap = false) private net.caffeinemc.mods.sodium.client.render.chunk.lists.SectionCollector sectionCollector;
+    @Unique private long hoka$cullStart;
+
+    /** 0.90: длительность обхода и сколько секций он отдал на отрисовку — пробе AutoCull. */
+    @Inject(method = "createTerrainRenderList", at = @At("HEAD"), remap = false)
+    private void hoka$cullStart(CallbackInfoReturnable<Boolean> cir) {
+        hoka$cullStart = System.nanoTime();
+    }
+
+    @Inject(method = "createTerrainRenderList", at = @At("RETURN"), remap = false)
+    private void hoka$cullEnd(CallbackInfoReturnable<Boolean> cir) {
+        if (!hoka$tall()) return;
+        long ns = System.nanoTime() - hoka$cullStart;
+        var c = sectionCollector;
+        if (c == null) return;
+        int drawn = 0;
+        for (var l : c.getUnsortedRenderLists()) drawn += l.size();
+        ink.hoka.odyssey.client.AutoCull.result(hoka$tree, drawn, ns);
     }
 
     /** А3: секции назначена перестройка — в дерево (пустая секция в дереве не лежит, путь по дереву её бы не собрал). */
