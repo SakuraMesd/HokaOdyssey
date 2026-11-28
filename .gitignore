@@ -8,3 +8,4 @@ run/
 client/dist/
 # чужие jar только для компиляции (совместимость с Sodium) — не в git
 client/libs/
+client/core/logs/
