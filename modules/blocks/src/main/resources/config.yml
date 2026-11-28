@@ -93,3 +93,27 @@ blocks:
     size: [2, 3, 1]
     rotatable: true
     sounds: { type: metal }
+  tv_funny:
+    name: "Весёлый телевизор"
+    model: tv_funny.bbmodel
+    shape: [2, 12, 2, 14, 16, 14]
+    rotatable: true
+    sounds: { type: metal }
+  tv_arm:
+    name: "Монитор на кронштейне"
+    model: tv_arm.bbmodel
+    shape: [2, 12, 2, 14, 16, 14]
+    rotatable: true
+    sounds: { type: metal }
+  tv_cluster:
+    name: "Связка мониторов"
+    model: tv_cluster.bbmodel
+    shape: [2, 12, 2, 14, 16, 14]
+    rotatable: true
+    sounds: { type: metal }
+  tv_wires:
+    name: "Телевизор на проводах"
+    model: tv_wires.bbmodel
+    shape: [2, 12, 2, 14, 16, 14]
+    rotatable: true
+    sounds: { type: metal }

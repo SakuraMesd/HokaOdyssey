@@ -1,0 +1,1900 @@
+{
+ "meta": {
+  "format_version": "5.0",
+  "model_format": "free",
+  "box_uv": false
+ },
+ "name": "Весёлый телевизор",
+ "model_identifier": "",
+ "visible_box": [
+  2,
+  4,
+  0
+ ],
+ "variable_placeholders": "",
+ "variable_placeholder_buttons": [],
+ "timeline_setups": [],
+ "unhandled_root_fields": {},
+ "resolution": {
+  "width": 128,
+  "height": 128
+ },
+ "elements": [
+  {
+   "name": "Потолочная пластина",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -3.0,
+    15,
+    -3.0
+   ],
+   "to": [
+    3.0,
+    16,
+    3.0
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    15.5,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      56,
+      35,
+      62,
+      36
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      63,
+      35,
+      69,
+      36
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      70,
+      35,
+      76,
+      36
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      77,
+      35,
+      83,
+      36
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      61,
+      15,
+      67,
+      21
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      68,
+      15,
+      74,
+      21
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "e219bbb4-32e9-539c-a153-2689ba430ce4"
+  },
+  {
+   "name": "Звено 1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -1.2,
+    11.4,
+    -0.35
+   ],
+   "to": [
+    1.2,
+    15.4,
+    0.35
+   ],
+   "autouv": 0,
+   "color": 1,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    13.4,
+    0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      42,
+      26,
+      44,
+      30
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      78,
+      26,
+      79,
+      30
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      45,
+      26,
+      47,
+      30
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      80,
+      26,
+      81,
+      30
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      96,
+      35,
+      98,
+      36
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      99,
+      35,
+      101,
+      36
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "33ec95a4-52c2-58dd-bf3d-280d46831429"
+  },
+  {
+   "name": "Звено 2",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -1.2,
+    7.800000000000001,
+    -0.35
+   ],
+   "to": [
+    1.2,
+    11.8,
+    0.35
+   ],
+   "autouv": 0,
+   "color": 2,
+   "rotation": [
+    0,
+    90,
+    0
+   ],
+   "origin": [
+    0,
+    9.8,
+    0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      48,
+      26,
+      50,
+      30
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      82,
+      26,
+      83,
+      30
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      51,
+      26,
+      53,
+      30
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      84,
+      26,
+      85,
+      30
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      102,
+      35,
+      104,
+      36
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      105,
+      35,
+      107,
+      36
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "31a0265f-dadf-5d6a-97c6-25ae9a726705"
+  },
+  {
+   "name": "Звено 3",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -1.2,
+    4.199999999999999,
+    -0.35
+   ],
+   "to": [
+    1.2,
+    8.2,
+    0.35
+   ],
+   "autouv": 0,
+   "color": 3,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    6.199999999999999,
+    0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      54,
+      26,
+      56,
+      30
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      86,
+      26,
+      87,
+      30
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      57,
+      26,
+      59,
+      30
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      88,
+      26,
+      89,
+      30
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      108,
+      35,
+      110,
+      36
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      111,
+      35,
+      113,
+      36
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "62c6796b-5c8a-5025-a205-8d50b3fd4621"
+  },
+  {
+   "name": "Звено 4",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -1.2,
+    0.5999999999999992,
+    -0.35
+   ],
+   "to": [
+    1.2,
+    4.6,
+    0.35
+   ],
+   "autouv": 0,
+   "color": 4,
+   "rotation": [
+    0,
+    90,
+    0
+   ],
+   "origin": [
+    0,
+    2.599999999999999,
+    0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      60,
+      26,
+      62,
+      30
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      90,
+      26,
+      91,
+      30
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      63,
+      26,
+      65,
+      30
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      92,
+      26,
+      93,
+      30
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      114,
+      35,
+      116,
+      36
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      117,
+      35,
+      119,
+      36
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "0d815ffa-843e-5215-8bbf-9505a2399c47"
+  },
+  {
+   "name": "Звено 5",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -1.2,
+    -3.0000000000000004,
+    -0.35
+   ],
+   "to": [
+    1.2,
+    0.9999999999999997,
+    0.35
+   ],
+   "autouv": 0,
+   "color": 5,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    -1.0000000000000004,
+    0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      66,
+      26,
+      68,
+      30
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      94,
+      26,
+      95,
+      30
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      69,
+      26,
+      71,
+      30
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      96,
+      26,
+      97,
+      30
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      120,
+      35,
+      122,
+      36
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      123,
+      35,
+      125,
+      36
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "8352817d-0279-5bab-b9a7-32d6aaf6e8f1"
+  },
+  {
+   "name": "Звено 6",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -1.2,
+    -6.6,
+    -0.35
+   ],
+   "to": [
+    1.2,
+    -2.6,
+    0.35
+   ],
+   "autouv": 0,
+   "color": 6,
+   "rotation": [
+    0,
+    90,
+    0
+   ],
+   "origin": [
+    0,
+    -4.6,
+    0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      72,
+      26,
+      74,
+      30
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      98,
+      26,
+      99,
+      30
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      75,
+      26,
+      77,
+      30
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      100,
+      26,
+      101,
+      30
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      126,
+      35,
+      128,
+      36
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      0,
+      37,
+      2,
+      38
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "a7c67263-ed80-5b5a-a046-307c84056b21"
+  },
+  {
+   "name": "Крюк",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -0.6,
+    -12.5,
+    -0.6
+   ],
+   "to": [
+    0.6,
+    -6.3,
+    0.6
+   ],
+   "autouv": 0,
+   "color": 7,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    -9.4,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      87,
+      15,
+      88,
+      21
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      89,
+      15,
+      90,
+      21
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      91,
+      15,
+      92,
+      21
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      93,
+      15,
+      94,
+      21
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      9,
+      37,
+      10,
+      38
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      11,
+      37,
+      12,
+      38
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "70a51ccc-67fe-543c-a4b8-38a5d875a579"
+  },
+  {
+   "name": "Ручка: верх",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -5,
+    -12.8,
+    -1
+   ],
+   "to": [
+    5,
+    -11.8,
+    1
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    -12.3,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      34,
+      35,
+      44,
+      36
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      3,
+      37,
+      5,
+      38
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      45,
+      35,
+      55,
+      36
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      6,
+      37,
+      8,
+      38
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      45,
+      32,
+      55,
+      34
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      56,
+      32,
+      66,
+      34
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "38b66d9d-bf4b-51bb-893a-81d1079c685b"
+  },
+  {
+   "name": "Ручка: стойка -1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -5.5,
+    -17.3,
+    -1
+   ],
+   "to": [
+    -4.5,
+    -11.8,
+    1
+   ],
+   "autouv": 0,
+   "color": 1,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    -5.0,
+    -14.55,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      95,
+      15,
+      96,
+      21
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      75,
+      15,
+      77,
+      21
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      97,
+      15,
+      98,
+      21
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      78,
+      15,
+      80,
+      21
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      73,
+      32,
+      74,
+      34
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      75,
+      32,
+      76,
+      34
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "5fef6371-88c3-500d-a39e-7fbecec79075"
+  },
+  {
+   "name": "Ручка: стойка 1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    4.5,
+    -17.3,
+    -1
+   ],
+   "to": [
+    5.5,
+    -11.8,
+    1
+   ],
+   "autouv": 0,
+   "color": 2,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    5.0,
+    -14.55,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      99,
+      15,
+      100,
+      21
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      81,
+      15,
+      83,
+      21
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      101,
+      15,
+      102,
+      21
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      84,
+      15,
+      86,
+      21
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      77,
+      32,
+      78,
+      34
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      79,
+      32,
+      80,
+      34
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "10e0fb3f-9524-51c3-af07-e5d88680db1c"
+  },
+  {
+   "name": "Телевизор: рамка",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -8.0,
+    -30.5,
+    -7.0
+   ],
+   "to": [
+    8.0,
+    -16.5,
+    -6.0
+   ],
+   "autouv": 0,
+   "color": 3,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    -23.5,
+    -6.5
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      0,
+      0,
+      16,
+      14
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      34,
+      0,
+      35,
+      14
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      17,
+      0,
+      33,
+      14
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      36,
+      0,
+      37,
+      14
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      0,
+      35,
+      16,
+      36
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      17,
+      35,
+      33,
+      36
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "8f48fb27-a21f-5b7e-8604-be710bde1851"
+  },
+  {
+   "name": "Телевизор: корпус",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -7.5,
+    -30.0,
+    -6.0
+   ],
+   "to": [
+    7.5,
+    -17.0,
+    0.6000000000000005
+   ],
+   "autouv": 0,
+   "color": 4,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    -23.5,
+    -2.6999999999999997
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      38,
+      0,
+      53,
+      13
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      70,
+      0,
+      77,
+      13
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      54,
+      0,
+      69,
+      13
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      78,
+      0,
+      85,
+      13
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      29,
+      15,
+      44,
+      22
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      45,
+      15,
+      60,
+      22
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "2f562a2e-3679-5a52-a1b9-beee56adb706"
+  },
+  {
+   "name": "Телевизор: кинескоп",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -5.5,
+    -28.5,
+    0.6000000000000005
+   ],
+   "to": [
+    5.5,
+    -18.5,
+    6.0
+   ],
+   "autouv": 0,
+   "color": 5,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    -23.5,
+    3.3000000000000003
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      94,
+      0,
+      105,
+      10
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      9,
+      15,
+      14,
+      25
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      106,
+      0,
+      117,
+      10
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      15,
+      15,
+      20,
+      25
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      18,
+      26,
+      29,
+      31
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      30,
+      26,
+      41,
+      31
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "67580189-53d7-5e6a-9118-e73cdfb6d8aa"
+  },
+  {
+   "name": "Телевизор: козырёк",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -8.5,
+    -16.5,
+    -8.0
+   ],
+   "to": [
+    8.5,
+    -15.9,
+    -3.0
+   ],
+   "autouv": 0,
+   "color": 6,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    -16.2,
+    -5.5
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      81,
+      32,
+      98,
+      33
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      84,
+      35,
+      89,
+      36
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      99,
+      32,
+      116,
+      33
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      90,
+      35,
+      95,
+      36
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      103,
+      15,
+      120,
+      20
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      0,
+      26,
+      17,
+      31
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "def214f7-c770-57eb-8f38-be106ef812b9"
+  },
+  {
+   "name": "Панель кнопок",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -7,
+    -30,
+    -7.6
+   ],
+   "to": [
+    7,
+    -28.5,
+    -6
+   ],
+   "autouv": 0,
+   "color": 7,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    -29.25,
+    -6.8
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      102,
+      26,
+      116,
+      28
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      67,
+      32,
+      69,
+      34
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      0,
+      32,
+      14,
+      34
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      70,
+      32,
+      72,
+      34
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      15,
+      32,
+      29,
+      34
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      30,
+      32,
+      44,
+      34
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "f60dbd4b-2b3e-51b7-ba3b-51d833e0193e"
+  },
+  {
+   "name": "Динамик",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    7.3,
+    -29,
+    -5
+   ],
+   "to": [
+    8.4,
+    -19,
+    3
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    7.85,
+    -24.0,
+    -1.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      21,
+      15,
+      22,
+      25
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      118,
+      0,
+      126,
+      10
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      23,
+      15,
+      24,
+      25
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      0,
+      15,
+      8,
+      25
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      25,
+      15,
+      26,
+      23
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      27,
+      15,
+      28,
+      23
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "56142467-e15a-5ae7-a386-b2bdd5440f66"
+  },
+  {
+   "name": "Крутилка 1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    7.3,
+    -18.5,
+    -5
+   ],
+   "to": [
+    8.4,
+    -17.3,
+    -3.8
+   ],
+   "autouv": 0,
+   "color": 1,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    7.85,
+    -17.9,
+    -4.4
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      13,
+      37,
+      14,
+      38
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      15,
+      37,
+      16,
+      38
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      17,
+      37,
+      18,
+      38
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      19,
+      37,
+      20,
+      38
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      21,
+      37,
+      22,
+      38
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      23,
+      37,
+      24,
+      38
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "ee846e49-566e-5a8f-9d26-f8c5cf6ca38f"
+  },
+  {
+   "name": "Антенна",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -7,
+    -17.5,
+    0
+   ],
+   "to": [
+    -6.4,
+    -6,
+    0.6
+   ],
+   "autouv": 0,
+   "color": 2,
+   "rotation": [
+    0,
+    0,
+    22.5
+   ],
+   "origin": [
+    -6.7,
+    -16.5,
+    0.3
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      86,
+      0,
+      87,
+      12
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      88,
+      0,
+      89,
+      12
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      90,
+      0,
+      91,
+      12
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      92,
+      0,
+      93,
+      12
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      25,
+      37,
+      26,
+      38
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      27,
+      37,
+      28,
+      38
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "3a52cb6c-6796-53f4-a833-67c6571e326e"
+  },
+  {
+   "name": "Антенна: шарик",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -11.3,
+    -7.9,
+    -0.3
+   ],
+   "to": [
+    -10.1,
+    -6.7,
+    0.9
+   ],
+   "autouv": 0,
+   "color": 3,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    -10.7,
+    -7.300000000000001,
+    0.30000000000000004
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      29,
+      37,
+      30,
+      38
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      31,
+      37,
+      32,
+      38
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      33,
+      37,
+      34,
+      38
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      35,
+      37,
+      36,
+      38
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      37,
+      37,
+      38,
+      38
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      39,
+      37,
+      40,
+      38
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "3cdf7dee-598a-5dcb-9324-869697e5e234"
+  }
+ ],
+ "groups": [
+  {
+   "name": "Цепь",
+   "uuid": "69123e9a-183d-5b61-9618-64150e175a3b",
+   "export": true,
+   "locked": false,
+   "visibility": true,
+   "origin": [
+    0,
+    16,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": 0,
+   "children": [],
+   "reset": false,
+   "shade": true,
+   "mirror_uv": false,
+   "autouv": 0,
+   "isOpen": true
+  },
+  {
+   "name": "Телевизор",
+   "uuid": "90c341be-d4ab-5de5-9c9e-43a9e42d759d",
+   "export": true,
+   "locked": false,
+   "visibility": true,
+   "origin": [
+    0,
+    -12,
+    0
+   ],
+   "rotation": [
+    -8,
+    18,
+    13
+   ],
+   "color": 0,
+   "children": [],
+   "reset": false,
+   "shade": true,
+   "mirror_uv": false,
+   "autouv": 0,
+   "isOpen": true
+  }
+ ],
+ "outliner": [
+  {
+   "uuid": "69123e9a-183d-5b61-9618-64150e175a3b",
+   "isOpen": true,
+   "children": [
+    {
+     "uuid": "90c341be-d4ab-5de5-9c9e-43a9e42d759d",
+     "isOpen": true,
+     "children": [
+      "38b66d9d-bf4b-51bb-893a-81d1079c685b",
+      "5fef6371-88c3-500d-a39e-7fbecec79075",
+      "10e0fb3f-9524-51c3-af07-e5d88680db1c",
+      "8f48fb27-a21f-5b7e-8604-be710bde1851",
+      "2f562a2e-3679-5a52-a1b9-beee56adb706",
+      "67580189-53d7-5e6a-9118-e73cdfb6d8aa",
+      "def214f7-c770-57eb-8f38-be106ef812b9",
+      "f60dbd4b-2b3e-51b7-ba3b-51d833e0193e",
+      "56142467-e15a-5ae7-a386-b2bdd5440f66",
+      "ee846e49-566e-5a8f-9d26-f8c5cf6ca38f",
+      "3a52cb6c-6796-53f4-a833-67c6571e326e",
+      "3cdf7dee-598a-5dcb-9324-869697e5e234"
+     ]
+    },
+    "e219bbb4-32e9-539c-a153-2689ba430ce4",
+    "33ec95a4-52c2-58dd-bf3d-280d46831429",
+    "31a0265f-dadf-5d6a-97c6-25ae9a726705",
+    "62c6796b-5c8a-5025-a205-8d50b3fd4621",
+    "0d815ffa-843e-5215-8bbf-9505a2399c47",
+    "8352817d-0279-5bab-b9a7-32d6aaf6e8f1",
+    "a7c67263-ed80-5b5a-a046-307c84056b21",
+    "70a51ccc-67fe-543c-a4b8-38a5d875a579"
+   ]
+  }
+ ],
+ "textures": [
+  {
+   "path": "",
+   "name": "Весёлый телевизор.png",
+   "folder": "",
+   "namespace": "",
+   "id": "0",
+   "group": "",
+   "width": 128,
+   "height": 128,
+   "uv_width": 128,
+   "uv_height": 128,
+   "particle": true,
+   "use_as_default": false,
+   "layers_enabled": false,
+   "sync_to_project": "",
+   "render_mode": "default",
+   "render_sides": "auto",
+   "frame_time": 1,
+   "frame_order_type": "loop",
+   "frame_order": "",
+   "frame_interpolate": false,
+   "visible": true,
+   "internal": true,
+   "saved": true,
+   "uuid": "401fb9d6-ab17-5b25-b6e8-c4996f3bea3a",
+   "relative_path": "Весёлый телевизор.png",
+   "mode": "bitmap",
+   "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAD2UlEQVR42u3aT0gUURzA8d8L626J/TGWyGIvFUSJ20JlUREhXYw8ZFHQSQryoKfWwxodXMJD0SGEoj8HIy8hERX9UVqLysIiW2TNLO0PlX+yS0HTocY0Z3ZndnZsnL6fy++t+95T37z57dv3Rn1/tFUTB2auuqqy0cf982GtuCI+Fp306fRvStfeyvvhdZu1eOt10/isea3lv29ZWZvt+vfOrUlZP7S7XYmI5HR0jciFK/0ZDdSubQUiItLRNSLZ5rRPt9s77f95z6ir9V/0frVUL0cvfBz8Jj/KCy01mtGUlLzcWQLvu/3g04TXJUVzjCfA0oYN1nsNBWQwepfRnQb+vuCmGSBxr+/PrGlKSEl50PS1iEg+Y+uvDBAMBcZ+GL/Wk/K1iMjgtdeMrt8ygH6nh7csnpARxr/W65ABfJgBgqGAVC86kbLDWOgAGcDPa4AlVcHUHf5eC5AB/GHSGiAYCsjp6G3DyvtqS1gDZMmTxIir9Z92f7E3Abqrbo3tA4S3LDasrGcJ9gGcO9qYVG7WP3b2pbI1AfJyZ4lYvau5+P76CNC3dL2kvXPQ0+3TvR9vva5SRc9MgLaOz//8Yhk5VN+lvNzeaf+AJ1g6NjQ6ijQ7olxW1qbO1K3Q9kY6TWOyZX3GR7WFpXfU/fPhjNsXV8RVJFpv2L6utkaF123WzFJ68+UjmohI2fbDlsrpjoRjDZVaddVJ0/j2xkbN6QWev+lmykyVY+XY0Owo0u4R5XTXkxywVZ5W+wDptgzh840gLvh/PgHIAGQARiONRFefrbLbCzgyQIbqamtUug0cI42nWpSdcrrNoOqqkymjbzNAYekdR/9gcUWcTZgsmTEVv2RvpFONj/DQGsDKsaHZUaTdI0oAHqNajq92vN1YevChuhhbabmfndWPbddvPHtJExHZv2eHJ8qRaL1WV1vjWiwIFGZ0Xfr77D03kDNdZuqr3h5Pld02OjIkTUsXSHn3wKQ4O2+ufP74flJ09C0A3jI89Elt/f3V/O84PGQcfT0Bkt0JT5VZA0zxGoCcALiRAZysNvPnLcyo7Yd3bxy1jTVUWmqrP1xhta4+Fv19yQnldA9uZCuLZqsfW2uA0S/D3Ab6ynvcWNgZF7uD7nY/gPWPACfP14n8OpjJRh9upfVUz/i58Z5RGjdL76UHH449n6hvAk11Gf+7SLRe02dDrKFS0++u8WV9xuvxatFyW9FpewAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADIrp/YsSaZX6c6JgAAAABJRU5ErkJggg=="
+  }
+ ],
+ "animations": []
+}
