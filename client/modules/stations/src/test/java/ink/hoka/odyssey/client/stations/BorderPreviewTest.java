@@ -225,9 +225,10 @@ class BorderPreviewTest {
     /** Плёнка — только вблизи грани; издалека — одни рёбра; совсем далеко — ничего. */
     @Test
     void filmOnlyNear() {
-        int[] near = count(4), mid = count(30), far = count(500);
+        int[] near = count(4), at40 = count(40), mid = count(60), far = count(500);
         assertTrue(near[1] > 50, "плёнка вблизи: " + near[1]);
-        assertEquals(0, mid[1], "плёнки издалека нет");
+        assertTrue(at40[1] > 0, "плёнка видна за 40 блоков (радиус 50): " + at40[1]);
+        assertEquals(0, mid[1], "плёнки дальше 50 блоков нет");
         assertTrue(mid[0] > 0, "рёбра издалека видны");
         assertEquals(0, far[0] + far[1], "совсем далеко — ничего");
     }

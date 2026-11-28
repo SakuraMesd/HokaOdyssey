@@ -24,11 +24,12 @@ public final class BorderMesh {
     /** Настройки вида (одни на кадр). */
     public static final class Style {
         public double edgeNear = 40, edgeFar = 96;      // рёбра: полная яркость до near, ноль к far
-        public double filmRadius = 11;                   // плёнка: проявляется ближе этого к грани
+        public double filmRadius = 50;                   // плёнка: проявляется ближе этого к грани
         public float edgeAlpha = 0.85f, glowAlpha = 0.22f;
         public float filmAlpha = 0.06f, hexAlpha = 0.24f;
         public double hexSize = 0.8;                     // радиус шестигранника, блоки
         public float hexWidth = 0.028f;
+        public double hexWidthPerBlock = 0.0018;          // толщина линии на блок расстояния (не тоньше hexWidth)
         public double pulseSpeed = 2.5;                  // блоки в секунду — бег бликов по рёбрам
     }
 
@@ -227,11 +228,12 @@ public final class BorderMesh {
         double w = plane + off - cam[k];
         FaceCtx f = new FaceCtx(k, ku, kv, w, cam, eye, plane, R, rgb, bright, t, st, out);
 
-        // заливка: клетки по сетке мира (1 блок), прозрачность по вершинам
-        for (double u = Math.floor(u0); u < u1; u += 1) {
-            double ua = Math.max(u, u0), ub = Math.min(u + 1, u1);
-            for (double v = Math.floor(v0); v < v1; v += 1) {
-                double va = Math.max(v, v0), vb = Math.min(v + 1, v1);
+        // заливка: клетки по сетке мира (1 блок, при большом радиусе — крупнее), прозрачность по вершинам
+        double cell = Math.max(1, Math.floor(R / 16));
+        for (double u = Math.floor(u0 / cell) * cell; u < u1; u += cell) {
+            double ua = Math.max(u, u0), ub = Math.min(u + cell, u1);
+            for (double v = Math.floor(v0 / cell) * cell; v < v1; v += cell) {
+                double va = Math.max(v, v0), vb = Math.min(v + cell, v1);
                 float a00 = f.film(ua, va), a10 = f.film(ub, va), a11 = f.film(ub, vb), a01 = f.film(ua, vb);
                 if (a00 + a10 + a11 + a01 < 0.004f) continue;
                 f.quad(ua, va, a00, ub, va, a10, ub, vb, a11, ua, vb, a01, rgb);
@@ -327,7 +329,10 @@ public final class BorderMesh {
             if (aa + ab < 0.004f) return;
             double l = Math.sqrt((bu - au) * (bu - au) + (bv - av) * (bv - av));
             if (l < 1e-6) return;
-            double h = st.hexWidth * 0.5, nu = -(bv - av) / l * h, nv = (bu - au) / l * h;
+            // толщина растёт с расстоянием от камеры: вдали линия не тоньше ~1–2 пикселей (иначе рябит)
+            double mu = (au + bu) / 2 - cam[ku], mv = (av + bv) / 2 - cam[kv];
+            double dist = Math.sqrt(mu * mu + mv * mv + w * w);
+            double h = Math.max(st.hexWidth, dist * st.hexWidthPerBlock) * 0.5, nu = -(bv - av) / l * h, nv = (bu - au) / l * h;
             quad(au - nu, av - nv, aa, bu - nu, bv - nv, ab, bu + nu, bv + nv, ab, au + nu, av + nv, aa, color);
         }
     }
