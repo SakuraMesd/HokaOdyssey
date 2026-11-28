@@ -27,7 +27,9 @@ import java.util.Map;
  *     6 CORRECT double x y z, float qx qy qz qw — сервер не принял позу (или варп): встать сюда
  *     7 STATE   UTF-JSON {fuel, capacity, warp-cost, speed-mul, empty, gun-reload (тики), gun-range, warp-phase
  *               (0 нет, 1 зарядка, 2 наводка), warp-left (тики до конца зарядки), warp-charge (тики), warp-reload-left,
- *               warp-reload (тики)} — пилоту: HUD (топливо, перезарядки, варп)
+ *               warp-reload (тики), broken (биты разбитых зон с эффектом: 1 нос/орудие, 2 корпус/варп, 4 левый,
+ *               8 правый, 16 двигатели), turn-mul (поворот), pvp (корабль в PvP-зоне)} — пилоту: HUD (топливо,
+ *               перезарядки, варп, поломки, метка PvP)
  *     8 SHOT    int корабль, double x y z (ствол), double x y z (куда), byte что (0 мимо, 1 блок, 2 сущность,
  *               3 корабль, 4 незагружено) — всем рядом: болт, вспышка, звук, искры
  *     9 WARP    int корабль, byte что (0 отмена, 1 зарядка: int тиков, 2 прыжок) — пилоту и стоящим на корабле
@@ -35,7 +37,7 @@ import java.util.Map;
  *    11 MENU    UTF-JSON {window (номер окна Minestom), title (заголовок окна текстом), id, kind, owner, fuel, capacity,
  *               warp-cost, warp-distance, warp-charge (с), warp-reload (с), gun-damage, gun-reload (с), gun-range,
  *               speed-mul, burn (в минуту), upgrades (сколько стоит), mul {speed, warp-cost, gun-reload, gun-damage,
- *               warp-reload}} — перед открытием окна корабля и при смене груза (тем, кто смотрит): мод рисует окно
+ *               warp-reload} (только улучшения), broken, effects {speed, gun-reload, spread, turn}} — перед открытием окна корабля и при смене груза (тем, кто смотрит): мод рисует окно
  *               по-своему (vessels-3); старый мод пакет пропускает — у него обычный сундук
  *    12 HIT     byte 1 — попадание по цели, 2 — убийство, 3 — по кораблю, 4 — корабль разрушен — стрелявшему, когда
  *               болт долетел (маркер у прицела; по кораблю — своим цветом)
@@ -143,6 +145,10 @@ final class VesselsClient {
         m.put("warp-charge", Math.round(s.warpChargeSec() * 20));
         m.put("warp-reload-left", Math.max(0, v.warpReady - now));
         m.put("warp-reload", Math.round(s.warpReloadSec() * 20));
+        HullEffects.Effects ef = mod.effects(v);                                // vessels-5: разбитые зоны, PvP-зона
+        m.put("broken", ef.broken());
+        m.put("turn-mul", ef.turn());
+        m.put("pvp", v.pilot.pvpZone);
         String js = new Gson().toJson(m);
         send(v.pilot.player, bytes(out -> {
             out.writeByte(7);
@@ -186,7 +192,7 @@ final class VesselsClient {
     void menu(Player p, Vessel v, VesselMenu m) {
         if (!isReady(p)) return;
         VesselsModule.Status s = mod.status(v);
-        Upgrades.Stats st = mod.stats(v);
+        Upgrades.Stats st = mod.upgradeStats(v);
         int ups = 0;
         for (int c : v.cargo.upgradeCounts()) ups += c;
         Map<String, Object> o = new LinkedHashMap<>();
@@ -218,6 +224,9 @@ final class VesselsClient {
         mul.put("gun-damage", st.gunDamage());
         mul.put("warp-reload", st.warpReload());
         o.put("mul", mul);
+        HullEffects.Effects ef = mod.effects(v);                                // vessels-5: что сломано (сводка)
+        o.put("broken", ef.broken());
+        o.put("effects", Map.of("speed", ef.speed(), "gun-reload", ef.gunReload(), "spread", ef.spread(), "turn", ef.turn()));
         String js = new Gson().toJson(o);
         send(p, bytes(out -> {
             out.writeByte(11);

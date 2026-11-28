@@ -38,15 +38,6 @@ final class HullDamage {
 
     double repairKit() { return Math.max(1, mod.config().getDouble("hull.repair-kit", 50)); }
 
-    /** Множитель скорости от разбитых двигателей (hull.engine-broken-speed; 1 — без влияния). */
-    double engineMul(Vessel v) {
-        VesselKind k = mod.kinds().get(v.kind);
-        if (k == null) return 1;
-        double m = mod.config().getDouble("hull.engine-broken-speed", 0.7);
-        if (m >= 1 || k.zoneShare[Zones.ENGINE] <= 0) return 1;
-        return k.zoneHealth(Zones.ENGINE, v.zoneDmg[Zones.ENGINE]) <= 0 ? Math.max(0.05, m) : 1;
-    }
-
     /** Целость зон (0…1) — для HUD и меню. */
     double[] zoneHealth(Vessel v) {
         VesselKind k = mod.kinds().get(v.kind);
@@ -68,7 +59,7 @@ final class HullDamage {
             double[] l = VesselMath.toLocal(at[0], at[1], at[2], v.pos(), v.rot);
             zone = k.zoneNear(l[0], l[1], l[2]);
         }
-        boolean wasBroken = engineMul(v) < 1;
+        int wasBroken = mod.effects(v).broken();
         double left = v.damage(amount, zone, k.hp);
         mod.markDirty();
         Instance inst = v.carrier != null ? v.carrier.getInstance() : mod.instanceOf(v);
@@ -80,9 +71,15 @@ final class HullDamage {
             destroy(v, by, cause);
             return true;
         }
-        if (!wasBroken && engineMul(v) < 1 && v.pilot != null)
-            mod.client.message(v.pilot.player, "Двигатели разбиты — ход " + Math.round(engineMul(v) * 100) + "%", true);
-        else if (v.pilot != null && left <= k.hp * 0.25 && left + amount > k.hp * 0.25)
+        HullEffects.Effects ef = mod.effects(v);
+        int fresh = ef.broken() & ~wasBroken;                                   // что разбилось этим ударом
+        if ((fresh & HullEffects.WARP) != 0 && v.warpPhase != WarpDrive.IDLE) mod.warp.cancel(v, "Варп-привод повреждён");
+        if (fresh != 0 && v.pilot != null) {
+            for (int b = 0; b < Zones.COUNT; b++) {
+                String m = (fresh & (1 << b)) != 0 ? HullEffects.message(1 << b, ef) : null;
+                if (m != null) { mod.client.message(v.pilot.player, m, true); break; }   // строка HUD одна — самое свежее
+            }
+        } else if (v.pilot != null && left <= k.hp * 0.25 && left + amount > k.hp * 0.25)
             mod.client.message(v.pilot.player, "Корпус: осталось " + Math.round(left) + " из " + Math.round(k.hp), true);
         return false;
     }

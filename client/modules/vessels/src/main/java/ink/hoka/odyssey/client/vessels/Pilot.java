@@ -187,13 +187,14 @@ final class Pilot {
         tickNo++;
 
         // поворот носа к прицелу — в осях корабля
-        double turnMax = kind.turnSpeed / 20.0, turnAcc = c("control", "turn-accel", 360) / 400.0, k = c("control", "turn-smoothing", 0.08);
+        double tm = state.known ? state.turnMul : 1;                            // разбитые борта — поворот медленнее
+        double turnMax = kind.turnSpeed * tm / 20.0, turnAcc = c("control", "turn-accel", 360) / 400.0, k = c("control", "turn-smoothing", 0.08);
         yawRate = approach(yawRate, offYaw, k, turnMax, turnAcc);
         pitchRate = approach(pitchRate, offPitch, k, turnMax, turnAcc);
         var o = mc.options;
         boolean free = mc.screen == null;
         int side = (o.keyRight.isDown() && free ? 1 : 0) - (o.keyLeft.isDown() && free ? 1 : 0);
-        double rollMax = kind.rollSpeed / 20.0, rollAcc = c("control", "roll-accel", 480) / 400.0;
+        double rollMax = kind.rollSpeed * tm / 20.0, rollAcc = c("control", "roll-accel", 480) / 400.0;
         rollRate += Math.clamp(side * rollMax - rollRate, -rollAcc, rollAcc);
         Quaternionf nq = new Quaternionf(q)
                 .rotateY((float) Math.toRadians(-yawRate))
@@ -614,7 +615,8 @@ final class Pilot {
                 msg, msgWarn, alpha,
                 hints.alpha(now), Math.max(0, hitA), hitKind,
                 kind.id, kind.tris,
-                state.hullKnown, state.hp, state.hpMax, state.zones.clone(), kind.triZone, hurtA);
+                state.hullKnown, state.hp, state.hpMax, state.zones.clone(), kind.triZone, hurtA,
+                state.known && state.pvp, state.known ? state.broken : 0);
         hudDraw.draw(gfx.frame(g), v, now);
     }
 

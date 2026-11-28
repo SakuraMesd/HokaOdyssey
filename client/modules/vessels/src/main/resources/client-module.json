@@ -1,6 +1,6 @@
 {
   "id": "vessels",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "main": "ink.hoka.odyssey.client.vessels.VesselsClientModule",
   "authors": ["Takuyamo"],
   "description": "Корабли-модели (.bbmodel): отрисовка, посадка ПКМ, полёт пилота, твёрдый корпус, HUD, меню G, орудие, варп (ядро мода 0.78+, HUD без ванильного — 0.79+, окно корабля в стиле HUD — 0.80+); прочность и бой, мастерская, подушка над планетой (vessels-4)"

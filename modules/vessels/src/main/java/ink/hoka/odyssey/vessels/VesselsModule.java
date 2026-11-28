@@ -51,9 +51,13 @@ public final class VesselsModule extends OdysseyModule {
     final HullDamage hull = new HullDamage(this);
     final Beams beams = new Beams(this);
     final Arrivals arrivals = new Arrivals(this);
+    /** PvP-зоны модуля survival (бой кораблей только в зонах). */
+    final ZoneLink zones = new ZoneLink(this);
     /** Карта — планета (подушка, лучи) или космос: по имени карты (сбрасывается при reload). */
     private final Map<String, Boolean> planetMaps = new ConcurrentHashMap<>();
     private Upgrades.Config upgradeCfg = Upgrades.Config.DEFAULT;
+    /** Эффекты разбитых зон корпуса (hull.effects). */
+    private HullEffects.Config effectCfg = HullEffects.Config.DEFAULT;
     /** Рецепты мастерской (recipes:) и свои названия предметов (item-names:). */
     private List<Workshop.Recipe> recipes = List.of();
     private Map<String, String> itemNames = Map.of();
@@ -144,6 +148,7 @@ public final class VesselsModule extends OdysseyModule {
         if (config().get("item-names") instanceof Map<?, ?> nm) for (var e : nm.entrySet()) names.put(String.valueOf(e.getKey()), String.valueOf(e.getValue()));
         itemNames = Map.copyOf(names);
         upgradeCfg = Upgrades.Config.of(config().get("upgrades"));
+        effectCfg = HullEffects.Config.of(config().get("hull"));
         limits = new VesselMath.Limits(config().getDouble("check.speed-margin", 1.3), config().getDouble("check.slack", 1.5),
                 config().getDouble("check.turn-margin", 1.5), config().getDouble("check.turn-slack", 10), config().getInt("check.max-dt-ticks", 40));
         if (!(config().get("kinds") instanceof Map<?, ?> all)) { logger().warn("в config.yml нет раздела kinds — кораблей нет"); return; }
@@ -303,6 +308,7 @@ public final class VesselsModule extends OdysseyModule {
         double[] eye = seatWorld(v, k);
         p.teleport(new Pos(eye[0], eye[1] - p.getEyeHeight(), eye[2], (float) v.rot.yawDeg(), 0f));
         client.start(v);
+        pvpZone(v, pl, true);
         client.state(v);
         client.hull(v, false, -1);
         p.sendMessage(Component.text("Полёт: мышь — прицел, нос доводится к нему. W/S — ход, Ctrl+W — форсаж, A/D — крен, "
@@ -490,12 +496,34 @@ public final class VesselsModule extends OdysseyModule {
                 continue;
             }
             if (ticks % 2 == 0) aheadLoad(v, pl);
+            if (ticks % 10 == 0) pvpZone(v, pl, false);
             warp.tick(v);
             burn(v, pl);
         }
         beams.tick();
         arrivals.tick();
         if (dirty && ticks % 100 == 0) save();                                 // в полёте — раз в 5 с
+    }
+
+    /**
+     * PvP-зона корабля (середина корабля): сменилась — пилоту сообщение (вход/выход) и STATE (метка «PvP-ЗОНА» у
+     * компаса). quiet — при посадке: без сообщения о входе, только метка.
+     */
+    void pvpZone(Vessel v, Piloting pl, boolean quiet) {
+        Instance inst = v.carrier != null ? v.carrier.getInstance() : null;
+        if (inst == null) return;
+        PvpRule.Mode mode = zones.mode();
+        boolean survival = zones.present();
+        String name = survival && mode == PvpRule.Mode.ZONES ? zones.zone(inst, v.x, v.y, v.z) : null;
+        boolean in = PvpRule.label(mode, survival, survival && zones.in(inst, v.x, v.y, v.z));
+        if (in == pl.pvpZone && java.util.Objects.equals(name, pl.pvpZoneName)) return;
+        boolean was = pl.pvpZone;
+        pl.pvpZone = in;
+        pl.pvpZoneName = name;
+        client.state(v);
+        if (quiet || mode != PvpRule.Mode.ZONES) return;
+        if (in && !was) client.message(pl.player, "Вход в PvP-зону" + (name != null ? " «" + name + "»" : "") + " — здесь корабли бьют друг друга", true);
+        else if (!in && was) client.message(pl.player, "Выход из PvP-зоны — оружие не наносит урона кораблям и игрокам", false);
     }
 
     /**
@@ -531,8 +559,18 @@ public final class VesselsModule extends OdysseyModule {
         }
     }
 
-    /** Множители улучшений корабля. */
-    Upgrades.Stats stats(Vessel v) { return Upgrades.stats(v.cargo.upgradeCounts(), upgradeCfg); }
+    /** Множители только от улучшений (меню: «что дают улучшения»). */
+    Upgrades.Stats upgradeStats(Vessel v) { return Upgrades.stats(v.cargo.upgradeCounts(), upgradeCfg); }
+
+    /** Итоговые множители корабля: улучшения × эффекты разбитых зон. */
+    Upgrades.Stats stats(Vessel v) { return HullEffects.combine(upgradeStats(v), effects(v)); }
+
+    /** Эффекты разбитых зон корпуса (вида нет — без эффектов). */
+    HullEffects.Effects effects(Vessel v) {
+        VesselKind k = kinds.get(v.kind);
+        if (k == null) return HullEffects.Effects.NONE;
+        return HullEffects.of(hull.zoneHealth(v), k.zoneShare, effectCfg);
+    }
 
     /** Сводка корабля: топливо, варп, орудие, скорость (меню и HUD пилота). */
     record Status(int fuel, int capacity, int warpCost, double burnPerMinute, double warpDistance, double warpChargeSec,
@@ -540,7 +578,7 @@ public final class VesselsModule extends OdysseyModule {
 
     /** Множитель скорости корабля (улучшения; пустой бак при расходе — аварийный ход). Быстро — для каждой позы. */
     double speedMul(Vessel v) {
-        double m = stats(v).speed() * hull.engineMul(v);
+        double m = stats(v).speed();                                            // с разбитыми двигателями
         if (config().getDouble("fuel.burn-per-minute", 0) > 0 && v.cargo.fuelUnits() <= 0) m *= config().getDouble("fuel.empty-speed", 0.25);
         return m;
     }
@@ -551,7 +589,7 @@ public final class VesselsModule extends OdysseyModule {
         int fuel = v.cargo.fuelUnits();
         double bpm = Math.max(0, config().getDouble("fuel.burn-per-minute", 0));
         boolean empty = bpm > 0 && fuel <= 0;
-        double speed = st.speed() * hull.engineMul(v) * (empty ? config().getDouble("fuel.empty-speed", 0.25) : 1);
+        double speed = st.speed() * (empty ? config().getDouble("fuel.empty-speed", 0.25) : 1);
         return new Status(fuel, cap, Cargo.warpCost(cap, warp.costFraction(), st.warpCost()), bpm, warp.distance(),
                 warp.chargeTicks() / 20.0, warp.reloadTicks(st) / 20.0, combat.damage() * st.gunDamage(), combat.reloadTicks(st) / 20.0,
                 combat.range(), speed, empty);

@@ -17,6 +17,9 @@ public final class MenuInfo {
     /** Прочность (vessels-4): сейчас, наибольшая (0 — сервер старый, не пришло), целость зон 0…1. */
     public double hp, hpMax;
     public final float[] zones = {1, 1, 1, 1, 1};
+    /** vessels-5: разбитые зоны с эффектом (биты {@link HudView#GUN} …) и поворот (1 — как обычно). */
+    public int broken;
+    public double turn = 1;
 
     public static MenuInfo parse(String json) {
         MenuInfo m = new MenuInfo();
@@ -50,6 +53,9 @@ public final class MenuInfo {
                 try { zones[i] = (float) Math.clamp(a.get(i).getAsDouble(), 0, 1); } catch (Exception ignored) { }
             }
         }
+        broken = i(o, "broken", 0);
+        JsonObject ef = o.has("effects") && o.get("effects").isJsonObject() ? o.getAsJsonObject("effects") : new JsonObject();
+        turn = d(ef, "turn", 1);
         JsonObject mul = o.has("mul") && o.get("mul").isJsonObject() ? o.getAsJsonObject("mul") : new JsonObject();
         mulSpeed = d(mul, "speed", 1);
         mulWarpCost = d(mul, "warp-cost", 1);
