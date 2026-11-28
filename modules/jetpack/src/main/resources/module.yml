@@ -1,0 +1,8 @@
+id: jetpack
+name: Реактивный ранец
+version: 0.1.0
+main: ink.hoka.odyssey.jetpack.JetpackModule
+authors: [Takuyamo]
+description: Реактивный ранец — надевается в слот нагрудника, полёт на тяге (пробел в воздухе), плавный спуск (Shift), топливо в ранце, заправка канистрой (ПКМ)
+depends: [clientmods]
+softdepends: [hoitems, survival]

@@ -1,0 +1,19 @@
+# Предметы ранца (модуль jetpack) для модуля hoitems. Выкладка: папку jetpack/ (иконки 16×16) — в
+# module/hoitems/assets/jetpack/, этот раздел — дописать в module/hoitems/config.yml под items:, затем /hoitem reload.
+# Без этого jetpack выдаёт запасные предметы (железный слиток «Реактивный ранец», огненный порошок «Топливо для ранца»).
+# id менять нельзя: jetpack узнаёт предметы по ним. Модель на спине — demo-objects/jetpack/jetpack.bbmodel →
+# module/clientmods/files/jetpack/jetpack.bbmodel.
+items:
+  jetpack:
+    name: "Реактивный ранец"
+    color: aqua
+    lore: ["Надеть — ПКМ с ранцем в руке.", "Пробел в воздухе — тяга, Shift — спуск."]
+    icon: jetpack/jetpack.png
+    material: iron_ingot
+    stack: 1
+  jetpack_fuel:
+    name: "Топливо для ранца"
+    color: gold
+    lore: ["Канистра реактивного топлива.", "ПКМ — заправить надетый ранец."]
+    icon: jetpack/fuel.png
+    material: blaze_powder

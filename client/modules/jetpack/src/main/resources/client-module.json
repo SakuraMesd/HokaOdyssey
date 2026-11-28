@@ -1,0 +1,7 @@
+{
+  "id": "jetpack",
+  "version": "0.1.0",
+  "main": "ink.hoka.odyssey.client.jetpack.JetpackClientModule",
+  "authors": ["Takuyamo"],
+  "description": "Реактивный ранец: модель на спине, полёт на тяге, плавный спуск, пламя, HUD топлива"
+}

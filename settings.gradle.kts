@@ -17,6 +17,7 @@ include("modules:hosounds")   // свои звуки: .ogg с сервера, ho
 include("modules:houi")       // окна и меню: раскладка JSON с сервера, рисует мод Hoka Odyssey
 include("modules:mining")     // добыча: ломать только инструментами; лазер Аксиома
 include("modules:axiom")      // Axiom (клиентский редактор мира): серверная часть по протоколу AxiomPaperPlugin, только OP
+include("modules:jetpack")    // реактивный ранец: полёт с тягой, топливо в ранце, модель на спине (клиентский модуль jetpack)
 include("generators:noise-test") // переносимый генератор планеты «noise-test» v2 → run/generators/ (сервер и клиент)
 include("generators:planet")     // генератор планеты «planet» v1: −500…2000, море 300, объекты из objects/ (рельеф — позже)
 include("generators:vale")       // генератор «vale» v2: горы до ~1950, хребты, разломы, 24 биома, деревья-великаны, грибы, цветы
