@@ -61,6 +61,20 @@ public final class Handshake {
         return CMP.computeIfAbsent(hi.core() + "|" + java.util.Arrays.toString(min), k -> atLeast(hi.core(), min));
     }
 
+    /** Ядро, с которым клиент рисует кубовую карту без Sodium (этап 6: кольцо ViewArea по Y). */
+    public static final int[] VANILLA_RENDER = {0, 83};
+    private static final int[] CUBES_MIN = {0, 31};
+
+    /**
+     * Допуск на кубовую карту (CUBIC-CHUNKS.md §3.8): ядро 0.31+ с Sodium или ядро 0.83+ с любой отрисовкой (этап 6).
+     * Старое ядро без Sodium отрисовало бы ViewArea на всю высоту мира — память кончится.
+     */
+    public static boolean cubesReady(Player p) {
+        Hi hi = HI.get(p.getUuid());
+        if (hi == null || hi.core() == null || !coreAtLeast(p, CUBES_MIN)) return false;
+        return hi.sodium() || coreAtLeast(p, VANILLA_RENDER);
+    }
+
     /** Тесты: ответ ядра без рукопожатия. */
     static void putForTest(UUID u, String core) { HI.put(u, new Hi(core, false, "", 0)); }
 

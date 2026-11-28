@@ -294,12 +294,12 @@ public final class HoCubesCommand extends Command {
     private static void info(CommandSender s, String t) { s.sendMessage(Component.text(t, NamedTextColor.AQUA)); }
     private static void err(CommandSender s, String t) { s.sendMessage(Component.text(t, NamedTextColor.RED)); }
 
-    /** /hocubes go [y] — на кубовую карту «cubes» (только ядро 0.31+ с Sodium). */
+    /** /hocubes go [y] — на кубовую карту «cubes» (ядро 0.31+ с Sodium или 0.83+ без него — Handshake.cubesReady). */
     private static void go(CommandSender s, ink.hoka.odyssey.server.maps.Maps maps, int y) {
         if (!(s instanceof Player p)) return;
         var hi = Handshake.of(p);
-        if (!hi.known() || !hi.sodium() || hi.core().compareTo("0.31") < 0) {
-            s.sendMessage(Component.text("Кубовая карта: нужно ядро Hoka Odyssey 0.31+ и Sodium (у тебя: "
+        if (!Handshake.cubesReady(p)) {
+            s.sendMessage(Component.text("Кубовая карта: нужно ядро Hoka Odyssey 0.83+ (или 0.31+ с Sodium) (у тебя: "
                     + (hi.known() ? hi.core() : "старое ядро") + (hi.sodium() ? "" : ", без Sodium") + ")", NamedTextColor.RED));
             return;
         }

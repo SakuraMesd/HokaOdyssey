@@ -145,6 +145,6 @@ public final class VerticalView {
     public static OptionInstance<Integer> option() {
         return new OptionInstance<>("options.hoka_odyssey.vertical", OptionInstance.cachedConstantTooltip(tooltip()),
                 (caption, v) -> Options.genericValueLabel(caption, valueText(v)),
-                new OptionInstance.IntRange(MIN, MAX, false), value, v -> { set(v); save(); });
+                new OptionInstance.IntRange(MIN, MAX, false), value, v -> { set(v); save(); VanillaView.changed(); });
     }
 }
