@@ -161,7 +161,12 @@ final class SpaceLod {
     }
 
     /** Заливка готовых сеток (поток отрисовки), не больше 6 за кадр; давно невидимые — освободить. */
+    private static long lastUploadScan;
+
+    /** 0.90: не каждый кадр (перебор всех тел — заметная доля кадра на базе): раз в 50 мс. */
     static void uploads(long now, double cx, double cy, double cz, int dist) {
+        if (now - lastUploadScan < 50) return;
+        lastUploadScan = now;
         int up = 0;
         double far = dist * 1.3 + 256;
         for (var it = BODIES.values().iterator(); it.hasNext(); ) {
@@ -176,7 +181,8 @@ final class SpaceLod {
             }
             double dx = b.x - cx, dy = b.y - cy, dz = b.z - cz;
             if (dx * dx + dy * dy + dz * dz > far * far && now - b.seen > 5000) {
-                if (b.vb != null) b.vb.close();
+                if (b.vb != null) { b.vb.close(); b.vb = null; }
+                visKey = -1;                                                     // в кэше видимых его больше не должно быть
                 ByteBuffer q = b.pending.getAndSet(null);
                 if (q != null) MemoryUtil.memFree(q);
                 it.remove();
@@ -188,7 +194,26 @@ final class SpaceLod {
      * Тела для отрисовки: построенные, в дальности, НЕ целиком в загруженной области (горизонталь — прорисовка rdBlocks,
      * вертикаль — дальность по высоте vBlocks).
      */
+    private static List<Body> visCache = List.of();
+    private static double vcx = Double.NaN, vcy, vcz;
+    private static long visAt;
+    private static int visKey;
+
+    /**
+     * 0.90: список пересчитывается раз в 100 мс или при сдвиге камеры на 4+ блока (раньше — каждый кадр: перебор всех
+     * тел и проверка «блоки пришли» по чанкам). Отсечение по пирамиде взгляда — каждый кадр в LodRenderer.draw.
+     */
     static List<Body> visible(double cx, double cy, double cz, int dist, int rdBlocks, int vBlocks) {
+        long now = System.currentTimeMillis();
+        int k = dist * 31 + rdBlocks * 7 + vBlocks + BODIES.size() * 131;
+        double mx = cx - vcx, my = cy - vcy, mz = cz - vcz;
+        if (k == visKey && now - visAt < 100 && mx * mx + my * my + mz * mz < 16) return visCache;
+        visKey = k; visAt = now; vcx = cx; vcy = cy; vcz = cz;
+        visCache = visible0(cx, cy, cz, dist, rdBlocks, vBlocks);
+        return visCache;
+    }
+
+    private static List<Body> visible0(double cx, double cy, double cz, int dist, int rdBlocks, int vBlocks) {
         List<Body> l = new ArrayList<>();
         for (Body b : BODIES.values()) {
             if (b.vb == null || b.quads == 0) continue;
@@ -214,7 +239,8 @@ final class SpaceLod {
         int bx = (int) Math.floor(b.x), bz = (int) Math.floor(b.z);
         var ch = lvl.getChunkSource().getChunk(bx >> 4, bz >> 4, net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false);
         if (ch == null) return false;
-        for (double dy : new double[]{0, b.ext * 0.4, -b.ext * 0.4}) {
+        for (int i = 0; i < 3; i++) {
+            double dy = i == 0 ? 0 : i == 1 ? b.ext * 0.4 : -b.ext * 0.4;
             int y = (int) Math.floor(b.y + dy);
             int si = lvl.getSectionIndex(y);
             var secs = ch.getSections();
@@ -230,6 +256,8 @@ final class SpaceLod {
             if (q != null) MemoryUtil.memFree(q);
         }
         BODIES.clear();
+        visCache = List.of();
+        visKey = -1;
         supported = true;
     }
 

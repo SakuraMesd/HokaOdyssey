@@ -90,6 +90,8 @@ public final class BlockAnims {
         LIVE.clear();
         found = List.of();
         COLS.clear();
+        SCANNED.clear();
+        DIRTY.clear();
         ticks = 0;
     }
 
@@ -98,45 +100,84 @@ public final class BlockAnims {
     // ───────────────────────── поиск ─────────────────────────
 
     /**
-     * 0.90: поиск — по частям, за {@link #SCAN_TICKS} тиков все столбцы рядом (раньше — все разом раз в 10 тиков: в
-     * секциях с общей палитрой, где «может быть» всегда «да», это 4096 блоков × десятки секций за тик — рывок кадра
-     * ~10 мс дважды в секунду). Секцию сначала проверяем по набору её состояний (getAll — без перебора 4096 клеток с
-     * подменой номеров), перебираем клетки только если нужный блок в ней правда есть.
+     * 0.90: поиск — по столбцам с бюджетом, без полного прохода: столбец, где сменился блок ({@link #dirty} —
+     * из LevelRenderer.setSectionDirty), — в ближайший тик; новый (вошёл в дальность) — тоже; остальные — перепроверка
+     * раз в {@link #RESCAN_TICKS} (на случай пропущенной пометки). За тик — не больше {@link #COLS_PER_TICK} столбцов.
+     * Раньше всё рядом перебиралось дважды в секунду: на базе с сотнями видов блоков (общая палитра секций) — 13%
+     * времени кадра и рывки.
      */
     public static void tick() {
         Map<BlockState, Type> types = TYPES;
         var mc = Minecraft.getInstance();
         if (types.isEmpty() || mc.level == null || mc.player == null) {
-            if (!found.isEmpty() || !COLS.isEmpty()) { found = List.of(); COLS.clear(); }
+            if (!found.isEmpty() || !COLS.isEmpty()) { found = List.of(); COLS.clear(); SCANNED.clear(); }
+            DIRTY.clear();
             return;
         }
-        int phase = ticks++ % SCAN_TICKS;
+        ticks++;
         var lvl = mc.level;
         int r = SCAN_RANGE >> 4;
         BlockPos pp = mc.player.blockPosition();
         int pcx = pp.getX() >> 4, pcy = pp.getY() >> 4, pcz = pp.getZ() >> 4;
         boolean changed = false;
-        if (phase == 0) changed = COLS.keySet().removeIf(k -> Math.abs(ChunkPosX(k) - pcx) > r || Math.abs(ChunkPosZ(k) - pcz) > r);
-        for (int cx = pcx - r; cx <= pcx + r; cx++) for (int cz = pcz - r; cz <= pcz + r; cz++) {
-            if (Math.floorMod(cx * 7 + cz * 3, SCAN_TICKS) != phase) continue;     // свой тик у каждого столбца
-            long key = (((long) cx) << 32) | (cz & 0xFFFFFFFFL);
-            List<At> col = scanColumn(lvl, cx, cz, pcy, r, types);
-            List<At> was = COLS.get(key);
-            if (col.isEmpty()) { if (was != null) { COLS.remove(key); changed = true; } }
-            else if (was == null || !same(was, col)) { COLS.put(key, col); changed = true; }
+        if (ticks % 20 == 0) {                                                  // ушедшие из дальности — забыть
+            changed = COLS.keySet().removeIf(k -> Math.abs(colX(k) - pcx) > r || Math.abs(colZ(k) - pcz) > r);
+            SCANNED.keySet().removeIf(k -> Math.abs(colX(k) - pcx) > r || Math.abs(colZ(k) - pcz) > r);
         }
-        if (!changed && !(found.isEmpty() && !COLS.isEmpty())) return;
+        int budget = COLS_PER_TICK;
+        // 1) столбцы со сменой блоков
+        if (!DIRTY.isEmpty()) {
+            var it = DIRTY.iterator();
+            while (it.hasNext() && budget > 0) {
+                long key = it.next();
+                it.remove();
+                if (Math.abs(colX(key) - pcx) > r || Math.abs(colZ(key) - pcz) > r) continue;
+                changed |= rescan(lvl, key, pcy, r, types);
+                budget--;
+            }
+        }
+        // 2) новые столбцы и 3) давно не проверенные — по кругу от игрока
+        for (int cx = pcx - r; cx <= pcx + r && budget > 0; cx++) for (int cz = pcz - r; cz <= pcz + r && budget > 0; cz++) {
+            long key = key(cx, cz);
+            Integer at = SCANNED.get(key);
+            if (at != null && ticks - at < RESCAN_TICKS) continue;
+            changed |= rescan(lvl, key, pcy, r, types);
+            budget--;
+        }
+        if (!changed) return;
         Map<String, Group> out = new LinkedHashMap<>();
         for (List<At> col : COLS.values()) for (At at : col)
             out.computeIfAbsent(at.type.path + "#" + at.type.anim, k -> new Group(at.type.path, at.type.anim)).ats.add(at);
         found = List.copyOf(out.values());
     }
 
+    static final int COLS_PER_TICK = 3, RESCAN_TICKS = 100;
+    /** Когда столбец проверяли (тик). */
+    private static final Map<Long, Integer> SCANNED = new HashMap<>();
+    /** Столбцы со сменой блоков (главный поток). */
+    private static final java.util.LinkedHashSet<Long> DIRTY = new java.util.LinkedHashSet<>();
+
+    /** Секция перестраивается (смена блоков, пришёл чанк/куб) — перепроверить её столбец. Главный поток. */
+    public static void dirty(int sx, int sz) {
+        if (!TYPES.isEmpty()) DIRTY.add(key(sx, sz));
+    }
+
+    private static long key(int cx, int cz) { return (((long) cx) << 32) | (cz & 0xFFFFFFFFL); }
+
+    private static boolean rescan(net.minecraft.client.multiplayer.ClientLevel lvl, long key, int pcy, int r, Map<BlockState, Type> types) {
+        SCANNED.put(key, ticks);
+        List<At> col = scanColumn(lvl, colX(key), colZ(key), pcy, r, types);
+        List<At> was = COLS.get(key);
+        if (col.isEmpty()) return was != null && COLS.remove(key) != null;
+        if (was == null || !same(was, col)) { COLS.put(key, col); return true; }
+        return false;
+    }
+
     /** Найденные блоки по столбцам: (x << 32 | z) → блоки. */
     private static final Map<Long, List<At>> COLS = new HashMap<>();
 
-    private static int ChunkPosX(long k) { return (int) (k >> 32); }
-    private static int ChunkPosZ(long k) { return (int) k; }
+    private static int colX(long k) { return (int) (k >> 32); }
+    private static int colZ(long k) { return (int) k; }
 
     private static boolean same(List<At> a, List<At> b) {
         if (a.size() != b.size()) return false;
@@ -153,8 +194,10 @@ public final class BlockAnims {
             if (idx < 0 || idx >= secs.length) continue;
             LevelChunkSection sec = secs[idx];
             if (sec == null || sec.hasOnlyAir() || !sec.maybeHas(types::containsKey)) continue;
+            // есть ли нужный блок: count() — один проход по 4096 номерам с хэш-счётчиком (getAll строит IntArraySet —
+            // на общей палитре в сотни видов он квадратичный и сам медленнее перебора клеток)
             boolean[] has = {false};
-            sec.getStates().getAll(st -> { if (types.containsKey(st)) has[0] = true; });   // набор состояний секции
+            sec.getStates().count((st, n) -> { if (types.containsKey(st)) has[0] = true; });
             if (!has[0]) continue;
             for (int y = 0; y < 16; y++) for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
                 BlockState st = sec.getBlockState(x, y, z);

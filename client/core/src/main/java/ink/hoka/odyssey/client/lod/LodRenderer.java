@@ -540,6 +540,7 @@ public final class LodRenderer {
         int bn = 0;
         if (bodySlices.length < bodies.size()) { bodySlices = new GpuBufferSlice[bodies.size() * 2]; bodyVis = new SpaceLod.Body[bodies.size() * 2]; }
         for (SpaceLod.Body bd : bodies) {
+            if (bd.vb == null || bd.quads == 0) continue;                       // 0.90: список видимых кэшируется — тело могли выгрузить
             float ox = (float) (bd.x0 - px), oy = (float) (bd.y0 - py), oz = (float) (bd.z0 - pz);
             if (!FRUSTUM.testAab(ox, oy, oz, ox + bd.size, oy + bd.size, oz + bd.size)) continue;
             OFF.set(ox, oy, oz);

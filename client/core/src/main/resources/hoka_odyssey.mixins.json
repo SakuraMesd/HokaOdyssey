@@ -39,6 +39,7 @@
     "BlockPosNetMixin",
     "FrameWatchMixin",
     "SmoothMixin",
+    "AnimDirtyMixin",
     "SparseChunkAccessMixin",
     "SparseLevelChunkMixin",
     "SparseEmptySectionsMixin",
