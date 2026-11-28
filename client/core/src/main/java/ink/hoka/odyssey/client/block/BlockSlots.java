@@ -97,14 +97,21 @@ final class BlockSlots {
                 return null;
             }
             int index;
-            if (u != null && u.size == size) index = u.index;
+            if (u != null && u.size >= size) { index = u.index; size = u.size; }
             else {
                 if (u != null) USED.remove(key);
-                index = free(size);
+                index = -1;
+                int want = size;
+                for (int s : SIZES) {                                          // 0.85: нет своего размера — в ячейку побольше
+                    if (s < want) continue;
+                    index = free(s);
+                    if (index >= 0) { size = s; break; }
+                }
                 if (index < 0) {
-                    LOG.warn("{}: кончились ячейки {}×{}", key, size, size);
+                    LOG.warn("{}: кончились ячейки {}×{} и больше", key, want, want);
                     return null;
                 }
+                if (size != want) LOG.info("{}: ячеек {}×{} нет — взята {}×{}", key, want, want, size, size);
             }
             TextureAtlasSprite sp = FREE_ALL.get(size).get(index);
             upload(sp, img, size);

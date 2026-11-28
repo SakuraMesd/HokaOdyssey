@@ -1,1 +1,3644 @@
-{"sources":[{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_0"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_1"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_2"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_3"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_4"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_5"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_6"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_7"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_8"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_9"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_10"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_11"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_12"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_13"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_14"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_15"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_16"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_17"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_18"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_19"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_20"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_21"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_22"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_23"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_24"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_25"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_26"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_27"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_28"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_29"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_30"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_31"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_32"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_33"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_34"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_35"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_36"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_37"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_38"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_39"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_40"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_41"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_42"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_43"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_44"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_45"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_46"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_47"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_48"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_49"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_50"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_51"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_52"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_53"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_54"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_55"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_56"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_57"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_58"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_59"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_60"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_61"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_62"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_63"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_64"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_65"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_66"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_67"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_68"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_69"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_70"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_71"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_72"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_73"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_74"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_75"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_76"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_77"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_78"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_79"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_80"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_81"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_82"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_83"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_84"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_85"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_86"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_87"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_88"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_89"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_90"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_91"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_92"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_93"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_94"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_95"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_96"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_97"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_98"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_99"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_100"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_101"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_102"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_103"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_104"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_105"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_106"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_107"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_108"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_109"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_110"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_111"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_112"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_113"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_114"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_115"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_116"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_117"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_118"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_119"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_120"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_121"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_122"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_123"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_124"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_125"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_126"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_127"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_128"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_129"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_130"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_131"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_132"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_133"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_134"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_135"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_136"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_137"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_138"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_139"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_140"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_141"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_142"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_143"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_144"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_145"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_146"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_147"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_148"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_149"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_150"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_151"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_152"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_153"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_154"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_155"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_156"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_157"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_158"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_159"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_160"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_161"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_162"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_163"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_164"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_165"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_166"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_167"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_168"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_169"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_170"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_171"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_172"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_173"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_174"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_175"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_176"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_177"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_178"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_179"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_180"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_181"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_182"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_183"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_184"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_185"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_186"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_187"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_188"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_189"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_190"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_191"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_192"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_193"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_194"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_195"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_196"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_197"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_198"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_199"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_200"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_201"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_202"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_203"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_204"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_205"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_206"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_207"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_208"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_209"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_210"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_211"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_212"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_213"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_214"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_215"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_216"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_217"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_218"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_219"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_220"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_221"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_222"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_223"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_224"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_225"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_226"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_227"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_228"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_229"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_230"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_231"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_232"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_233"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_234"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_235"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_236"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_237"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_238"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_239"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_240"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_241"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_242"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_243"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_244"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_245"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_246"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_247"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_248"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_249"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_250"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_251"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_252"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_253"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_254"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_255"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_256"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_257"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_258"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_259"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_260"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_261"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_262"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_263"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_264"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_265"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_266"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_267"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_268"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_269"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_270"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_271"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_272"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_273"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_274"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_275"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_276"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_277"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_278"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_279"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_280"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_281"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_282"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_283"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_284"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_285"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_286"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_287"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_288"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_289"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_290"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_291"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_292"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_293"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_294"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_295"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_296"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_297"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_298"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_299"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_300"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_301"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_302"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_303"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_304"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_305"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_306"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_307"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_308"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_309"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_310"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_311"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_312"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_313"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_314"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_315"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_316"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_317"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_318"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_319"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_320"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_321"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_322"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_323"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_324"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_325"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_326"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_327"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_328"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_329"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_330"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_331"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_332"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_333"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_334"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_335"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_336"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_337"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_338"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_339"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_340"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_341"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_342"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_343"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_344"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_345"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_346"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_347"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_348"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_349"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_350"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_351"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_352"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_353"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_354"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_355"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_356"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_357"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_358"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_359"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_360"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_361"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_362"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_363"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_364"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_365"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_366"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_367"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_368"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_369"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_370"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_371"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_372"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_373"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_374"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_375"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_376"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_377"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_378"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_379"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_380"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_381"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_382"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_383"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_384"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_385"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_386"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_387"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_388"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_389"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_390"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_391"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_392"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_393"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_394"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_395"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_396"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_397"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_398"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_399"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_400"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_401"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_402"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_403"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_404"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_405"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_406"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_407"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_408"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_409"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_410"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_411"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_412"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_413"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_414"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_415"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_416"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_417"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_418"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_419"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_420"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_421"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_422"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_423"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_424"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_425"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_426"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_427"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_428"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_429"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_430"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_431"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_432"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_433"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_434"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_435"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_436"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_437"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_438"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_439"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_440"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_441"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_442"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_443"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_444"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_445"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_446"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_447"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_448"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_449"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_450"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_451"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_452"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_453"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_454"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_455"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_456"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_457"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_458"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_459"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_460"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_461"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_462"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_463"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_464"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_465"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_466"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_467"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_468"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_469"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_470"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_471"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_472"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_473"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_474"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_475"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_476"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_477"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_478"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_479"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_480"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_481"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_482"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_483"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_484"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_485"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_486"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_487"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_488"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_489"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_490"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_491"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_492"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_493"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_494"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_495"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_496"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_497"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_498"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_499"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_500"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_501"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_502"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_503"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_504"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_505"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_506"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_507"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_508"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_509"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_510"},{"type":"single","resource":"hoka_odyssey:block/e16","sprite":"hoka_odyssey:block/s16_511"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_0"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_1"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_2"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_3"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_4"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_5"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_6"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_7"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_8"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_9"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_10"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_11"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_12"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_13"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_14"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_15"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_16"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_17"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_18"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_19"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_20"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_21"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_22"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_23"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_24"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_25"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_26"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_27"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_28"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_29"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_30"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_31"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_32"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_33"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_34"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_35"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_36"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_37"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_38"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_39"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_40"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_41"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_42"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_43"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_44"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_45"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_46"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_47"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_48"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_49"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_50"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_51"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_52"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_53"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_54"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_55"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_56"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_57"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_58"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_59"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_60"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_61"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_62"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_63"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_64"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_65"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_66"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_67"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_68"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_69"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_70"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_71"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_72"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_73"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_74"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_75"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_76"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_77"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_78"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_79"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_80"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_81"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_82"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_83"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_84"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_85"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_86"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_87"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_88"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_89"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_90"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_91"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_92"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_93"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_94"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_95"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_96"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_97"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_98"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_99"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_100"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_101"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_102"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_103"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_104"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_105"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_106"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_107"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_108"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_109"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_110"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_111"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_112"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_113"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_114"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_115"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_116"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_117"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_118"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_119"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_120"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_121"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_122"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_123"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_124"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_125"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_126"},{"type":"single","resource":"hoka_odyssey:block/e32","sprite":"hoka_odyssey:block/s32_127"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_0"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_1"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_2"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_3"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_4"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_5"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_6"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_7"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_8"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_9"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_10"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_11"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_12"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_13"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_14"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_15"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_16"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_17"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_18"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_19"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_20"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_21"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_22"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_23"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_24"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_25"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_26"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_27"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_28"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_29"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_30"},{"type":"single","resource":"hoka_odyssey:block/e64","sprite":"hoka_odyssey:block/s64_31"},{"type":"single","resource":"hoka_odyssey:block/e128","sprite":"hoka_odyssey:block/s128_0"},{"type":"single","resource":"hoka_odyssey:block/e128","sprite":"hoka_odyssey:block/s128_1"},{"type":"single","resource":"hoka_odyssey:block/e128","sprite":"hoka_odyssey:block/s128_2"},{"type":"single","resource":"hoka_odyssey:block/e128","sprite":"hoka_odyssey:block/s128_3"},{"type":"single","resource":"hoka_odyssey:block/e128","sprite":"hoka_odyssey:block/s128_4"},{"type":"single","resource":"hoka_odyssey:block/e128","sprite":"hoka_odyssey:block/s128_5"},{"type":"single","resource":"hoka_odyssey:block/e128","sprite":"hoka_odyssey:block/s128_6"},{"type":"single","resource":"hoka_odyssey:block/e128","sprite":"hoka_odyssey:block/s128_7"},{"type":"single","resource":"hoka_odyssey:block/e256","sprite":"hoka_odyssey:block/s256_0"},{"type":"single","resource":"hoka_odyssey:block/e256","sprite":"hoka_odyssey:block/s256_1"},{"type":"single","resource":"hoka_odyssey:block/e256","sprite":"hoka_odyssey:block/s256_2"},{"type":"single","resource":"hoka_odyssey:block/e256","sprite":"hoka_odyssey:block/s256_3"}]}
+{
+ "sources": [
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_0"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_1"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_2"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_3"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_4"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_5"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_6"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_7"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_8"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_9"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_10"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_11"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_12"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_13"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_14"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_15"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_16"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_17"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_18"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_19"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_20"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_21"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_22"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_23"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_24"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_25"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_26"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_27"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_28"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_29"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_30"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_31"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_32"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_33"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_34"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_35"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_36"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_37"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_38"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_39"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_40"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_41"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_42"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_43"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_44"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_45"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_46"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_47"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_48"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_49"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_50"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_51"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_52"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_53"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_54"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_55"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_56"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_57"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_58"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_59"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_60"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_61"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_62"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_63"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_64"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_65"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_66"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_67"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_68"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_69"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_70"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_71"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_72"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_73"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_74"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_75"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_76"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_77"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_78"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_79"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_80"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_81"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_82"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_83"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_84"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_85"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_86"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_87"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_88"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_89"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_90"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_91"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_92"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_93"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_94"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_95"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_96"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_97"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_98"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_99"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_100"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_101"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_102"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_103"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_104"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_105"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_106"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_107"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_108"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_109"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_110"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_111"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_112"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_113"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_114"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_115"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_116"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_117"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_118"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_119"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_120"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_121"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_122"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_123"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_124"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_125"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_126"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_127"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_128"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_129"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_130"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_131"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_132"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_133"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_134"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_135"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_136"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_137"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_138"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_139"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_140"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_141"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_142"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_143"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_144"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_145"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_146"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_147"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_148"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_149"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_150"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_151"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_152"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_153"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_154"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_155"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_156"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_157"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_158"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_159"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_160"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_161"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_162"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_163"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_164"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_165"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_166"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_167"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_168"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_169"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_170"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_171"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_172"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_173"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_174"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_175"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_176"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_177"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_178"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_179"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_180"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_181"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_182"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_183"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_184"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_185"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_186"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_187"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_188"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_189"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_190"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_191"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_192"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_193"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_194"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_195"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_196"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_197"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_198"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_199"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_200"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_201"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_202"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_203"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_204"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_205"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_206"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_207"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_208"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_209"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_210"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_211"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_212"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_213"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_214"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_215"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_216"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_217"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_218"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_219"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_220"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_221"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_222"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_223"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_224"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_225"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_226"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_227"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_228"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_229"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_230"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_231"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_232"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_233"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_234"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_235"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_236"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_237"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_238"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_239"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_240"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_241"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_242"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_243"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_244"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_245"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_246"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_247"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_248"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_249"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_250"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_251"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_252"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_253"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_254"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_255"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_256"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_257"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_258"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_259"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_260"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_261"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_262"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_263"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_264"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_265"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_266"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_267"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_268"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_269"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_270"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_271"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_272"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_273"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_274"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_275"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_276"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_277"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_278"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_279"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_280"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_281"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_282"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_283"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_284"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_285"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_286"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_287"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_288"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_289"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_290"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_291"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_292"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_293"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_294"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_295"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_296"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_297"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_298"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_299"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_300"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_301"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_302"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_303"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_304"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_305"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_306"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_307"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_308"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_309"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_310"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_311"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_312"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_313"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_314"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_315"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_316"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_317"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_318"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_319"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_320"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_321"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_322"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_323"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_324"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_325"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_326"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_327"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_328"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_329"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_330"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_331"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_332"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_333"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_334"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_335"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_336"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_337"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_338"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_339"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_340"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_341"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_342"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_343"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_344"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_345"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_346"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_347"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_348"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_349"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_350"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_351"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_352"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_353"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_354"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_355"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_356"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_357"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_358"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_359"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_360"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_361"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_362"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_363"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_364"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_365"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_366"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_367"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_368"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_369"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_370"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_371"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_372"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_373"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_374"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_375"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_376"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_377"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_378"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_379"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_380"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_381"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_382"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_383"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_384"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_385"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_386"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_387"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_388"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_389"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_390"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_391"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_392"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_393"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_394"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_395"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_396"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_397"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_398"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_399"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_400"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_401"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_402"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_403"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_404"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_405"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_406"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_407"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_408"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_409"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_410"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_411"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_412"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_413"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_414"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_415"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_416"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_417"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_418"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_419"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_420"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_421"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_422"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_423"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_424"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_425"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_426"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_427"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_428"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_429"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_430"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_431"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_432"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_433"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_434"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_435"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_436"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_437"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_438"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_439"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_440"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_441"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_442"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_443"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_444"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_445"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_446"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_447"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_448"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_449"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_450"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_451"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_452"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_453"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_454"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_455"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_456"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_457"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_458"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_459"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_460"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_461"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_462"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_463"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_464"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_465"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_466"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_467"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_468"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_469"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_470"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_471"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_472"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_473"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_474"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_475"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_476"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_477"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_478"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_479"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_480"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_481"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_482"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_483"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_484"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_485"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_486"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_487"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_488"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_489"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_490"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_491"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_492"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_493"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_494"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_495"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_496"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_497"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_498"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_499"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_500"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_501"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_502"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_503"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_504"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_505"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_506"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_507"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_508"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_509"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_510"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e16",
+   "sprite": "hoka_odyssey:block/s16_511"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_0"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_1"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_2"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_3"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_4"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_5"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_6"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_7"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_8"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_9"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_10"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_11"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_12"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_13"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_14"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_15"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_16"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_17"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_18"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_19"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_20"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_21"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_22"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_23"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_24"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_25"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_26"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_27"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_28"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_29"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_30"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_31"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_32"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_33"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_34"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_35"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_36"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_37"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_38"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_39"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_40"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_41"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_42"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_43"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_44"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_45"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_46"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_47"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_48"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_49"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_50"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_51"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_52"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_53"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_54"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_55"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_56"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_57"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_58"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_59"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_60"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_61"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_62"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_63"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_64"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_65"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_66"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_67"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_68"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_69"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_70"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_71"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_72"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_73"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_74"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_75"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_76"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_77"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_78"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_79"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_80"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_81"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_82"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_83"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_84"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_85"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_86"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_87"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_88"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_89"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_90"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_91"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_92"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_93"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_94"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_95"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_96"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_97"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_98"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_99"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_100"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_101"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_102"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_103"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_104"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_105"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_106"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_107"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_108"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_109"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_110"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_111"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_112"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_113"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_114"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_115"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_116"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_117"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_118"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_119"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_120"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_121"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_122"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_123"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_124"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_125"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_126"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e32",
+   "sprite": "hoka_odyssey:block/s32_127"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_0"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_1"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_2"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_3"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_4"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_5"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_6"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_7"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_8"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_9"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_10"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_11"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_12"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_13"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_14"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_15"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_16"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_17"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_18"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_19"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_20"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_21"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_22"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_23"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_24"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_25"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_26"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_27"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_28"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_29"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_30"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_31"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_32"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_33"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_34"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_35"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_36"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_37"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_38"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_39"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_40"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_41"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_42"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_43"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_44"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_45"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_46"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e64",
+   "sprite": "hoka_odyssey:block/s64_47"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_0"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_1"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_2"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_3"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_4"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_5"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_6"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_7"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_8"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_9"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_10"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_11"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_12"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_13"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_14"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_15"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_16"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_17"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_18"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_19"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_20"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_21"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_22"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_23"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_24"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_25"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_26"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_27"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_28"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_29"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_30"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e128",
+   "sprite": "hoka_odyssey:block/s128_31"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e256",
+   "sprite": "hoka_odyssey:block/s256_0"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e256",
+   "sprite": "hoka_odyssey:block/s256_1"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e256",
+   "sprite": "hoka_odyssey:block/s256_2"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e256",
+   "sprite": "hoka_odyssey:block/s256_3"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e256",
+   "sprite": "hoka_odyssey:block/s256_4"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e256",
+   "sprite": "hoka_odyssey:block/s256_5"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e256",
+   "sprite": "hoka_odyssey:block/s256_6"
+  },
+  {
+   "type": "single",
+   "resource": "hoka_odyssey:block/e256",
+   "sprite": "hoka_odyssey:block/s256_7"
+  }
+ ]
+}
