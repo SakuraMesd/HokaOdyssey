@@ -180,6 +180,7 @@ public final class HoloClientModule implements ClientModule {
                     lastOk = in.readUnsignedByte() == 1;
                     lastResult = in.readUTF();
                     lastResultAt = System.currentTimeMillis();
+                    session.result(lastOk);
                 }
                 default -> { }
             }

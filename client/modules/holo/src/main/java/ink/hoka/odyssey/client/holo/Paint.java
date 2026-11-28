@@ -174,7 +174,7 @@ public final class Paint {
                     out.cube(b.x + b.w, y, z, c, argb(k * show, col));
                 }
                 float ty = b.y + (b.h - b.text.size() * Layout.LINE * b.textScale) / 2 + 0.5f;
-                text(b, b.x + 8, ty, b.w - 16, z + 0.3f, show * (hov ? 1f : 0.92f), out);
+                text(b, b.x + Layout.BTN_PAD / 2, ty, b.w - Layout.BTN_PAD, z + 0.3f, show * (hov ? 1f : 0.92f), out);
             }
             case "separator" -> {
                 float y = b.y + b.h / 2;

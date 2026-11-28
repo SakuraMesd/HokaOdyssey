@@ -30,6 +30,8 @@ public final class Session {
     public final Map<String, JsonObject> server = new LinkedHashMap<>();
     public final Map<String, JsonObject> drafts = new LinkedHashMap<>();
     public final java.util.Set<String> dirty = new java.util.LinkedHashSet<>();
+    /** Отправлены на сервер, ответа ещё нет: отказ — снова «не сохранено». */
+    final java.util.Set<String> pending = new java.util.LinkedHashSet<>();
     private final Deque<Step> undo = new ArrayDeque<>(), redo = new ArrayDeque<>();
     public String selected;
     public boolean auto;
@@ -143,6 +145,7 @@ public final class Session {
         saver.accept(d);
         server.put(id, d.deepCopy());
         dirty.remove(id);
+        pending.add(id);
         return true;
     }
 
@@ -150,6 +153,13 @@ public final class Session {
         int n = 0;
         for (String id : java.util.List.copyOf(dirty)) if (save(id)) n++;
         return n;
+    }
+
+    /** Ответ сервера на сохранение: отказ — черновики снова «не сохранены» (правки не теряются). */
+    public void result(boolean ok) {
+        if (!ok) for (String id : pending) if (drafts.containsKey(id)) dirty.add(id);
+        pending.clear();
+        version++;
     }
 
     /** Удалили на сервере — убрать отовсюду (истории это не касается: удаление не отменяется). */

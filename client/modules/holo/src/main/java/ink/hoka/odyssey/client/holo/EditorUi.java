@@ -361,7 +361,7 @@ public final class EditorUi {
                 new String[]{"space — космос", "amber — предупреждение", "danger — опасность", "green — зелёная"}, v -> edit(null, d -> d.addProperty("theme", v)));
         y += RH + 1;
         y = numRow(c, "Ширина", "width", 0, 0, 32, new double[]{-0.25, 0.25}, x, y, lw);
-        g.text("0 — по содержимому", x + lw + 104, y - RH + 2, DIM);
+        g.text("0 — авто", x + lw + 126, y - RH + 3, DIM);
         y = numRow(c, "Отступ", "padding", 0.12, 0, 2, new double[]{-0.02, 0.02}, x, y, lw);
         y = numRow(c, "Прозрачн.", "opacity", 0.78, 0, 1, new double[]{-0.05, 0.05}, x, y, lw);
         int tw = (w - 6) / 3;
@@ -406,21 +406,21 @@ public final class EditorUi {
         button(bx, y, 14, 13, "‹", page > 0, () -> { page--; selLine = selElem = -1; });
         button(bx + 16, y, 14, 13, "›", page < n - 1, () -> { page++; selLine = selElem = -1; });
         bx += 34;
-        button(bx, y, 34, 13, "+ стр.", n < 16, () -> edit(null, d -> {
+        button(bx, y, 40, 13, "+ стр.", n < 16, () -> edit(null, d -> {
             JsonObject p = new JsonObject();
             p.add("lines", new JsonArray());
             pages(d).add(p);
             page = pages(d).size() - 1;
             selLine = selElem = -1;
         }));
-        bx += 36;
+        bx += 42;
         if (full) {
-            button(bx, y, 34, 13, "− стр.", n > 1, () -> edit(null, d -> {
+            button(bx, y, 40, 13, "− стр.", n > 1, () -> edit(null, d -> {
                 pages(d).remove(page);
                 page = Math.max(0, page - 1);
                 selLine = selElem = -1;
             }));
-            bx += 36;
+            bx += 42;
             button(bx, y, 22, 13, "←", page > 0, () -> edit(null, d -> { swap(pages(d), page, page - 1); page--; }));
             button(bx + 24, y, 22, 13, "→", page < n - 1, () -> edit(null, d -> { swap(pages(d), page, page + 1); page++; }));
         }
@@ -689,7 +689,7 @@ public final class EditorUi {
 
     /** Поле MiniMessage с подсветкой + «{…}» (плейсхолдер) и «<>» (тег) — вставка в курсор. */
     private void miniRow(String key, String prop, JsonObject e, int x, float y, int w) {
-        int fw = w - 34;
+        int fw = w - 38;
         field(key, x, y, fw, str(e, prop, ""), 1, v -> elEdit(key, o -> o.addProperty(prop, v)), "");
         button(x + fw + 2, y, 16, 13, "{}", true, () -> {
             focusTouched = true;
@@ -707,7 +707,7 @@ public final class EditorUi {
             }
             open(x + fw - 100, y + 13, 118, l, r);
         });
-        button(x + fw + 19, y, 15, 13, "<>", true, () -> {
+        button(x + fw + 19, y, 19, 13, "<>", true, () -> {
             focusTouched = true;
             List<Runnable> r = new ArrayList<>();
             for (String t : TAGS) r.add(() -> insertInto(key, prop, t));

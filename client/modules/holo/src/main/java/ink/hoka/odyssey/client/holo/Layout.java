@@ -13,7 +13,7 @@ import java.util.Map;
 public final class Layout {
 
     public static final float PX_PER_BLOCK = 40f;
-    public static final float LINE = 9f, GAP_X = 6f, GAP_Y = 3f, MAX_AUTO_BLOCKS = 12f, MIN_W = 48f;
+    public static final float LINE = 9f, GAP_X = 6f, GAP_Y = 3f, MAX_AUTO_BLOCKS = 12f, MIN_W = 48f, BTN_PAD = 10f;
 
     /** Ширина буквы шрифта (точки при размере 1) и пропорции картинки (высота/ширина; 1 — если неизвестно). */
     public interface Metrics {
@@ -140,7 +140,7 @@ public final class Layout {
                 b.text = wrap(Mini.parse(Holo.fill(e.label, values), textRgb), Float.MAX_VALUE, m);
                 float w = 0;
                 for (TLine t : b.text) w = Math.max(w, t.width());
-                b.w = Math.max(w * s + 16, e.w > 0 ? (float) e.w * PX_PER_BLOCK : 0);
+                b.w = Math.max(w * s + BTN_PAD, e.w > 0 ? (float) e.w * PX_PER_BLOCK : 0);
                 b.h = b.text.size() * LINE * s + 7;
             }
             case "separator" -> { b.w = 0; b.h = 5; }
@@ -159,11 +159,7 @@ public final class Layout {
         float gaps = GAP_X * (row.size() - 1);
         if (menu) {
             float each = (cw - gaps) / row.size();
-            for (Box b : row) {
-                rewrap(b, each - 16, m);
-                b.w = each;
-                b.h = b.text.size() * LINE * b.textScale + 7;
-            }
+            for (Box b : row) shrinkButton(b, each);
             return;
         }
         float total = gaps;
@@ -171,18 +167,19 @@ public final class Layout {
         if (total <= cw + 0.01f) return;
         // сначала переносим текст: остальным — их ширина, тексту — поровну из остатка
         List<Box> texts = row.stream().filter(b -> b.el.type.equals("text") || b.el.type.equals("button")).toList();
+        // кнопки не переносятся (слово по буквам некрасиво) — у них уменьшается шрифт
         float fixedW = gaps;
         for (Box b : row) if (!texts.contains(b)) fixedW += b.w;
         if (!texts.isEmpty()) {
             float share = Math.max(20, (cw - fixedW) / texts.size());
             for (Box b : texts) {
-                float pad = b.el.type.equals("button") ? 16 : 0;
                 if (b.w <= share) continue;
-                rewrap(b, share - pad, m);
+                if (b.el.type.equals("button")) { shrinkButton(b, share); continue; }
+                rewrap(b, share, m);
                 float w = 0;
                 for (TLine t : b.text) w = Math.max(w, t.width());
-                b.w = Math.min(share, w * b.textScale + pad);
-                b.h = b.text.size() * LINE * b.textScale + (pad > 0 ? 7 : 0);
+                b.w = Math.min(share, w * b.textScale);
+                b.h = b.text.size() * LINE * b.textScale;
             }
         }
         total = gaps;
@@ -198,6 +195,16 @@ public final class Layout {
                 }
             }
         }
+    }
+
+    /** Кнопка шириной w: подпись в одну строку, не влезает — меньше шрифт. */
+    static void shrinkButton(Box b, float w) {
+        float lw = 0;
+        for (TLine t : b.text) lw = Math.max(lw, t.width());
+        float avail = Math.max(4, w - BTN_PAD);
+        if (lw * b.textScale > avail) b.textScale = avail / Math.max(1, lw);
+        b.w = w;
+        b.h = b.text.size() * LINE * b.textScale + 7;
     }
 
     private static void rewrap(Box b, float maxW, Metrics m) {
