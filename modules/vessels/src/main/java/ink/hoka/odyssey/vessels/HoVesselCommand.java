@@ -16,7 +16,7 @@ import net.minestom.server.item.ItemStack;
  * /hovessel (то же — /vessel), только OP: spawn &lt;вид&gt; — поставить перед собой (владелец — кто поставил), remove [id]
  * — убрать (по id, на который смотришь или ближайший; груз выпадает), list, tp &lt;id&gt;, reload — перечитать виды
  * из config.yml, owner &lt;id&gt; &lt;ник&gt;, fuel [кол-во] [ник], upgrade &lt;вид&gt; [ник], give &lt;repair|crystal&gt; [кол-во] [ник],
- * repair &lt;id&gt; [hp], hp &lt;id&gt; &lt;hp&gt; (0 — разрушить).
+ * repair &lt;id&gt; [hp], hp &lt;id&gt; &lt;hp&gt; (0 — разрушить), call &lt;вид&gt; [ник] — новый корабль прилетает к игроку.
  */
 final class HoVesselCommand extends Command {
 
@@ -52,6 +52,10 @@ final class HoVesselCommand extends Command {
         addSyntax((s, c) -> giveUpgrade(s, c.get(up), null), ArgumentType.Literal("upgrade"), up);
         addSyntax((s, c) -> giveUpgrade(s, c.get(up), c.get(nick)), ArgumentType.Literal("upgrade"), up, nick);
 
+        addSyntax((s, c) -> { if (s instanceof Player p) call(s, c.get(kind), p); else err(s, "Укажите ник: /hovessel call <вид> <ник>"); },
+                ArgumentType.Literal("call"), kind);
+        addSyntax((s, c) -> { Player p = online(s, c.get(nick)); if (p != null) call(s, c.get(kind), p); }, ArgumentType.Literal("call"), kind, nick);
+
         var hp = ArgumentType.Double("прочность").min(0.0);
         addSyntax((s, c) -> repair(s, c.get(id), -1), ArgumentType.Literal("repair"), id);
         addSyntax((s, c) -> repair(s, c.get(id), c.get(hp)), ArgumentType.Literal("repair"), id, hp);
@@ -65,7 +69,7 @@ final class HoVesselCommand extends Command {
     private void help(CommandSender s) {
         info(s, "/hovessel (/vessel) spawn <вид> — поставить перед собой  |  remove [id] — убрать (на который смотрите / ближайший)  |  "
                 + "list  |  tp <id>  |  reload — перечитать виды  |  owner <id> <ник>  |  fuel [кол-во] [ник]  |  "
-                + "upgrade <engine|tank|gun|warp> [ник]  |  give <repair|crystal> [кол-во] [ник]  |  repair <id> [hp]  |  hp <id> <hp>. "
+                + "upgrade <engine|tank|gun|warp> [ник]  |  call <вид> [ник] — прилёт корабля к игроку  |  give <repair|crystal> [кол-во] [ник]  |  repair <id> [hp]  |  hp <id> <hp>. "
                 + "Сесть — ПКМ по кораблю, выйти — F, меню — G.");
     }
 
@@ -193,6 +197,13 @@ final class HoVesselCommand extends Command {
         ItemStack it = mod.items.upgrade(t);
         if (!p.getInventory().addItemStack(it)) p.dropItem(it);
         ok(s, t.title + " → " + p.getUsername());
+    }
+
+    /** Прилёт корабля к игроку (владелец — он). */
+    private void call(CommandSender s, String kind, Player to) {
+        String why = mod.arrivals.call(to, kind);
+        if (why != null) { err(s, why); return; }
+        ok(s, "Корабль " + kind + " летит к " + to.getUsername() + " (владелец — он)");
     }
 
     /** Починить: на hp (−1 — полностью). */

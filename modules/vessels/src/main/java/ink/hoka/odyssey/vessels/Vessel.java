@@ -38,6 +38,8 @@ final class Vessel {
     transient Workshop.Menu shop;
     /** Тик, когда удар о блоки снова считается (не чаще), и последнее попадание. */
     transient long impactReady;
+    /** Прилёт (/hovessel call): пока летит — сесть и открыть меню нельзя. */
+    transient Arrivals.Flight arrival;
 
     /** Носитель: невидимый item display — его положение и поворот (с интерполяцией) мод берёт для отрисовки. */
     transient Entity carrier;

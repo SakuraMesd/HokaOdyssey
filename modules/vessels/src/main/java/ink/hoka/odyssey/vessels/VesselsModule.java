@@ -50,6 +50,7 @@ public final class VesselsModule extends OdysseyModule {
     final VesselItems items = new VesselItems(this::hoItems);
     final HullDamage hull = new HullDamage(this);
     final Beams beams = new Beams(this);
+    final Arrivals arrivals = new Arrivals(this);
     /** Карта — планета (подушка, лучи) или космос: по имени карты (сбрасывается при reload). */
     private final Map<String, Boolean> planetMaps = new ConcurrentHashMap<>();
     private Upgrades.Config upgradeCfg = Upgrades.Config.DEFAULT;
@@ -109,6 +110,7 @@ public final class VesselsModule extends OdysseyModule {
     @Override
     protected void onDisable() {
         beams.clear();
+        arrivals.stop();
         for (Vessel v : vessels.values()) if (v.pilot != null) exit(v.pilot.player, true);
         for (Vessel v : vessels.values()) if (v.menu != null) { v.menu.closeAll(); v.menu = null; }
         for (Vessel v : vessels.values()) if (v.shop != null) { v.shop.closeAll(); v.shop = null; }
@@ -192,6 +194,7 @@ public final class VesselsModule extends OdysseyModule {
     /** Убрать корабль: груз выпадает рядом (мира/столбца нет — в лог), окно закрывается. */
     void remove(Vessel v) {
         if (v.pilot != null) exit(v.pilot.player, true);
+        arrivals.cancel(v);
         if (v.menu != null) { v.menu.closeAll(); v.menu = null; }
         if (v.shop != null) { v.shop.closeAll(); v.shop = null; }
         if (!v.cargo.isEmpty()) {
@@ -256,6 +259,7 @@ public final class VesselsModule extends OdysseyModule {
         if (v == null || k == null || v.carrier == null || v.carrier.isRemoved()) return;
         if (p.getInstance() != v.carrier.getInstance()) return;
         if (pilotOf(p) != null || beams.active(p)) return;
+        if (v.arrival != null) { client.message(p, "Корабль ещё не прибыл", true); return; }
         Pos pp = p.getPosition();
         double d = VesselMath.distanceToBox(pp.x(), pp.y() + p.getEyeHeight(), pp.z(), v.pos(), v.rot, k.half);
         double slack = config().getDouble("board-slack", 1);
@@ -442,6 +446,7 @@ public final class VesselsModule extends OdysseyModule {
             burn(v, pl);
         }
         beams.tick();
+        arrivals.tick();
         if (dirty && ticks % 100 == 0) save();                                 // в полёте — раз в 5 с
     }
 
@@ -562,6 +567,7 @@ public final class VesselsModule extends OdysseyModule {
         Vessel v = vessels.get(id);
         VesselKind k = v == null ? null : kinds.get(v.kind);
         if (v == null || k == null || v.carrier == null || p.getInstance() != v.carrier.getInstance()) return;
+        if (v.arrival != null) { client.message(p, "Корабль ещё не прибыл", true); return; }
         if (!canOpen(v, p.getUuid().toString(), server().isOp(p))) {
             client.message(p, "Это не ваш корабль" + (v.ownerName != null ? " (владелец — " + v.ownerName + ")" : ""), true);
             return;
@@ -705,6 +711,12 @@ public final class VesselsModule extends OdysseyModule {
 
     /** Подушка над планетой: ближе стольких блоков корпус к блокам не подходит. */
     double clearance() { return Math.max(0, config().getDouble("planet.clearance", 10)); }
+
+    /** Настройки подушки (раздел planet:). */
+    Cushion.Settings cushion() {
+        return new Cushion.Settings(clearance(), Math.max(0.5, config().getDouble("planet.soft", 6)), config().getDouble("planet.climb", 0.8),
+                beamReach(), Math.max(0, config().getDouble("planet.server-tolerance", 3)));
+    }
 
     /** Посадка лучом и меню с земли на планете — не дальше стольких блоков от коробки корабля. */
     double beamReach() { return config().getDouble("planet.beam-reach", 16); }
