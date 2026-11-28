@@ -35,6 +35,14 @@ final class VesselKind {
     /** Стволы орудия (система корабля, блоки): стреляют по очереди. */
     final List<double[]> guns;
     final int triangles;
+    /** Прочность корпуса (hull.hp вида). */
+    final double hp;
+    /** Зоны корпуса: доли (zones:), зона каждой клетки корпуса (как hull), доля клеток в каждой зоне. */
+    final Zones.Params zones;
+    /** С какого z (система корабля) начинается зона «нос». */
+    final double noseFrom;
+    final int[] cellZone;
+    final double[] zoneShare = new double[Zones.COUNT];
 
     VesselKind(String id, Map<?, ?> cfg, ModelShape shape) {
         this.id = id;
@@ -66,7 +74,48 @@ final class VesselKind {
         }
         if (g.isEmpty()) g.add(new double[]{0, 0, half[2] + 0.5});                // нет в конфиге — из носа
         this.guns = List.copyOf(g);
+        Map<?, ?> hullCfg = cfg.get("hull") instanceof Map<?, ?> m ? m : Map.of();
+        this.hp = Math.max(1, num(hullCfg, "hp", num(cfg, "hp", 200)));
+        Map<?, ?> z = cfg.get("zones") instanceof Map<?, ?> m ? m : Map.of();
+        this.zones = new Zones.Params(num(z, "side", Zones.Params.DEFAULT.side()), num(z, "nose", Zones.Params.DEFAULT.nose()),
+                num(z, "tail", Zones.Params.DEFAULT.tail()));
+        this.cellZone = new int[hull.size()];
+        double[] xz = new double[hull.size() * 2];
+        for (int i = 0; i < hull.size(); i++) { xz[i * 2] = hull.get(i)[0] + 0.5; xz[i * 2 + 1] = hull.get(i)[2] + 0.5; }
+        this.noseFrom = Zones.noseFrom(xz, half, zones);
+        for (int i = 0; i < hull.size(); i++) {
+            int[] c = hull.get(i);
+            cellZone[i] = Zones.zoneOf(c[0] + 0.5, c[2] + 0.5, half, zones, noseFrom);
+            zoneShare[cellZone[i]] += 1.0 / hull.size();
+        }
     }
+
+    /** Зона ближайшей к точке (система корабля) клетки корпуса — куда пришлось попадание. */
+    int zoneNear(double x, double y, double z) {
+        int best = Zones.BODY;
+        double bd = Double.MAX_VALUE;
+        for (int i = 0; i < hull.size(); i++) {
+            int[] c = hull.get(i);
+            double dx = c[0] + 0.5 - x, dy = c[1] + 0.5 - y, dz = c[2] + 0.5 - z, d = dx * dx + dy * dy + dz * dz;
+            if (d < bd) { bd = d; best = cellZone[i]; }
+        }
+        return best;
+    }
+
+    /** Зона «переднего края» по направлению удара (система корабля): клетка корпуса дальше всех вдоль d. */
+    int zoneToward(double dx, double dy, double dz) {
+        int best = Zones.BODY;
+        double bd = -Double.MAX_VALUE;
+        for (int i = 0; i < hull.size(); i++) {
+            int[] c = hull.get(i);
+            double d = (c[0] + 0.5) * dx + (c[1] + 0.5) * dy + (c[2] + 0.5) * dz;
+            if (d > bd) { bd = d; best = cellZone[i]; }
+        }
+        return best;
+    }
+
+    /** Целость зоны (0…1) при уроне зоны damage. */
+    double zoneHealth(int zone, double damage) { return Zones.health(damage, hp, zoneShare[zone]); }
 
     /** Ключ мелкой клетки (индексы полублоков). */
     static long fineKey(int ix, int iy, int iz) {

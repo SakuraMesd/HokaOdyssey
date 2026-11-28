@@ -24,6 +24,14 @@ final class Kind {
     final double[] half;    // блоки, система корабля
     final double[] seat;    // глаза пилота, система корабля
     final double speed, boostSpeed, accel, turnSpeed, rollSpeed;
+    /** Прочность корпуса (hull.hp вида) и зоны повреждений (как у сервера: Zones, начало носа — от сервера). */
+    final double hp;
+    final Zones.Params zones;
+    /** Начало носа: от сервера (nose-from), иначе — как сервер, по клеткам корпуса, когда придёт модель. */
+    private final boolean noseGiven;
+    volatile double noseFrom;
+    /** Зона каждого треугольника (по середине, проекция XZ) — силуэт в HUD красится по зонам; null — модели нет. */
+    volatile int[] triZone;
     /** Треугольники в системе корабля (по 9 чисел); null — модель ещё не пришла. */
     volatile float[] tris;
     /** Середины клеток корпуса (система корабля, по 3 числа) — столкновения с миром у пилота. */
@@ -50,6 +58,23 @@ final class Kind {
         this.accel = num(o, "accel", 15);
         this.turnSpeed = num(o, "turn-speed", 90);
         this.rollSpeed = num(o, "roll-speed", 120);
+        this.hp = num(o, "hp", 200);
+        JsonObject z = o.has("zones") && o.get("zones").isJsonObject() ? o.getAsJsonObject("zones") : new JsonObject();
+        this.zones = new Zones.Params(num(z, "side", Zones.Params.DEFAULT.side()), num(z, "nose", Zones.Params.DEFAULT.nose()),
+                num(z, "tail", Zones.Params.DEFAULT.tail()));
+        this.noseGiven = z.has("nose-from");
+        this.noseFrom = num(z, "nose-from", half[2] - zones.nose() * 2 * half[2]);
+    }
+
+    /** Зоны треугольников (система корабля, по 9 чисел): по середине треугольника. */
+    int[] zonesOf(float[] t) {
+        int[] out = new int[t.length / 9];
+        for (int i = 0; i < out.length; i++) {
+            int b = i * 9;
+            double x = (t[b] + t[b + 3] + t[b + 6]) / 3, zz = (t[b + 2] + t[b + 5] + t[b + 8]) / 3;
+            out[i] = Zones.zoneOf(x, zz, half, zones, noseFrom);
+        }
+        return out;
     }
 
     /** Система модели (пиксели) → система корабля: поворот turn (без масштаба — его даёт ModelHandle). */
@@ -84,6 +109,13 @@ final class Kind {
         }
         hull = hullOf(t, hullLo, hullHi);
         fine = fineOf(t);
+        if (!noseGiven) {                                                       // старый сервер — посчитать как он (середины клеток)
+            float[] h = hull;
+            double[] xz = new double[h.length / 3 * 2];
+            for (int i = 0, j = 0; i + 2 < h.length; i += 3, j += 2) { xz[j] = h[i]; xz[j + 1] = h[i + 2]; }
+            noseFrom = Zones.noseFrom(xz, half, zones);
+        }
+        triZone = zonesOf(t);
         tris = t;
     }
 

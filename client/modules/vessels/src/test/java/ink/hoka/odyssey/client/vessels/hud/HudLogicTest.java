@@ -211,7 +211,8 @@ class HudLogicTest {
             visible++;
             assertEquals(c[0] + 1, s[0]);
             assertEquals(c[1] + 1, s[1]);
-            assertTrue(c[0] >= MenuLayout.PAD && c[1] >= 22 && c[0] + MenuLayout.CELL <= MenuLayout.W - MenuLayout.PAD
+            boolean button = MenuLayout.kind(i) == MenuLayout.Kind.BUTTON;
+            assertTrue(c[0] >= MenuLayout.PAD && c[1] >= (button ? 2 : MenuLayout.HEAD_Y + 2) && c[0] + MenuLayout.CELL <= MenuLayout.W - MenuLayout.PAD
                     && c[1] + MenuLayout.CELL <= MenuLayout.H - MenuLayout.PAD / 2, "слот " + i + " внутри панели: " + c[0] + "," + c[1]);
             for (int[] o : cells) assertFalse(c[0] < o[0] + MenuLayout.CELL && o[0] < c[0] + MenuLayout.CELL
                     && c[1] < o[1] + MenuLayout.CELL && o[1] < c[1] + MenuLayout.CELL, "слоты налезают: " + i);
@@ -222,14 +223,23 @@ class HudLogicTest {
                 case CARGO -> assertTrue(top && cargoSide, "груз — слева сверху");
                 case UPGRADE, FUEL -> assertTrue(top && !cargoSide, "улучшения и топливо — справа сверху");
                 case INVENTORY, HOTBAR -> assertTrue(!top && cargoSide, "инвентарь — слева снизу");
+                case BUTTON -> {                                                // кнопки — в заголовке, с подписью, не налезают друг на друга
+                    int bw = i == MenuLayout.WORKSHOP ? MenuLayout.WORKSHOP_W : MenuLayout.REPAIR_W;
+                    assertTrue(c[1] + MenuLayout.CELL <= MenuLayout.HEAD_Y, "кнопка в заголовке");
+                    assertTrue(c[0] + bw <= MenuLayout.W - MenuLayout.PAD, "кнопка в окне");
+                    assertTrue(FONT.applyAsInt(i == MenuLayout.WORKSHOP ? "МАСТЕРСКАЯ" : "РЕМОНТ") * 0.75f + MenuLayout.CELL + 3 <= bw,
+                            "подпись влезает в кнопку " + i);
+                }
                 default -> { }
             }
             cells.add(c);
         }
-        assertEquals(27 + 8 + 4 + 27 + 9, visible);
-        // сводка справа снизу (7 строк по 10) — без слотов
+        assertEquals(27 + 8 + 4 + 27 + 9 + 2, visible);
+        assertTrue(MenuLayout.WORKSHOP_X + MenuLayout.WORKSHOP_W + 4 <= MenuLayout.REPAIR_X, "кнопки не налезают");
+        assertTrue(FONT.applyAsInt("КОРАБЛЬ #999 · CORABLL") + MenuLayout.PAD + 4 <= MenuLayout.WORKSHOP_X, "заголовок не под кнопками");
+        // сводка справа снизу (прочность, зоны и 7 строк по 8.5) — без слотов
         for (int[] c : cells) assertFalse(c[0] + MenuLayout.CELL > MenuLayout.RIGHT_X && c[1] >= MenuLayout.DIV_Y, "слот под сводкой");
-        assertTrue(MenuLayout.INV_LABEL_Y + 11 + 7 * 10 <= MenuLayout.H - 4, "сводка влезает");
+        assertTrue(MenuLayout.INV_LABEL_Y + 10 + 9 * 8.5f + 1 <= MenuLayout.H - 3, "сводка влезает");
     }
 
     @Test

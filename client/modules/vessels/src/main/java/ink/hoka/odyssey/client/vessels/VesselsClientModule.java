@@ -11,6 +11,7 @@ import ink.hoka.odyssey.client.vessels.hud.McGfx;
 import ink.hoka.odyssey.client.vessels.hud.MenuInfo;
 import ink.hoka.odyssey.client.vessels.hud.MenuLayout;
 import ink.hoka.odyssey.client.vessels.hud.PilotHud;
+import ink.hoka.odyssey.client.vessels.hud.ShopInfo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.phys.HitResult;
@@ -51,6 +52,11 @@ public final class VesselsClientModule implements ClientModule {
     /** Окно корабля: сводка последнего S2C MENU (по номеру окна и заголовку узнаём окно) и картинки фона. */
     private MenuInfo menuInfo;
     private final McGfx menuGfx = new McGfx("menu");
+    /** Окно мастерской: сводка последнего S2C SHOP. */
+    private ShopInfo shopInfo;
+    private final McGfx shopGfx = new McGfx("shop");
+    /** Карта: планета (подушка, лучи; S2C WORLD) или null — космос. */
+    private Cushion.Settings world;
     /** Клавиши G и R в прошлом тике (нажатие — по фронту). */
     private boolean gWas, rWas;
 
@@ -149,7 +155,10 @@ public final class VesselsClientModule implements ClientModule {
         fx.clear();
         hudGfx.release();
         menuGfx.release();
+        shopGfx.release();
         menuInfo = null;
+        shopInfo = null;
+        world = null;
         for (Ship s : ships.values()) s.remove();
         ships.clear();
     }
@@ -190,6 +199,7 @@ public final class VesselsClientModule implements ClientModule {
                     stopPilot();
                     state = new ShipState();
                     pilot = new Pilot(ctx, id, s.kind, common, x, y, z, q, state, fx);
+                    pilot.cushion = world;
                 }
                 case 5 -> stopPilot();                                          // END
                 case 6 -> {                                                     // CORRECT
@@ -230,6 +240,20 @@ public final class VesselsClientModule implements ClientModule {
                     int what = in.readUnsignedByte();
                     if (pilot != null) pilot.hit(what);
                 }
+                case 13 -> {                                                    // HULL: прочность своего корабля
+                    JsonObject o = JsonParser.parseString(in.readUTF()).getAsJsonObject();
+                    if (state.readHull(o) && pilot != null) pilot.hurt();
+                }
+                case 14 -> {                                                    // SHOP: окно мастерской
+                    JsonObject o = JsonParser.parseString(in.readUTF()).getAsJsonObject();
+                    ShopInfo m = ShopInfo.read(o);
+                    shopInfo = m;
+                }
+                case 15 -> {                                                    // WORLD: планета или космос
+                    JsonObject o = JsonParser.parseString(in.readUTF()).getAsJsonObject();
+                    world = Cushion.Settings.read(o);
+                    if (pilot != null) pilot.cushion = world;
+                }
                 default -> { }
             }
         } catch (IOException | RuntimeException e) {
@@ -257,6 +281,7 @@ public final class VesselsClientModule implements ClientModule {
                     k.tris = was.tris;
                     k.hull = was.hull;
                     k.fine = was.fine;
+                    k.triZone = k.zonesOf(was.tris);
                     System.arraycopy(was.hullLo, 0, k.hullLo, 0, 3);
                     System.arraycopy(was.hullHi, 0, k.hullHi, 0, 3);
                 } else {
@@ -298,8 +323,11 @@ public final class VesselsClientModule implements ClientModule {
 
     // ───────────────────────── ПКМ — посадка ─────────────────────────
 
+    /** ПКМ по кораблю: board-reach; на планете — дальше (луч поднимает), до beam-reach. */
     private double reach() {
-        try { return common.has("board-reach") ? common.get("board-reach").getAsDouble() : 6; } catch (Exception e) { return 6; }
+        double r;
+        try { r = common.has("board-reach") ? common.get("board-reach").getAsDouble() : 6; } catch (Exception e) { r = 6; }
+        return world != null ? Math.max(r, world.beamReach()) : r;
     }
 
     private boolean flag(String section, String key, boolean def) {
@@ -307,7 +335,9 @@ public final class VesselsClientModule implements ClientModule {
     }
 
     private double menuReach() {
-        try { return common.has("menu-reach") ? common.get("menu-reach").getAsDouble() : 6; } catch (Exception e) { return 6; }
+        double r;
+        try { r = common.has("menu-reach") ? common.get("menu-reach").getAsDouble() : 6; } catch (Exception e) { r = 6; }
+        return world != null ? Math.max(r, world.beamReach()) : r;
     }
 
     /** G — меню корабля (пилот — своего, иначе — на который смотрит); R — варп (пилот). По нажатию, без экранов. */

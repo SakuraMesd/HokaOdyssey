@@ -35,10 +35,19 @@ class HudPreviewTest {
 
     static HudView view(int w, int h, float[] tris, float aimDx, float aimDy, float heading, float pitch, float roll,
                         double speed, int throttle, boolean boost, double alt, double vs, int fuel, float gun, int warp, float warpK,
-                        int warpLeft, String msg, boolean warn, float hints, float hit, boolean kill) {
+                        int warpLeft, String msg, boolean warn, float hints, float hit, boolean kill) throws Exception {
+        return view(w, h, tris, aimDx, aimDy, heading, pitch, roll, speed, throttle, boost, alt, vs, fuel, gun, warp, warpK, warpLeft,
+                msg, warn, hints, hit, kill ? 2 : 1, 200, new float[]{1, 1, 1, 1, 1}, 0);
+    }
+
+    static HudView view(int w, int h, float[] tris, float aimDx, float aimDy, float heading, float pitch, float roll,
+                        double speed, int throttle, boolean boost, double alt, double vs, int fuel, float gun, int warp, float warpK,
+                        int warpLeft, String msg, boolean warn, float hints, float hit, int hitKind, double hp, float[] zones, float hurt) throws Exception {
+        int[] tz = KindTest.corabll(KindTest.tris(), 180).triZone;
         return new HudView(w / 2f, h / 2f, true, w / 2f + aimDx, h / 2f + aimDy, true, heading, rungs(w, h, pitch, roll),
                 speed, 30, 50, throttle, boost, alt, vs, true, fuel, 256, 64, false, gun, (1 - gun) * 0.5f,
-                warp, warpK, warpLeft, msg, warn, msg == null ? 0 : 1, hints, hit, kill, "corabll", tris);
+                warp, warpK, warpLeft, msg, warn, msg == null ? 0 : 1, hints, hit, hitKind, "corabll", tris,
+                true, hp, 200, zones, tz, hurt);
     }
 
     @Test
@@ -55,6 +64,11 @@ class HudPreviewTest {
                         HudView.WARP_NO_FUEL, 40 / 64f, 0, "Мало топлива для варпа: нужно 64, в баке 40", true, 0, 1, true)),
                 new Scene("hud-5-gui4-320x240", 320, 240, 4, view(320, 240, tris, 20, -10, 300, 3, -8, 30, 1, false, 75, 0.4, 150, 0.7f,
                         HudView.WARP_CHARGING, 0.3f, 0, null, false, 1, 0, false)),
+                new Scene("hud-7-damage", 640, 360, 3, view(640, 360, tris, 14, -6, 128, 2, 9, 34, 1, false, 214, -0.8, 150, 0.6f,
+                        HudView.WARP_READY, 1, 0, "Двигатели разбиты — ход 70%", true, 0, 0.85f, 3, 74,
+                        new float[]{0.2f, 0.75f, 0.5f, 0.9f, 0f}, 0.75f)),
+                new Scene("hud-8-damage-gui4-320x240", 320, 240, 4, view(320, 240, tris, 0, 0, 12, 0, 0, 20, 1, false, 90, 0, 120, 1,
+                        HudView.WARP_READY, 1, 0, null, false, 0, 0.9f, 4, 31, new float[]{0.6f, 0.3f, 1f, 0.1f, 0.5f}, 0.4f)),
                 new Scene("hud-6-gui2-960x540", 960, 540, 2, view(960, 540, tris, 30, -18, 33, 8, 25, 44, 1, true, 2210, 4.8, 220, 1,
                         HudView.WARP_READY, 1, 0, null, false, 1, 0, false)),
         };

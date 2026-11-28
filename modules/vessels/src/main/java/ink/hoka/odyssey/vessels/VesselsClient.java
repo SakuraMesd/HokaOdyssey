@@ -37,13 +37,21 @@ import java.util.Map;
  *               speed-mul, burn (в минуту), upgrades (сколько стоит), mul {speed, warp-cost, gun-reload, gun-damage,
  *               warp-reload}} — перед открытием окна корабля и при смене груза (тем, кто смотрит): мод рисует окно
  *               по-своему (vessels-3); старый мод пакет пропускает — у него обычный сундук
- *    12 HIT     byte 1 — попадание по цели, 2 — убийство, 3 — по кораблю — пилоту, когда болт долетел (маркер у прицела)
+ *    12 HIT     byte 1 — попадание по цели, 2 — убийство, 3 — по кораблю, 4 — корабль разрушен — стрелявшему, когда
+ *               болт долетел (маркер у прицела; по кораблю — своим цветом)
+ *    13 HULL    UTF-JSON {hp, max, zones[5] (целость зон 0…1: нос, корпус, левый борт, правый борт, двигатели), hit
+ *               (true — попадание/удар: встряска и красный край), zone (куда, −1)} — пилоту: прочность в HUD (vessels-4)
+ *    14 SHOP    UTF-JSON {window, title, id, recipes:[{name, count, ok, needs:[{name, need, have}]}]} — перед окном
+ *               мастерской и при смене груза: мод рисует окно мастерской по-своему
+ *    15 WORLD   UTF-JSON {planet, clearance, soft, beam-reach} — карта игрока: планета (подушка у пилота, лучи) или
+ *               космос; при входе в модуль и смене мира
  * C2S 1 POSE    double x y z, float qx qy qz qw — поза своего корабля, 20 раз в секунду
  *     2 BOARD   int корабль — хочу сесть (ПКМ по кораблю)
  *     3 EXIT    — выйти (то же, что F)
- *     4 MENU    int корабль — открыть меню (G): пилот — свой, иначе — на который смотрит
+ *     4 MENU    int корабль — открыть меню (G): пилот — свой, иначе — на который смотрит (на планете — до beam-reach)
  *     5 FIRE    float x y z — выстрел по направлению прицела (ЛКМ пилота)
  *     6 WARP    — начать зарядку варпа / отменить (R)
+ *     7 IMPACT  float скорость (бл/с), float x y z (направление, мир) — мод пилота врезался в блоки на скорости
  * </pre>
  * Поза — середина модели в мире и поворот «система корабля → мир» (нос +Z, верх +Y, левый борт +X).
  */
@@ -78,7 +86,8 @@ final class VesselsClient {
     private void ready(Player p) {
         send(p, kinds());
         for (Vessel v : mod.vessels()) if (v.carrier != null && !v.carrier.isRemoved()) send(p, attach(v));
-        for (Vessel v : mod.vessels()) if (v.pilot != null && v.pilot.player == p) start(v);   // модуль перезагрузился посреди полёта
+        world(p, p.getInstance());
+        for (Vessel v : mod.vessels()) if (v.pilot != null && v.pilot.player == p) { start(v); state(v); hull(v, false, -1); }   // модуль перезагрузился посреди полёта
     }
 
     private void send(Player p, byte[] b) {
@@ -198,6 +207,10 @@ final class VesselsClient {
         o.put("speed-mul", s.speedMul());
         o.put("burn", s.burnPerMinute());
         o.put("upgrades", ups);
+        double max = mod.hull.maxHp(v);
+        o.put("hp", Math.round(v.hp(max) * 10) / 10.0);
+        o.put("hp-max", max);
+        o.put("zones", mod.hull.zoneHealth(v));
         Map<String, Object> mul = new LinkedHashMap<>();
         mul.put("speed", st.speed());
         mul.put("warp-cost", st.warpCost());
@@ -212,7 +225,47 @@ final class VesselsClient {
         }));
     }
 
-    /** Пилоту: болт попал (1 — цель, 2 — убийство, 3 — корабль) — маркер у прицела. */
+    /** Пилоту: прочность и зоны (hit — попадание: встряска, красный край). */
+    void hull(Vessel v, boolean hit, int zone) {
+        if (v.pilot == null) return;
+        double max = mod.hull.maxHp(v);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("hp", Math.round(v.hp(max) * 10) / 10.0);
+        m.put("max", max);
+        m.put("zones", mod.hull.zoneHealth(v));
+        m.put("hit", hit);
+        m.put("zone", zone);
+        String js = new Gson().toJson(m);
+        send(v.pilot.player, bytes(out -> {
+            out.writeByte(13);
+            out.writeUTF(js);
+        }));
+    }
+
+    /** Окно мастерской (S2C SHOP) — до открытия и при смене груза. */
+    void shop(Player p, String json) {
+        send(p, bytes(out -> {
+            out.writeByte(14);
+            out.writeUTF(json);
+        }));
+    }
+
+    /** Карта игрока: планета (подушка, лучи) или космос. */
+    void world(Player p, net.minestom.server.instance.Instance inst) {
+        if (p == null || inst == null) return;
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("planet", mod.isPlanet(inst));
+        m.put("clearance", mod.clearance());
+        m.put("soft", mod.config().getDouble("planet.soft", 6));
+        m.put("beam-reach", mod.beamReach());
+        String js = new Gson().toJson(m);
+        send(p, bytes(out -> {
+            out.writeByte(15);
+            out.writeUTF(js);
+        }));
+    }
+
+    /** Пилоту: болт попал (1 — цель, 2 — убийство, 3 — корабль, 4 — корабль разрушен) — маркер у прицела. */
     void hit(Player p, int what) {
         send(p, new byte[]{12, (byte) what});
     }
@@ -256,6 +309,8 @@ final class VesselsClient {
             m.put("accel", k.accel);
             m.put("turn-speed", k.turnSpeed);
             m.put("roll-speed", k.rollSpeed);
+            m.put("hp", k.hp);
+            m.put("zones", Map.of("side", k.zones.side(), "nose", k.zones.nose(), "tail", k.zones.tail(), "nose-from", k.noseFrom));
             all.put(k.id, m);
         }
         Map<String, Object> common = new LinkedHashMap<>();                   // общие настройки мода (как у ships: aim, camera, hud)
@@ -307,6 +362,7 @@ final class VesselsClient {
                 case 4 -> mod.openMenu(p, in.readInt());
                 case 5 -> mod.combat.fire(p, in.readFloat(), in.readFloat(), in.readFloat());
                 case 6 -> mod.warp.toggle(p);
+                case 7 -> mod.hull.impact(p, in.readFloat(), in.readFloat(), in.readFloat(), in.readFloat());
                 default -> { }
             }
         } catch (IOException e) {

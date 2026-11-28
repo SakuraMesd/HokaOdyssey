@@ -38,7 +38,7 @@ public final class MenuArt {
         float o = SH * gs;
         PilotHud.paintPanel(c, o, o, W * gs, H * gs, gs, 0.84f);
         float t = Math.max(1, 0.9f * gs);
-        for (float y : new float[]{20, DIV_Y}) {                                  // разделители: заголовок и низ
+        for (float y : new float[]{HEAD_Y, DIV_Y}) {                              // разделители: заголовок и низ
             for (int x = Math.round(o + PAD * gs); x < Math.round(o + (W - PAD) * gs); x++) {
                 float e = Math.min(1, Math.min(x - (o + PAD * gs), o + (W - PAD) * gs - x) / (24 * gs));
                 for (int k = 0; k < Math.round(t); k++) c.put(x, Math.round(o + y * gs) + k, GRAY, 0.28f * e);
@@ -50,6 +50,11 @@ public final class MenuArt {
             float x = o + p[0] * gs, y = o + p[1] * gs, s = CELL * gs;
             Kind k = kind(i);
             float inset = 0.5f * gs;
+            if (k == Kind.BUTTON) {                                              // кнопка: клетка-значок и место под подпись
+                float bw = (i == WORKSHOP ? WORKSHOP_W : REPAIR_W) * gs;
+                c.roundRect(x, y, bw, s, 2 * gs, GRAY, 0.07f);
+                c.roundRectStroke(x + t / 2, y + t / 2, bw - t, s - t, 2 * gs, t, WHITE, 0.3f);
+            }
             c.roundRect(x + inset, y + inset, s - 2 * inset, s - 2 * inset, 1.5f * gs, DARK, 0.62f);
             c.roundRectStroke(x + inset + t / 2, y + inset + t / 2, s - 2 * inset - t, s - 2 * inset - t, 1.5f * gs, t,
                     k == Kind.UPGRADE || k == Kind.FUEL ? WHITE : GRAY, k == Kind.UPGRADE || k == Kind.FUEL ? 0.26f : 0.16f);
@@ -91,15 +96,17 @@ public final class MenuArt {
         if (bg == null || bgGs != gs) { bg = paintBackground(gs); bgGs = gs; upIcon = icon(gs, true); fuelIcon = icon(gs, false); }
         float x0 = left, y0 = top;
 
-        // заголовок
+        // заголовок: название, владелец под ним; справа — кнопки «Мастерская» и «Ремонт»
         String title = "КОРАБЛЬ" + (m.id > 0 ? " #" + m.id : "") + (m.kind.isEmpty() ? "" : " · " + m.kind.toUpperCase(java.util.Locale.ROOT));
-        g.text(title, x0 + PAD, y0 + 7, 1, argb(WHITE, 0.95f), -1, true);
+        g.text(title, x0 + PAD, y0 + 4, 1, argb(WHITE, 0.95f), -1, true);
         if (m.owner != null) {
-            float room = W - 2 * PAD - g.textWidth(title) - 12;
+            float room = WORKSHOP_X - PAD - 6;
             String own = "владелец " + m.owner;
             if (g.textWidth(own) * small > room) own = m.owner;
-            if (g.textWidth(own) * small <= room) g.text(own, x0 + W - PAD, y0 + 7 + (1 - small) * 7, small, argb(GRAY, 0.6f), 1, true);
+            if (g.textWidth(own) * small <= room) g.text(own, x0 + PAD, y0 + 14, small, argb(GRAY, 0.6f), -1, true);
         }
+        g.text("МАСТЕРСКАЯ", x0 + WORKSHOP_X + CELL + 3, y0 + BUTTON_Y + 6 + (1 - small) * 3, small, argb(WHITE, 0.9f), -1, true);
+        g.text("РЕМОНТ", x0 + REPAIR_X + CELL + 3, y0 + BUTTON_Y + 6 + (1 - small) * 3, small, argb(WHITE, 0.9f), -1, true);
 
         // группы
         label(g, "ГРУЗ", x0 + PAD, y0 + GRID_Y - 10, small);
@@ -116,6 +123,13 @@ public final class MenuArt {
             g.image(k == Kind.UPGRADE ? "iconUp" : "iconFuel", k == Kind.UPGRADE ? upIcon : fuelIcon, x0 + p[0], y0 + p[1], 0.32f);
         }
 
+        // кнопка под мышью — подсветка целиком
+        if (hovered >= 0 && kind(hovered) == Kind.BUTTON) {
+            int[] p = cell(hovered);
+            float bw = hovered == WORKSHOP ? WORKSHOP_W : REPAIR_W;
+            g.fill(x0 + p[0] + 1, y0 + p[1] + 1, x0 + p[0] + bw - 1, y0 + p[1] + CELL - 1, argb(WHITE, 0.08f));
+        }
+
         // слот под мышью — своя рамка (под предметом)
         if (hovered >= 0 && kind(hovered) != Kind.HIDDEN) {
             int[] p = cell(hovered);
@@ -128,7 +142,7 @@ public final class MenuArt {
         }
 
         gauge(g, x0, y0, m, small);
-        summary(g, x0 + RIGHT_X, y0 + INV_LABEL_Y + 11, W - PAD - RIGHT_X, m, small);
+        summary(g, x0 + RIGHT_X, y0 + INV_LABEL_Y + 10, W - PAD - RIGHT_X, m, small);
     }
 
     private static void label(Gfx g, String s, float x, float y, float small) {
@@ -160,8 +174,26 @@ public final class MenuArt {
         }
     }
 
-    /** Сводка: ключ слева, значение справа; лучше, чем без улучшений, — мягким зелёным. */
+    /** Сводка: ключ слева, значение справа; лучше, чем без улучшений, — мягким зелёным; прочность и зоны — цветом целости. */
     private static void summary(Gfx g, float x, float y, float w, MenuInfo m, float small) {
+        float step = 8.5f;
+        if (m.hpMax > 0) {                                                      // прочность и зоны (vessels-4)
+            float f = Hud.frac(m.hp, m.hpMax);
+            g.text("Прочность", x, y + (1 - small) * 7, small, argb(GRAY, 0.62f), -1, true);
+            g.text(Math.round(m.hp) + " / " + Math.round(m.hpMax), x + w, y, 1, argb(Silhouette.color(f), 0.95f), 1, true);
+            y += step + 0.5f;
+            g.text("Зоны", x, y + (1 - small) * 7, small, argb(GRAY, 0.62f), -1, true);
+            String[] letters = {"Н", "К", "Л", "П", "Д"};
+            float zx = x + w;
+            for (int i = letters.length - 1; i >= 0; i--) {
+                int col = Silhouette.color(m.zones[i]);
+                float lw = g.textWidth(letters[i]) * small;
+                g.text(letters[i], zx, y + (1 - small) * 3, small, argb(col, 0.95f), 1, true);
+                g.fill(zx - lw, y + 7.2f, zx, y + 7.2f + Math.max(1 / g.scale(), 0.8f), argb(col, 0.8f));
+                zx -= lw + 4;
+            }
+            y += step + 0.5f;
+        }
         Object[][] rows = {
                 {"Варп: цена", m.warpCost + " топл.", m.mulWarpCost < 0.999},
                 {"Варп: прыжок", Hud.thousands(Math.round(m.warpDistance)) + " бл", false},
@@ -172,7 +204,7 @@ public final class MenuArt {
                 {"Улучшения", m.upgrades + " / " + UPGRADES, m.upgrades > 0},
         };
         for (int i = 0; i < rows.length; i++) {
-            float ry = y + i * 10;
+            float ry = y + i * (m.hpMax > 0 ? step : 10);
             g.text((String) rows[i][0], x, ry + (1 - small) * 7, small, argb(GRAY, 0.62f), -1, true);
             g.text((String) rows[i][1], x + w, ry, 1, argb((Boolean) rows[i][2] ? GOOD : WHITE, 0.92f), 1, true);
         }

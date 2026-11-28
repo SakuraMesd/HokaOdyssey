@@ -14,6 +14,9 @@ public final class MenuInfo {
     public double warpDistance, warpCharge, warpReload, gunDamage, gunReload, gunRange, speedMul = 1, burn;
     /** Множители улучшений: скорость, цена варпа, перезарядка орудия, урон, перезарядка варпа (1 — без улучшений). */
     public double mulSpeed = 1, mulWarpCost = 1, mulGunReload = 1, mulGunDamage = 1, mulWarpReload = 1;
+    /** Прочность (vessels-4): сейчас, наибольшая (0 — сервер старый, не пришло), целость зон 0…1. */
+    public double hp, hpMax;
+    public final float[] zones = {1, 1, 1, 1, 1};
 
     public static MenuInfo parse(String json) {
         MenuInfo m = new MenuInfo();
@@ -39,6 +42,14 @@ public final class MenuInfo {
         speedMul = d(o, "speed-mul", speedMul);
         burn = d(o, "burn", burn);
         upgrades = i(o, "upgrades", upgrades);
+        hp = d(o, "hp", hp);
+        hpMax = d(o, "hp-max", hpMax);
+        if (o.has("zones") && o.get("zones").isJsonArray()) {
+            var a = o.getAsJsonArray("zones");
+            for (int i = 0; i < Math.min(a.size(), zones.length); i++) {
+                try { zones[i] = (float) Math.clamp(a.get(i).getAsDouble(), 0, 1); } catch (Exception ignored) { }
+            }
+        }
         JsonObject mul = o.has("mul") && o.get("mul").isJsonObject() ? o.getAsJsonObject("mul") : new JsonObject();
         mulSpeed = d(mul, "speed", 1);
         mulWarpCost = d(mul, "warp-cost", 1);

@@ -309,8 +309,11 @@ class GameplayTest {
         for (int i = 0; i < Cargo.UPGRADES; i++) assertEquals(VesselMenu.Role.UPGRADE, VesselMenu.role(VesselMenu.UP0 + i));
         assertEquals(VesselMenu.Role.DECOR, VesselMenu.role(VesselMenu.FUEL_LABEL));
         for (int i = 0; i < Cargo.FUEL; i++) assertEquals(VesselMenu.Role.FUEL, VesselMenu.role(VesselMenu.FUEL0 + i));
-        for (int s : new int[]{VesselMenu.GAP, VesselMenu.INFO_FUEL, VesselMenu.INFO_WARP, VesselMenu.INFO_GUN, 45, -1})
+        for (int s : new int[]{VesselMenu.INFO_WARP, VesselMenu.INFO_GUN, 45, -1})
             assertEquals(VesselMenu.Role.DECOR, VesselMenu.role(s));
+        assertEquals(VesselMenu.Role.BUTTON, VesselMenu.role(VesselMenu.WORKSHOP));    // vessels-4: мастерская и ремонт
+        assertEquals(VesselMenu.Role.BUTTON, VesselMenu.role(VesselMenu.REPAIR));
+        assertFalse(VesselMenu.accepts(VesselMenu.Role.BUTTON, ItemStack.of(Material.DIRT)));
         ItemStack fuel = ITEMS.fuel(10), up = ITEMS.upgrade(Upgrades.Type.GUN), dirt = ItemStack.of(Material.DIRT);
         assertTrue(VesselMenu.accepts(VesselMenu.Role.FUEL, fuel));
         assertFalse(VesselMenu.accepts(VesselMenu.Role.FUEL, up));

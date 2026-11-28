@@ -55,6 +55,7 @@ public final class PilotHud {
         }
         HudLayout L = layout;
 
+        if (v.hurt() > 0.01f) hurtEdge(g, W, H, Math.min(1, v.hurt()));
         center(g, v, L, gs, nowMs);
         compass(g, v, L, gs, small, nowMs);
         if (v.msg() != null && v.msgAlpha() > 0.02f) message(g, v, L);
@@ -138,8 +139,9 @@ public final class PilotHud {
             }
             if (v.hit() > 0.01f) {
                 int m = Hud.px(34, gs);
-                String key = v.kill() ? "kill" : "hit";
-                g.image(key, stat(key, "" + m, m, m, c -> hitImage(c, gs, v.kill())), ax - m / gs / 2, ay - m / gs / 2, Math.min(1, v.hit()));
+                int kind = Math.clamp(v.hitKind(), 1, 4);
+                String key = "hit" + kind;
+                g.image(key, stat(key, "" + m, m, m, c -> hitImage(c, gs, kind)), ax - m / gs / 2, ay - m / gs / 2, Math.min(1, v.hit()));
             }
         }
     }
@@ -228,14 +230,42 @@ public final class PilotHud {
         }
     }
 
-    /** Маркер попадания: четыре косые черты вокруг прицела; убийство — красные и длиннее. */
-    static void hitImage(Canvas c, float gs, boolean kill) {
-        float x = c.w / 2f, y = c.h / 2f, t = Math.max(1.3f, (kill ? 1.8f : 1.4f) * gs);
-        float r0 = 7.5f * gs, r1 = (kill ? 15f : 12.5f) * gs;
+    /**
+     * Маркер попадания: четыре косые черты вокруг прицела. kind: 1 — по цели (белые), 2 — убийство (красные,
+     * длиннее), 3 — по кораблю (янтарные, с уголками), 4 — корабль разрушен (красные, длиннее, с уголками).
+     */
+    static void hitImage(Canvas c, float gs, int kind) {
+        boolean big = kind == 2 || kind == 4, ship = kind >= 3;
+        int col = big ? RED : ship ? AMBER : WHITE;
+        float x = c.w / 2f, y = c.h / 2f, t = Math.max(1.3f, (big ? 1.8f : 1.4f) * gs);
+        float r0 = 7.5f * gs, r1 = (big ? 15f : 12.5f) * gs;
         for (int q = 0; q < 4; q++) {
             double a = Math.toRadians(45 + 90 * q);
             float sx = (float) Math.sin(a), sy = (float) -Math.cos(a);
-            c.line(x + sx * r0, y + sy * r0, x + sx * r1, y + sy * r1, t, kill ? RED : WHITE, 1f, true);
+            c.line(x + sx * r0, y + sy * r0, x + sx * r1, y + sy * r1, t, col, 1f, true);
+            if (ship) {                                                          // по кораблю — уголок на конце черты
+                float ex = x + sx * r1, ey = y + sy * r1, k = 3f * gs;
+                c.line(ex, ey, ex - sx * k + sy * k, ey - sy * k - sx * k, t, col, 1f, true);
+                c.line(ex, ey, ex - sx * k - sy * k, ey - sy * k + sx * k, t, col, 1f, true);
+            }
+        }
+    }
+
+    /** Красный край экрана — по кораблю попали (гаснет): узкая полоса по краям, к середине — на нет. */
+    static void hurtEdge(Gfx g, float w, float h, float a) {
+        float band = Math.max(6, Math.min(w, h) * 0.07f);
+        int steps = Math.max(4, Math.round(band));                              // кольца по пикселю интерфейса
+        float st = band / steps;
+        for (int i = 0; i < steps; i++) {
+            float k = 1 - i / (float) steps;
+            float al = 0.5f * a * k * k * k;
+            if (al < 0.006f) continue;
+            int col = argb(RED, al);
+            float m = st * i;
+            g.fill(m, m, w - m, m + st, col);
+            g.fill(m, h - m - st, w - m, h - m, col);
+            g.fill(m, m + st, m + st, h - m - st, col);
+            g.fill(w - m - st, m + st, w - m, h - m - st, col);
         }
     }
 
@@ -411,10 +441,21 @@ public final class PilotHud {
         if (v.kindName() != null) g.text(v.kindName(), x + iw, y + 4, small, argb(WHITE, 0.8f), 1, true);
         int sw = Hud.px(iw, gs), sh = Hud.px(L.silH, gs);
         float[] tris = v.tris();
-        Canvas sil = stat("sil", sw + "x" + sh + "#" + (tris == null ? 0 : System.identityHashCode(tris)), sw, sh,
-                c -> { Canvas s = Silhouette.draw(tris, sw, sh, gs); copy(s, c); });
+        int[] tz = v.triZone();
+        float[] zh = v.hullKnown() && v.zones() != null ? v.zones() : null;
+        StringBuilder lv = new StringBuilder();                                 // перерисовать силуэт, когда зона сменила цвет
+        if (zh != null) for (float z : zh) lv.append(Silhouette.level(z));
+        Canvas sil = stat("sil", sw + "x" + sh + "#" + (tris == null ? 0 : System.identityHashCode(tris)) + "#" + lv, sw, sh,
+                c -> { Canvas s = Silhouette.draw(tris, sw, sh, gs, tz, zh); copy(s, c); });
         g.image("sil", sil, x, y + 13, 1);
-        float fy = y + 14 + L.silH + 3;
+        // прочность: число и шкала (цвет — по доле)
+        float hy = y + 14 + L.silH + 2;
+        g.text("ПРОЧНОСТЬ", x, hy + (1 - small) * 7, small, argb(GRAY, 0.6f), -1, true);
+        float hf = v.hullKnown() ? Hud.frac(v.hp(), v.hpMax()) : 1;
+        int hc = Silhouette.color(hf);
+        g.text(v.hullKnown() ? Math.round(v.hp()) + "/" + Math.round(v.hpMax()) : "—", x + iw, hy, 1, argb(hc, 0.95f), 1, true);
+        thinBar(g, x, hy + L.hpH - 2, iw, hf, hc == WHITE ? GRAY : hc, gs);
+        float fy = hy + L.hpH + 2;
         g.text("ТОПЛИВО", x, fy + (1 - small) * 7, small, argb(GRAY, 0.6f), -1, true);
         boolean low = v.fuelKnown() && v.fuel() < v.warpCost(), empty = v.fuelKnown() && v.fuel() <= 0;
         int col = empty ? RED : low ? AMBER : WHITE;

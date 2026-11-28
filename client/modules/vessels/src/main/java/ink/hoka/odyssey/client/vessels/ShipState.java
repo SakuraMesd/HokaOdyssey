@@ -12,6 +12,24 @@ final class ShipState {
     /** Тик клиента, когда кончится зарядка / перезарядка варпа. */
     long warpChargeEnd, warpReloadEnd;
     boolean known;
+    /** Прочность (S2C HULL): сейчас, наибольшая, целость зон 0…1; known — пришло. */
+    double hp, hpMax;
+    final float[] zones = {1, 1, 1, 1, 1};
+    boolean hullKnown;
+
+    /** S2C HULL. Вернуть true — это попадание/удар (встряска, красный край). */
+    boolean readHull(JsonObject o) {
+        hp = d(o, "hp", hp);
+        hpMax = Math.max(1, d(o, "max", hpMax));
+        if (o.has("zones") && o.get("zones").isJsonArray()) {
+            var a = o.getAsJsonArray("zones");
+            for (int i = 0; i < Math.min(a.size(), zones.length); i++) {
+                try { zones[i] = (float) Math.clamp(a.get(i).getAsDouble(), 0, 1); } catch (Exception ignored) { }
+            }
+        }
+        hullKnown = true;
+        return o.has("hit") && o.get("hit").getAsBoolean();
+    }
 
     void read(JsonObject o, long now) {
         fuel = i(o, "fuel", fuel);

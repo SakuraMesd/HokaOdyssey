@@ -62,9 +62,17 @@ final class Pilot {
     private int throttle;
     /** Подсказки клавиш: 10 с после посадки, потом — пока зажата H. */
     private final Hints hints = new Hints();
-    /** Маркер попадания: когда пришло (мс, 0 — не было) и убийство ли. */
+    /** Маркер попадания: когда пришло (мс, 0 — не было) и что (1 цель, 2 убийство, 3 корабль, 4 корабль разрушен). */
     private long hitAt;
-    private boolean hitKill;
+    private int hitKind;
+    /** По нам попали (мс, 0 — нет): встряска камеры и красный край экрана. */
+    private long hurtAt;
+    private float hurtPower;
+    /** Удар о блоки: когда сообщали серверу последний раз (тик). */
+    private long impactTick = -100;
+    /** Подушка над планетой (null — космос) и поле расстояний до блоков. */
+    Cushion.Settings cushion;
+    private final DistField.Cache field = new DistField.Cache();
 
     Pilot(ClientContext ctx, int vessel, Kind kind, JsonObject common, double x, double y, double z, Quaternionf rot, ShipState state, Effects fx) {
         this.ctx = ctx;
@@ -212,7 +220,14 @@ final class Pilot {
         if (!Double.isFinite(len)) { nvx = nvy = nvz = 0; }
         else if (len > cap) { nvx *= cap / len; nvy *= cap / len; nvz *= cap / len; }
 
+        // подушка над планетой: плавно отталкивает от блоков ближе clearance (считается от формы корпуса)
+        if (cushion != null && kind.hull.length > 0) {
+            double[] nv = cushionPush(nq, nvx, nvy, nvz, cap);
+            nvx = nv[0]; nvy = nv[1]; nvz = nv[2];
+        }
+
         // столкновения: сначала сразу итог (поворот + ход); занято — поворот на месте, потом ход целиком или по осям
+        double ox = x, oy = y, oz = z, wx = nvx, wy = nvy, wz = nvz;
         if (!hits(x + nvx, y + nvy, z + nvz, nq)) {
             offYaw -= (float) yawRate;                                           // прицел стоит, нос подходит к нему
             offPitch -= (float) pitchRate;
@@ -237,6 +252,7 @@ final class Pilot {
         }
         vx = nvx; vy = nvy; vz = nvz;
         clampAim();
+        impact(wx, wy, wz, x - ox, y - oy, z - oz);
 
         // игрок — на месте пилота (по нему сервер грузит чанки), сам не двигается
         Vector3d eye = seatWorld(x, y, z, q);
@@ -244,6 +260,83 @@ final class Pilot {
         mc.player.setDeltaMovement(Vec3.ZERO);
         mc.player.resetFallDistance();
         send();
+    }
+
+    /**
+     * Удар о блоки: хотели сдвинуться на want, а сдвинулись на got (блоки не пустили) — потеря скорости больше
+     * 6 бл/с — серверу (C2S IMPACT): урон считает он. Не чаще раза в 10 тиков.
+     */
+    private void impact(double wx, double wy, double wz, double gx, double gy, double gz) {
+        double lx = wx - gx, ly = wy - gy, lz = wz - gz, lost = Math.sqrt(lx * lx + ly * ly + lz * lz) * 20;
+        if (lost < 6 || tickNo - impactTick < 10) return;
+        double sp = Math.sqrt(wx * wx + wy * wy + wz * wz);
+        if (sp < 1e-6) return;
+        impactTick = tickNo;
+        float s = (float) lost, dx = (float) (wx / sp), dy = (float) (wy / sp), dz = (float) (wz / sp);
+        ctx.send(new byte[]{7, b(s, 24), b(s, 16), b(s, 8), b(s, 0), b(dx, 24), b(dx, 16), b(dx, 8), b(dx, 0),
+                b(dy, 24), b(dy, 16), b(dy, 8), b(dy, 0), b(dz, 24), b(dz, 16), b(dz, 8), b(dz, 0)});
+    }
+
+    /** Подушка: поле расстояний вокруг корабля (кэш, пересчёт при выходе из запаса) → скорость с отталкиванием. */
+    private double[] cushionPush(Quaternionf nq, double nvx, double nvy, double nvz, double cap) {
+        Minecraft mc = Minecraft.getInstance();
+        float[] h = kind.hull;
+        double[] probes = new double[h.length];
+        for (int k = 0; k < h.length; k += 3) {
+            nq.transform(hv.set(h[k], h[k + 1], h[k + 2]));
+            probes[k] = x + hv.x; probes[k + 1] = y + hv.y; probes[k + 2] = z + hv.z;
+        }
+        DistField f = field.get(probes, cushion.reach(), new CushionBlocks(mc.level));
+        if (f == null) return new double[]{nvx, nvy, nvz};
+        return Cushion.apply(f, probes, nvx, nvy, nvz, cap, cushion);
+    }
+
+    /**
+     * Блоки для подушки: твёрдый (мешает движению) или жидкость; незагруженный столбец — тоже (не подходить вслепую).
+     * Кусок 16³ целиком из воздуха — сразу «пусто»; столбец берётся один раз подряд (поле читается столбцами).
+     */
+    private static final class CushionBlocks implements DistField.Blocked {
+        private final net.minecraft.client.multiplayer.ClientLevel level;
+        private final int minY, topY;
+        private int cx = Integer.MIN_VALUE, cz = Integer.MIN_VALUE;
+        private net.minecraft.world.level.chunk.LevelChunk ch;
+        private final BlockPos.MutableBlockPos mp = new BlockPos.MutableBlockPos();
+
+        CushionBlocks(net.minecraft.client.multiplayer.ClientLevel level) {
+            this.level = level;
+            this.minY = level.getMinY();
+            this.topY = minY + level.getHeight();
+        }
+
+        private net.minecraft.world.level.chunk.LevelChunk chunk(int x, int z) {
+            if (x != cx || z != cz) { cx = x; cz = z; ch = level.getChunkSource().getChunk(x, z, false); }
+            return ch;
+        }
+
+        @Override
+        public int section(int sx, int sy, int sz) {
+            if ((sy << 4) + 15 < minY || (sy << 4) >= topY) return 0;
+            var c = chunk(sx, sz);
+            if (c == null) return 1;
+            int i = c.getSectionIndexFromSectionY(sy);
+            var secs = c.getSections();
+            if (i < 0 || i >= secs.length || secs[i] == null || secs[i].hasOnlyAir()) return 0;
+            return -1;
+        }
+
+        @Override
+        public boolean at(int bx, int by, int bz) {
+            if (by < minY || by >= topY) return false;
+            var c = chunk(bx >> 4, bz >> 4);
+            if (c == null) return true;
+            var secs = c.getSections();
+            int i = c.getSectionIndexFromSectionY(by >> 4);
+            if (i < 0 || i >= secs.length || secs[i] == null || secs[i].hasOnlyAir()) return false;
+            BlockState st = secs[i].getBlockState(bx & 15, by & 15, bz & 15);
+            if (st.isAir()) return false;
+            if (!st.getFluidState().isEmpty()) return true;
+            return !st.getCollisionShape(level, mp.set(bx, by, bz)).isEmpty();
+        }
     }
 
     /** Глаза пилота в мире. */
@@ -392,6 +485,13 @@ final class Pilot {
             s.z = pos.z - f.z * back + u.z * up;
             view = new Quaternionf(chase).rotateX((float) Math.atan2(up, back) * 0.5f);   // чуть вниз, на корабль
         }
+        float shake = hurtPower();
+        if (shake > 0.01f) {                                                    // встряска: небольшая, быстро гаснет
+            double t = System.currentTimeMillis() / 1000.0;
+            float a = shake * 0.9f;
+            view = new Quaternionf(view).rotateY((float) Math.toRadians(a * Math.sin(t * 61)))
+                    .rotateX((float) Math.toRadians(a * Math.sin(t * 47 + 1.3))).rotateZ((float) Math.toRadians(a * 0.6 * Math.sin(t * 53 + 2.1)));
+        }
         camView.set(view);
         float[] e = euler(view);
         s.yaw = e[0];
@@ -421,10 +521,24 @@ final class Pilot {
 
     // ───────────────────────── HUD ─────────────────────────
 
-    /** Сервер: попадание (1 — по цели, 2 — убийство, 3 — по кораблю) — маркер у прицела. */
+    /** Сервер: попадание (1 — по цели, 2 — убийство, 3 — по кораблю, 4 — корабль разрушен) — маркер у прицела. */
     void hit(int what) {
         hitAt = System.currentTimeMillis();
-        hitKill = what == 2;
+        hitKind = what;
+    }
+
+    /** Сервер: по нашему кораблю попали (или удар о блоки) — встряска камеры и красный край. */
+    void hurt() {
+        long now = System.currentTimeMillis();
+        hurtPower = Math.min(1.6f, hurtPower() + 1f);
+        hurtAt = now;
+    }
+
+    /** Сила встряски сейчас (0…1.6, гаснет за 0.6 с). */
+    private float hurtPower() {
+        if (hurtAt == 0) return 0;
+        float k = 1 - (System.currentTimeMillis() - hurtAt) / 600f;
+        return k <= 0 ? 0 : hurtPower * k * k;
     }
 
     /**
@@ -479,7 +593,9 @@ final class Pilot {
             case HudView.WARP_NO_FUEL -> state.fuel / (float) Math.max(1, state.warpCost);
             default -> 1;
         };
-        float hitA = hitAt == 0 ? 0 : 1 - (now - hitAt) / (hitKill ? 700f : 420f);
+        boolean bigHit = hitKind == 2 || hitKind == 4;
+        float hitA = hitAt == 0 ? 0 : 1 - (now - hitAt) / (bigHit ? 700f : 420f);
+        float hurtA = hurtAt == 0 ? 0 : Math.max(0, 1 - (now - hurtAt) / 700f);
         Vector3d pos = new Vector3d();
         poseAt(pt, pos, new Quaternionf());
         HudView v = new HudView(
@@ -491,8 +607,9 @@ final class Pilot {
                 gunK, gunLeft / 20f,
                 warp, warpK, (int) ((reloadLeft + 19) / 20),
                 msg, msgWarn, alpha,
-                hints.alpha(now), Math.max(0, hitA), hitKill,
-                kind.id, kind.tris);
+                hints.alpha(now), Math.max(0, hitA), hitKind,
+                kind.id, kind.tris,
+                state.hullKnown, state.hp, state.hpMax, state.zones.clone(), kind.triZone, hurtA);
         hudDraw.draw(gfx.frame(g), v, now);
     }
 

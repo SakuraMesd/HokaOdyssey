@@ -48,6 +48,10 @@ public final class VesselsModule extends OdysseyModule {
     final Combat combat = new Combat(this);
     final WarpDrive warp = new WarpDrive(this);
     final VesselItems items = new VesselItems(this::hoItems);
+    final HullDamage hull = new HullDamage(this);
+    final Beams beams = new Beams(this);
+    /** Карта — планета (подушка, лучи) или космос: по имени карты (сбрасывается при reload). */
+    private final Map<String, Boolean> planetMaps = new ConcurrentHashMap<>();
     private Upgrades.Config upgradeCfg = Upgrades.Config.DEFAULT;
     private VesselStore store;
     private long ticks;
@@ -88,6 +92,7 @@ public final class VesselsModule extends OdysseyModule {
         events().addListener(PlayerSpawnEvent.class, e -> {                   // сменил мир — корабль остаётся, пилот снимается
             Piloting pl = pilotOf(e.getPlayer());
             if (pl != null && pl.vessel.carrier != null && e.getInstance() != pl.vessel.carrier.getInstance()) exit(e.getPlayer(), false);
+            client.world(e.getPlayer(), e.getInstance());                      // планета или космос — моду (подушка, лучи)
         });
         registerCommand(new HoVesselCommand(this));
         scheduler().repeat(this::tick, 1, 1);
@@ -97,6 +102,7 @@ public final class VesselsModule extends OdysseyModule {
 
     @Override
     protected void onDisable() {
+        beams.clear();
         for (Vessel v : vessels.values()) if (v.pilot != null) exit(v.pilot.player, true);
         for (Vessel v : vessels.values()) if (v.menu != null) { v.menu.closeAll(); v.menu = null; }
         client.disable();
@@ -115,6 +121,7 @@ public final class VesselsModule extends OdysseyModule {
     /** Перечитать виды из конфига и их модели. */
     void loadKinds() {
         kinds.clear();
+        planetMaps.clear();
         upgradeCfg = Upgrades.Config.of(config().get("upgrades"));
         limits = new VesselMath.Limits(config().getDouble("check.speed-margin", 1.3), config().getDouble("check.slack", 1.5),
                 config().getDouble("check.turn-margin", 1.5), config().getDouble("check.turn-slack", 10), config().getInt("check.max-dt-ticks", 40));
@@ -225,20 +232,42 @@ public final class VesselsModule extends OdysseyModule {
     /** Глаза пилота в мире. */
     double[] seatWorld(Vessel v, VesselKind k) { return VesselMath.toWorld(k.seat[0], k.seat[1], k.seat[2], v.pos(), v.rot); }
 
-    /** Мод: игрок хочет сесть в корабль (ПКМ по нему). */
+    /**
+     * Мод: ПКМ по кораблю — сесть. С ремкомплектом в руке (владелец, OP) — ремонт. На планете дальше board-reach, но
+     * в пределах planet.beam-reach — луч поднимает в кабину.
+     */
     void board(Player p, int id) {
         Vessel v = vessels.get(id);
         VesselKind k = v == null ? null : kinds.get(v.kind);
         if (v == null || k == null || v.carrier == null || v.carrier.isRemoved()) return;
         if (p.getInstance() != v.carrier.getInstance()) return;
-        if (pilotOf(p) != null) return;
-        if (v.pilot != null) { p.sendActionBar(Component.text("Место пилота занято", NamedTextColor.RED)); return; }
+        if (pilotOf(p) != null || beams.active(p)) return;
         Pos pp = p.getPosition();
         double d = VesselMath.distanceToBox(pp.x(), pp.y() + p.getEyeHeight(), pp.z(), v.pos(), v.rot, k.half);
-        if (d > boardReach() + config().getDouble("board-slack", 1)) {
+        double slack = config().getDouble("board-slack", 1);
+        boolean planet = isPlanet(p.getInstance());
+        if (VesselItems.isRepair(p.getItemInMainHand())) {                      // ремкомплект в руке — чинить, не садиться
+            if (d > Math.max(boardReach(), planet ? beamReach() : 0) + slack) { client.message(p, "Слишком далеко от корабля", true); return; }
+            if (!canOpen(v, p.getUuid().toString(), server().isOp(p))) {
+                client.message(p, "Это не ваш корабль" + (v.ownerName != null ? " (владелец — " + v.ownerName + ")" : ""), true);
+                return;
+            }
+            hull.repairWithKit(p, v, true);
+            return;
+        }
+        if (v.pilot != null) { p.sendActionBar(Component.text("Место пилота занято", NamedTextColor.RED)); return; }
+        if (d > boardReach() + slack) {
+            if (planet && d <= beamReach() + slack) { beams.up(p, v); return; }
             p.sendActionBar(Component.text("Слишком далеко от корабля", NamedTextColor.RED));
             return;
         }
+        boardNow(p, v);
+    }
+
+    /** Посадить пилотом (проверки уже сделаны: место свободно, рядом). */
+    void boardNow(Player p, Vessel v) {
+        VesselKind k = kinds.get(v.kind);
+        if (k == null || v.pilot != null || pilotOf(p) != null || v.carrier == null || p.getInstance() != v.carrier.getInstance()) return;
         Piloting pl = new Piloting(p, v, ticks);
         pl.checkMul = speedMul(v);
         v.pilot = pl;
@@ -250,6 +279,7 @@ public final class VesselsModule extends OdysseyModule {
         p.teleport(new Pos(eye[0], eye[1] - p.getEyeHeight(), eye[2], (float) v.rot.yawDeg(), 0f));
         client.start(v);
         client.state(v);
+        client.hull(v, false, -1);
         p.sendMessage(Component.text("Полёт: мышь — прицел, нос доводится к нему. W/S — ход, Ctrl+W — форсаж, A/D — крен, "
                 + "пробел/Shift — вверх/вниз. ЛКМ — огонь, R — варп, G — меню корабля. F5 — вид из кабины / сзади. F — выйти.", NamedTextColor.AQUA));
     }
@@ -267,8 +297,11 @@ public final class VesselsModule extends OdysseyModule {
             Instance inst = v.carrier != null ? v.carrier.getInstance() : null;
             VesselKind k = kinds.get(v.kind);
             if (teleport && inst != null && p.getInstance() == inst && k != null) {
-                Pos at = exitSpot(v, k, inst);
-                p.teleport(at.withView((float) v.rot.yawDeg(), 0f));
+                if (isPlanet(inst)) beams.down(p, v, k);                       // планета: корабль на подушке — луч вниз
+                else {
+                    Pos at = exitSpot(v, k, inst);
+                    p.teleport(at.withView((float) v.rot.yawDeg(), 0f));
+                }
             }
         }
         save();
@@ -335,6 +368,8 @@ public final class VesselsModule extends OdysseyModule {
             return;
         }
         long dt = Math.max(1, ticks - pl.lastPose);
+        double moved = Math.sqrt((x - v.x) * (x - v.x) + (y - v.y) * (y - v.y) + (z - v.z) * (z - v.z)) / dt * 20;
+        pl.peakSpeed = Math.max(moved, pl.peakSpeed * 0.85);                     // для проверки удара о блоки
         pl.vx = (x - v.x) / dt;
         pl.vy = (y - v.y) / dt;
         pl.vz = (z - v.z) / dt;
@@ -392,6 +427,7 @@ public final class VesselsModule extends OdysseyModule {
             warp.tick(v);
             burn(v, pl);
         }
+        beams.tick();
         if (dirty && ticks % 100 == 0) save();                                 // в полёте — раз в 5 с
     }
 
@@ -437,7 +473,7 @@ public final class VesselsModule extends OdysseyModule {
 
     /** Множитель скорости корабля (улучшения; пустой бак при расходе — аварийный ход). Быстро — для каждой позы. */
     double speedMul(Vessel v) {
-        double m = stats(v).speed();
+        double m = stats(v).speed() * hull.engineMul(v);
         if (config().getDouble("fuel.burn-per-minute", 0) > 0 && v.cargo.fuelUnits() <= 0) m *= config().getDouble("fuel.empty-speed", 0.25);
         return m;
     }
@@ -448,7 +484,7 @@ public final class VesselsModule extends OdysseyModule {
         int fuel = v.cargo.fuelUnits();
         double bpm = Math.max(0, config().getDouble("fuel.burn-per-minute", 0));
         boolean empty = bpm > 0 && fuel <= 0;
-        double speed = st.speed() * (empty ? config().getDouble("fuel.empty-speed", 0.25) : 1);
+        double speed = st.speed() * hull.engineMul(v) * (empty ? config().getDouble("fuel.empty-speed", 0.25) : 1);
         return new Status(fuel, cap, Cargo.warpCost(cap, warp.costFraction(), st.warpCost()), bpm, warp.distance(),
                 warp.chargeTicks() / 20.0, warp.reloadTicks(st) / 20.0, combat.damage() * st.gunDamage(), combat.reloadTicks(st) / 20.0,
                 combat.range(), speed, empty);
@@ -519,7 +555,8 @@ public final class VesselsModule extends OdysseyModule {
         if (!pilot) {
             Pos pp = p.getPosition();
             double d = VesselMath.distanceToBox(pp.x(), pp.y() + p.getEyeHeight(), pp.z(), v.pos(), v.rot, k.half);
-            if (d > menuReach() + config().getDouble("board-slack", 1)) { client.message(p, "Слишком далеко от корабля", true); return; }
+            double reach = isPlanet(p.getInstance()) ? Math.max(menuReach(), beamReach()) : menuReach();   // планета: корабль висит высоко
+            if (d > reach + config().getDouble("board-slack", 1)) { client.message(p, "Слишком далеко от корабля", true); return; }
         }
         if (v.menu == null) v.menu = new VesselMenu(this, v);
         else v.menu.refresh();
@@ -545,6 +582,35 @@ public final class VesselsModule extends OdysseyModule {
     }
 
     long ticks() { return ticks; }
+
+    void markDirty() { dirty = true; }
+
+    /** Кнопка «Мастерская» в меню корабля. */
+    void openWorkshop(Player p, Vessel v) {
+        client.message(p, "Мастерская ещё не готова", true);
+    }
+
+    /** Подушка над планетой: ближе стольких блоков корпус к блокам не подходит. */
+    double clearance() { return Math.max(0, config().getDouble("planet.clearance", 10)); }
+
+    /** Посадка лучом и меню с земли на планете — не дальше стольких блоков от коробки корабля. */
+    double beamReach() { return config().getDouble("planet.beam-reach", 16); }
+
+    /**
+     * Планета ли карта (подушка над поверхностью, лучи): нет — космос. Космос — карты из space-maps (по умолчанию
+     * [cosmos]) и карты с генератором space в map.yml; миры не из maps/ — тоже как космос (без подушки).
+     */
+    boolean isPlanet(Instance inst) {
+        if (inst == null || !config().getBoolean("planet.enabled", true)) return false;
+        String name = server().mapName(inst).orElse(null);
+        if (name == null) return false;
+        return planetMaps.computeIfAbsent(name, n -> {
+            List<String> space = config().contains("space-maps") ? config().getStringList("space-maps") : List.of("cosmos");
+            if (space.contains(n)) return false;
+            String gen = server().mapConfig(n).map(c -> c.getString("generator", "")).orElse("");
+            return !"space".equalsIgnoreCase(gen);
+        });
+    }
 
     // ───────────────────────── сохранение ─────────────────────────
 

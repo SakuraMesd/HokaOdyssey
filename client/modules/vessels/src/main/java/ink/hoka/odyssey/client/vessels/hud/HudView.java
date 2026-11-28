@@ -9,6 +9,9 @@ package ink.hoka.odyssey.client.vessels.hud;
  * @param gunReady 0..1 — доля перезарядки орудия (1 — готово)
  * @param warp     состояние варпа: {@link #WARP_READY} …
  * @param hit      0..1 — яркость маркера попадания (0 — нет)
+ * @param hitKind  что за попадание: 1 — по цели, 2 — убийство, 3 — по кораблю, 4 — корабль разрушен
+ * @param zones    целость зон корпуса 0…1 (нос, корпус, левый борт, правый борт, двигатели), triZone — зона
+ *                 каждого треугольника модели (для силуэта); hurt — 0..1 красный край экрана (по нам попали)
  */
 public record HudView(
         float noseX, float noseY, boolean noseOn, float aimX, float aimY, boolean aimOn,
@@ -19,8 +22,9 @@ public record HudView(
         float gunReady, float gunLeftSec,
         int warp, float warpProgress, int warpLeftSec,
         String msg, boolean msgWarn, float msgAlpha,
-        float hintsAlpha, float hit, boolean kill,
-        String kindName, float[] tris) {
+        float hintsAlpha, float hit, int hitKind,
+        String kindName, float[] tris,
+        boolean hullKnown, double hp, double hpMax, float[] zones, int[] triZone, float hurt) {
 
     public static final int WARP_READY = 0, WARP_CHARGING = 1, WARP_AIMING = 2, WARP_RELOAD = 3, WARP_NO_FUEL = 4;
 

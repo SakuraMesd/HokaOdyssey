@@ -22,11 +22,15 @@ class MenuPreviewTest {
     static BufferedImage item(String name) throws Exception {
         Path own = Path.of("../../../demo-objects/vessels/hoitems/vessels/" + name + ".png");
         if (own.toFile().exists()) return ImageIO.read(own.toFile());
-        try (InputStream in = MenuPreviewTest.class.getClassLoader().getResourceAsStream("assets/minecraft/textures/item/" + name + ".png")) {
-            assertNotNull(in, name);
-            BufferedImage im = ImageIO.read(in);
-            return im.getSubimage(0, 0, 16, 16);
+        for (String path : new String[]{"item/" + name, "block/" + name + "_front", "block/" + name + "_top", "block/" + name}) {
+            try (InputStream in = MenuPreviewTest.class.getClassLoader().getResourceAsStream("assets/minecraft/textures/" + path + ".png")) {
+                if (in == null) continue;
+                BufferedImage im = ImageIO.read(in);
+                return im.getSubimage(0, 0, 16, 16);
+            }
         }
+        assertNotNull(null, name);
+        return null;
     }
 
     static MenuInfo info(int fuel, int upgrades, boolean boosted) {
@@ -35,6 +39,9 @@ class MenuPreviewTest {
         m.warpCost = boosted ? 58 : 64; m.warpDistance = 10000; m.warpCharge = 3; m.warpReload = boosted ? 25.5 : 30;
         m.gunDamage = boosted ? 6.6 : 6; m.gunReload = boosted ? 0.45 : 0.5; m.gunRange = 300; m.speedMul = boosted ? 1.1 : 1;
         m.upgrades = upgrades;
+        m.hpMax = 200;
+        m.hp = boosted ? 146 : 200;
+        if (boosted) { m.zones[0] = 0.3f; m.zones[2] = 0.6f; }
         if (boosted) { m.mulSpeed = 1.1; m.mulWarpCost = 0.9; m.mulGunDamage = 1.1; m.mulGunReload = 0.9; m.mulWarpReload = 0.85; }
         return m;
     }
@@ -66,6 +73,7 @@ class MenuPreviewTest {
         int[] cc = {48, 12, 5, 64, 31, 3, 16, 9, 7, 22, 40, 2, 1, 27, 18};
         for (int i = 0; i < cargo.length; i++) { int s = i < 9 ? i : i + 2; items[s] = cargo[i]; counts[s] = cc[i]; }
         items[MenuLayout.UP0] = "engine"; items[MenuLayout.UP0 + 1] = "tank"; items[MenuLayout.UP0 + 2] = "gun"; items[MenuLayout.UP0 + 4] = "warp";
+        items[MenuLayout.WORKSHOP] = "crafting_table"; items[MenuLayout.REPAIR] = "anvil";
         items[MenuLayout.FUEL0] = "fuel"; counts[MenuLayout.FUEL0] = 64; items[MenuLayout.FUEL0 + 1] = "fuel"; counts[MenuLayout.FUEL0 + 1] = 64;
         items[MenuLayout.FUEL0 + 2] = "fuel"; counts[MenuLayout.FUEL0 + 2] = 22;
         String[] inv = {"fuel", "engine", "iron_sword", "bread", "coal", "torch", "oak_boat", "stick"};
@@ -77,7 +85,7 @@ class MenuPreviewTest {
         String[] few = new String[MenuLayout.SLOTS];
         int[] fc = new int[MenuLayout.SLOTS];
         few[0] = "iron_ingot"; fc[0] = 7; few[MenuLayout.FUEL0] = "fuel"; fc[MenuLayout.FUEL0] = 40;
-        few[MenuLayout.PLAYER0 + 4] = "engine"; few[MenuLayout.HOTBAR0] = "iron_pickaxe";
+        few[MenuLayout.PLAYER0 + 4] = "engine"; few[MenuLayout.WORKSHOP] = "crafting_table"; few[MenuLayout.REPAIR] = "anvil"; few[MenuLayout.HOTBAR0] = "iron_pickaxe";
         render("menu-2-low-fuel-gui4-320x240", 320, 240, 4, info(40, 0, false), few, fc, MenuLayout.FUEL0 + 1);
     }
 }
