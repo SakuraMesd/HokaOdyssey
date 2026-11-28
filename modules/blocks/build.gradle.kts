@@ -3,6 +3,7 @@
 dependencies {
     compileOnly(project(":api"))
     compileOnly(project(":modules:clientmods"))   // ClientModsApi — раздача описаний и текстур моду
+    compileOnly(project(":modules:houi"))         // окно блока (window) — HoUi, если модуль есть
     testImplementation(project(":api"))
     testImplementation(project(":modules:clientmods"))
     testImplementation(platform("org.junit:junit-bom:5.13.4"))

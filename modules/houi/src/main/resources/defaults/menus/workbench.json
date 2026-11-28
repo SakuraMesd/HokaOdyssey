@@ -1,0 +1,29 @@
+{
+  "size": [200, 96],
+  "fit": [0.45, 0.45],
+  "pixel": true,
+  "data": { "title": "Космический верстак", "x": 0, "y": 0, "z": 0 },
+  "styles": {
+    "btn_grey": {
+      "type": "box", "radius": 2, "bw": 1, "transition": 0.1,
+      "color": "#3A4560", "color2": "#2C3550", "border": "#56658A",
+      "hover": { "color": "#4A5778", "color2": "#384463" },
+      "press": { "scale": 0.94 }
+    },
+    "label": { "type": "text", "align": [0.5, 0.5], "origin": [0.5, 0.5] }
+  },
+  "children": [
+    {
+      "type": "box", "w": 200, "h": 96, "radius": 3, "bw": 1,
+      "color": "#1B2233", "color2": "#11161F", "border": "#3A4A6E",
+      "appear": { "alpha": 0, "scale": 0.96, "duration": 0.18 }
+    },
+    { "type": "box", "x": 1, "y": 1, "w": 198, "h": 18, "radius": 2, "color": "#243049", "color2": "#1D2740" },
+    { "type": "text", "x": 8, "y": 6, "text": "&l{title}" },
+    { "type": "text", "align": [0.5, 0], "origin": [0.5, 0], "y": 40, "text": "&7Крафт появится позже" },
+    {
+      "style": "btn_grey", "x": 70, "y": 74, "w": 60, "h": 14, "action": "close",
+      "children": [ { "style": "label", "text": "Закрыть" } ]
+    }
+  ]
+}

@@ -108,6 +108,7 @@ public final class HoUiModule extends OdysseyModule implements HoUi {
             Files.createDirectories(menusDir);
             Files.createDirectories(assets);
             copyDefault("menus/demo_shop.json");
+            copyDefault("menus/workbench.json");                    // окно космического верстака (модуль blocks)
             copyDefault("assets/demo/coin.png");
             copyDefault("hud/demo_hud.json");
             copyDefault("hud/demo_toast.json");
