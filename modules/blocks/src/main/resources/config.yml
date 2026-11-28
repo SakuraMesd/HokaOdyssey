@@ -164,3 +164,12 @@ blocks:
     shape: [0, 0, 6, 16, 16, 10]
     rotatable: true
     sounds: { type: wood }
+  teleporter:
+    name: "Телепорт"
+    model: teleporter.bbmodel
+    animation: idle
+    size: [2, 4, 3]
+    collision: teleporter_collision.json   # коробки по частям (вместо shape)
+    inside: [-11, 2, -19, 11, 40, 3]       # колба: px модели (центр — середина 2×3), ноги игрока
+    rotatable: true
+    sounds: { type: metal }

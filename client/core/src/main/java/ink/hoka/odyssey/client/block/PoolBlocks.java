@@ -28,7 +28,9 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  */
 public final class PoolBlocks implements ModInitializer {
 
-    public static final int SOLID = 384, CLEAR = 160, PASS = 96;          // 0.86: clear 48 → 160 (многоклеточные блоки)
+    // 0.88: 1024/1024/512, имена в 4 цифры. Сервер (server/build.gradle.kts, hokaPool) вносит ровно эти блоки в свой реестр
+    // в том же порядке — номера состояний совпадают (первый solid_0000 = 29671 для 1.21.11), носители больше не нужны.
+    public static final int SOLID = 1024, CLEAR = 1024, PASS = 512;
     public static final PoolBlock[] solid = new PoolBlock[SOLID], clear = new PoolBlock[CLEAR], pass = new PoolBlock[PASS];
 
     /** Блок запаса: название — от сервера (своего блока, к которому привязан). */
@@ -64,9 +66,9 @@ public final class PoolBlocks implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        for (int i = 0; i < SOLID; i++) solid[i] = reg(String.format("solid_%03d", i), 0);
-        for (int i = 0; i < CLEAR; i++) clear[i] = reg(String.format("clear_%02d", i), 1);
-        for (int i = 0; i < PASS; i++) pass[i] = reg(String.format("pass_%02d", i), 2);
+        for (int i = 0; i < SOLID; i++) solid[i] = reg(String.format("solid_%04d", i), 0);
+        for (int i = 0; i < CLEAR; i++) clear[i] = reg(String.format("clear_%04d", i), 1);
+        for (int i = 0; i < PASS; i++) pass[i] = reg(String.format("pass_%04d", i), 2);
         HokaTab.register();                                                 // раздел креатива со своими предметами
     }
 
@@ -96,10 +98,27 @@ public final class PoolBlocks implements ModInitializer {
 
     static boolean isPool(Block b) { return b instanceof PoolBlock; }
 
+    /** 0.88: номер состояния первого блока запаса (solid_0000) — сервер сверяет со своим (hi.poolBase). */
+    public static int base() {
+        return solid[0] == null ? -1 : Block.BLOCK_STATE_REGISTRY.getId(solid[0].defaultBlockState());
+    }
+
     /** Хитбокс по описанию (px, уже повёрнутый) или null — полный куб. */
     static VoxelShape shapeOf(double[] box) {
         if (box == null) return null;
         return Shapes.box(box[0] / 16, box[1] / 16, box[2] / 16, box[3] / 16, box[4] / 16, box[5] / 16);
+    }
+
+    /** 0.88: форма из нескольких коробок (px, уже повёрнутые) — объединение; пустой список — пустая форма. */
+    static VoxelShape shapeOf(double[][] boxes) {
+        VoxelShape s = Shapes.empty();
+        for (double[] b : boxes) s = Shapes.or(s, Shapes.box(b[0] / 16, b[1] / 16, b[2] / 16, b[3] / 16, b[4] / 16, b[5] / 16));
+        return s.optimize();
+    }
+
+    /** Форма части по описанию: коробки по частям, одна коробка или null — полный куб. */
+    static VoxelShape shapeOf(BlockForm f) {
+        return f.hasBoxes() ? shapeOf(f.boxes()) : shapeOf(f.box());
     }
 
     /** Перед раскладкой блоков: формы всех блоков запаса — снова полный куб (привязка к блокам сервера новая). */

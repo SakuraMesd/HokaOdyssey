@@ -48,7 +48,8 @@ public final class HokaOdysseyClient implements ClientModInitializer {
             var fl = net.fabricmc.loader.api.FabricLoader.getInstance();
             var sodium = fl.getModContainer("sodium");
             ctx.responseSender().sendPacket(new Net.Hi(ModuleManager.coreVersion(),
-                    sodium.isPresent(), sodium.map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse("")));
+                    sodium.isPresent(), sodium.map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse(""),
+                    ink.hoka.odyssey.client.block.PoolBlocks.base()));
             // дальность — заново, уже с потолком TallWorld.VIEW_CAP (первая ушла до сигнала, без него)
             if (TallWorld.VIEW_CAP > 0) ctx.responseSender().sendPacket(new net.minecraft.network.protocol.common.ServerboundClientInformationPacket(
                     ctx.client().options.buildPlayerInformation()));

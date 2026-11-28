@@ -8,9 +8,15 @@ import com.google.gson.JsonObject;
  * {@code size}), хитбокс клетки ({@code shape}, px) и анимация модели ({@code animation}). Без классов игры — для тестов.
  * Поворот — как у модели блока (CustomBlocks.rotation): вокруг середины клетки, rotateY(−rot).
  */
-public record BlockForm(int part, int[] size, double[] box, String animation) {
+public record BlockForm(int part, int[] size, double[] box, String animation, double[][] boxes) {
 
-    public static final BlockForm CUBE = new BlockForm(0, new int[]{1, 1, 1}, null, null);
+    public static final BlockForm CUBE = new BlockForm(0, new int[]{1, 1, 1}, null, null, null);
+
+    /**
+     * 0.88: коллизия части из нескольких коробок ({@code boxes}, px, уже повёрнутые; пустой список — часть без формы,
+     * проходимая и не выделяется); null — нет, тогда {@link #box()} (одна коробка) или полный куб.
+     */
+    public boolean hasBoxes() { return boxes != null; }
 
     /** Главная клетка (в ней модель). */
     public boolean main() { return part == 0; }
@@ -23,7 +29,20 @@ public record BlockForm(int part, int[] size, double[] box, String animation) {
         int rot = d.has("rot") ? d.get("rot").getAsInt() : 0;
         int[] shape = ints(d.has("shape") ? d.getAsJsonArray("shape") : null, 6);
         String anim = d.has("animation") ? d.get("animation").getAsString() : null;
-        return new BlockForm(part, size, shape == null ? null : rotateBox(shape, rot), anim);
+        double[][] boxes = null;
+        if (d.has("boxes") && d.get("boxes").isJsonArray()) {
+            JsonArray a = d.getAsJsonArray("boxes");
+            java.util.List<double[]> list = new java.util.ArrayList<>();
+            for (var el : a) {
+                JsonArray b = el.getAsJsonArray();
+                if (b.size() != 6) continue;
+                double[] v = new double[6];
+                for (int i = 0; i < 6; i++) v[i] = b.get(i).getAsDouble();
+                list.add(rotateBox(v, rot));
+            }
+            boxes = list.toArray(new double[0][]);
+        }
+        return new BlockForm(part, size, shape == null ? null : rotateBox(shape, rot), anim, boxes);
     }
 
     private static int[] ints(JsonArray a, int n) {
@@ -35,6 +54,11 @@ public record BlockForm(int part, int[] size, double[] box, String animation) {
 
     /** Хитбокс клетки {x1, y1, z1, x2, y2, z2} (px), повёрнутый на rot вокруг середины клетки: px, min ≤ max. */
     public static double[] rotateBox(int[] s, int rot) {
+        return rotateBox(new double[]{s[0], s[1], s[2], s[3], s[4], s[5]}, rot);
+    }
+
+    /** То же для дробных px (коробки коллизии по частям). */
+    public static double[] rotateBox(double[] s, int rot) {
         double ax = s[0] - 8, az = s[2] - 8, bx = s[3] - 8, bz = s[5] - 8;
         double[] a = rotate(ax, az, rot), b = rotate(bx, bz, rot);
         return new double[]{Math.min(a[0], b[0]) + 8, Math.min(s[1], s[4]), Math.min(a[1], b[1]) + 8,

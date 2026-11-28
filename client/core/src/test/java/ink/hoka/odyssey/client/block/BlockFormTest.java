@@ -52,6 +52,6 @@ class BlockFormTest {
         assertEquals(0, box.minX, 1e-9);
         assertEquals(1.5, box.maxY, 1e-9);
         assertEquals(1, box.maxZ, 1e-9);
-        assertNull(PoolBlocks.shapeOf(null), "нет shape — полный куб (как у носителя)");
+        assertNull(PoolBlocks.shapeOf((double[]) null), "нет shape — полный куб (как у носителя)");
     }
 }

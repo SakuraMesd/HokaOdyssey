@@ -53,14 +53,25 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
     /**
      * Описание блока. size — клеток по X, Y, Z (многоклеточный блок, {@link Multi}); shape — хитбокс одной клетки
      * в пикселях {x1, y1, z1, x2, y2, z2} (null — полный куб); animation — анимация модели, которую мод проигрывает
-     * в мире; window — окно houi, которое открывает ПКМ по блоку.
+     * в мире; window — окно houi, которое открывает ПКМ по блоку; collision — коробки по частям ({@link Collision}, вместо
+     * shape); inside — коробка «игрок внутри» (px в системе модели) для {@link HoBlockInsideEvent}.
      */
     record Def(String id, String name, Kind kind, boolean rotatable, Map<String, String> faces, String model,
                String layer, String particle, boolean ao, Map<String, Object> sounds,
-               int[] size, int[] shape, String animation, String window) {
+               int[] size, int[] shape, String animation, String window, double[][][] collision, double[] inside) {
         Def(String id, String name, Kind kind, boolean rotatable, Map<String, String> faces, String model,
             String layer, String particle, boolean ao, Map<String, Object> sounds) {
             this(id, name, kind, rotatable, faces, model, layer, particle, ao, sounds, new int[]{1, 1, 1}, null, null, null);
+        }
+
+        Def(String id, String name, Kind kind, boolean rotatable, Map<String, String> faces, String model,
+            String layer, String particle, boolean ao, Map<String, Object> sounds, int[] size, int[] shape, String animation, String window) {
+            this(id, name, kind, rotatable, faces, model, layer, particle, ao, sounds, size, shape, animation, window, null, null);
+        }
+
+        /** Вид места части: с коллизией по частям часть без коробок — проходимая. */
+        Kind kindOf(int part) {
+            return collision != null && collision[part].length == 0 ? Kind.PASSABLE : kind;
         }
 
         int parts() { return Multi.parts(size); }
@@ -73,7 +84,7 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
 
     /** Выданные носители: id → поворот → носитель каждой части; и обратно. */
     record Alloc(Map<String, Map<Integer, Block[]>> blockOf, Map<Integer, Placed> byState, int fresh, List<String> problems,
-                 Map<Kind, Integer> used) {}
+                 Map<Kind, Integer> used, Map<Kind, Integer> direct) {}
 
     private volatile Map<String, Def> defs = Map.of();
     private volatile Map<String, Map<Integer, Block[]>> blockOf = Map.of();  // id → поворот → носитель каждой части
@@ -92,6 +103,7 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
         events().addListener(PlayerPickBlockEvent.class, this::onPick);
         events().addListener(PlayerBlockInteractEvent.class, this::onInteract);
         registerCommand(new HoBlockCommand());
+        scheduler().repeat(this::checkInside, 5, 5);                         // игрок внутри блока (inside)
         // модуль clientmods перезагрузили — его файлы пропали: отдать заново
         scheduler().repeat(() -> {
             ClientModsApi now = services().get(ClientModsApi.class).orElse(null);
@@ -139,12 +151,27 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
                 logger().warn("блок {}: shape {} — нужно [x1, y1, z1, x2, y2, z2], 0..16 по X/Z, 0..32 по Y — будет полный куб", id, config().get(p + "shape"));
                 shape = null;
             }
+            double[][][] collision = null;
+            String colFile = config().getString(p + "collision", null);
+            if (colFile != null) {
+                try {
+                    collision = Collision.parse(Files.readString(dataFolder().resolve("assets").resolve(colFile), StandardCharsets.UTF_8), size);
+                } catch (Exception ex) {
+                    logger().error("блок {}: collision {} не прочитан ({}) — блок не зарегистрирован", id, colFile, ex.getMessage());
+                    continue;
+                }
+            }
+            double[] inside = null;
+            if (config().get(p + "inside") instanceof List<?> il && il.size() == 6 && il.stream().allMatch(v -> v instanceof Number)) {
+                inside = new double[6];
+                for (int i = 0; i < 6; i++) inside[i] = ((Number) il.get(i)).doubleValue();
+            } else if (config().get(p + "inside") != null) logger().warn("блок {}: inside — нужно [x1, y1, z1, x2, y2, z2] (px модели)", id);
             String anim = config().getString(p + "animation", null);
             if (anim != null && model == null) { logger().warn("блок {}: animation без model — не будет", id); anim = null; }
             d.put(id, new Def(id, config().getString(p + "name", id), kind, config().getBoolean(p + "rotatable", false), faces,
                     model, config().getString(p + "layer", "cutout"), config().getString(p + "particle", null),
                     config().getBoolean(p + "ao", true), sounds(config().get(p + "sounds")),
-                    size, shape, anim, config().getString(p + "window", null)));
+                    size, shape, anim, config().getString(p + "window", null), collision, inside));
         }
         String alloc = allocate(d);
         defs = d;
@@ -204,7 +231,9 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
         byState = a.byState;
         for (String p : a.problems) logger().warn(p);
         int clear = a.used.getOrDefault(Kind.TRANSPARENT, 0);
-        String left = "запас transparent: занято " + clear + " из " + pool(Kind.TRANSPARENT).size() + " (у мода " + CLIENT_CLEAR + ")";
+        String left = "носителей transparent " + clear + " из " + pool(Kind.TRANSPARENT).size() + "; блоков мода занято: "
+                + a.direct.getOrDefault(Kind.SOLID, 0) + "/" + DIRECT_SOLID + " solid, " + a.direct.getOrDefault(Kind.TRANSPARENT, 0) + "/" + DIRECT_CLEAR
+                + " clear, " + a.direct.getOrDefault(Kind.PASSABLE, 0) + "/" + DIRECT_PASS + " pass";
         if (clear > CLIENT_CLEAR) logger().warn("носителей transparent {} больше, чем блоков clear у мода ({}): лишние у игроков будут листвой", clear, CLIENT_CLEAR);
         logger().info(left);
         return "новых носителей " + a.fresh + (a.problems.isEmpty() ? "" : ", ошибок " + a.problems.size()) + "; " + left;
@@ -218,8 +247,14 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
      * дописываются в конец пула. Файл сохраняется, только если что-то выдано.
      */
     static Alloc allocate(ModuleConfig st, java.util.Collection<Def> defs) {
-        Map<Kind, List<Block>> pools = new HashMap<>();
-        for (Kind k : Kind.values()) pools.put(k, pool(k));
+        // места, которые считаются своими (старые носители + блоки мода), и откуда брать новые (блоки мода, если есть)
+        Map<Kind, List<Block>> pools = new HashMap<>(), free = new HashMap<>();
+        for (Kind k : Kind.values()) {
+            List<Block> d = direct(k), all = new ArrayList<>(pool(k));
+            all.addAll(d);
+            pools.put(k, all);
+            free.put(k, d.isEmpty() ? pool(k) : d);
+        }
         Set<Integer> taken = new HashSet<>();
         for (String key : st.keys("states")) {
             Block b = state(st.getString("states." + key, ""));
@@ -238,10 +273,11 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
                 for (int part = 0; part < parts.length; part++) {
                     String key = stateKey(def, rot, part);
                     Block b = state(st.getString("states." + key, ""));
-                    if (b == null || pools.get(def.kind).stream().noneMatch(x -> x.stateId() == b.stateId())) {
+                    Kind kind = def.kindOf(part);
+                    if (b == null || pools.get(kind).stream().noneMatch(x -> x.stateId() == b.stateId())) {
                         // нет места или тип сменили — новое место (старое остаётся занятым)
-                        Block nb = pools.get(def.kind).stream().filter(x -> !taken.contains(x.stateId())).findFirst().orElse(null);
-                        if (nb == null) { problems.add(def.id + ": кончились носители " + def.kind); continue rotations; }
+                        Block nb = free.get(kind).stream().filter(x -> !taken.contains(x.stateId())).findFirst().orElse(null);
+                        if (nb == null) { problems.add(def.id + ": кончились места " + kind); continue rotations; }
                         taken.add(nb.stateId());
                         st.set("states." + key, nb.state());
                         fresh++;
@@ -255,8 +291,10 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
         }
         if (fresh > 0) st.save();
         Map<Kind, Integer> used = new HashMap<>();
-        for (Kind k : Kind.values()) used.put(k, (int) pools.get(k).stream().filter(x -> taken.contains(x.stateId())).count());
-        return new Alloc(bo, bs, fresh, problems, used);
+        for (Kind k : Kind.values()) used.put(k, (int) pool(k).stream().filter(x -> taken.contains(x.stateId())).count());
+        Map<Kind, Integer> dused = new HashMap<>();
+        for (Kind k : Kind.values()) dused.put(k, (int) direct(k).stream().filter(x -> taken.contains(x.stateId())).count());
+        return new Alloc(bo, bs, fresh, problems, used, dused);
     }
 
     /** Состояния-носители типа (порядок постоянный). Обычные ванильные состояния в пул не входят. */
@@ -279,6 +317,26 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
             }
         }
         out.sort(Comparator.comparing(Block::state));
+        return out;
+    }
+
+    /** Сколько блоков мода каждого вида (как PoolBlocks у мода 0.88 и hokaPool в server/build.gradle.kts). */
+    static final int DIRECT_SOLID = 1024, DIRECT_CLEAR = 1024, DIRECT_PASS = 512;
+
+    /**
+     * 0.88: настоящие блоки мода в реестре сервера (hoka_odyssey:solid_NNNN / clear_NNNN / pass_NNNN, номера — как у
+     * мода). Порядок — с конца (1023, 1022…): у мода старые носители раскладываются на блоки запаса с начала (0, 1…),
+     * так что одни и те же блоки мода не достанутся и носителю, и напрямую. Пусто — сервер старый (без своего block.json).
+     */
+    static List<Block> direct(Kind k) {
+        String name = switch (k) { case SOLID -> "solid"; case TRANSPARENT -> "clear"; case PASSABLE -> "pass"; };
+        int n = switch (k) { case SOLID -> DIRECT_SOLID; case TRANSPARENT -> DIRECT_CLEAR; case PASSABLE -> DIRECT_PASS; };
+        List<Block> out = new ArrayList<>(n);
+        for (int i = n - 1; i >= 0; i--) {
+            Block b = Block.fromKey(String.format("hoka_odyssey:%s_%04d", name, i));
+            if (b == null) return List.of();
+            out.add(b);
+        }
         return out;
     }
 
@@ -344,7 +402,8 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
                     for (int v : def.size) sz.add(v);
                     o.add("size", sz);
                 }
-                if (def.shape != null) {                                           // 0.84: хитбокс клетки, px
+                if (def.collision != null) o.add("boxes", Collision.json(def.collision[part]));   // 0.88: коробки части, px
+                else if (def.shape != null) {                                      // 0.84: хитбокс клетки, px
                     JsonArray sh = new JsonArray();
                     for (int v : def.shape) sh.add(v);
                     o.add("shape", sh);
@@ -488,6 +547,57 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
         } catch (NoClassDefFoundError ignored) {
             // модуля houi нет — только событие
         }
+    }
+
+    /** Кто в каком блоке (inside): игрок → «мир|id|x|y|z». */
+    private final Map<java.util.UUID, String> insideOf = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Раз в 5 тиков: ноги игрока внутри коробки inside своего блока → HoBlockInsideEvent при входе и выходе. */
+    private void checkInside() {
+        boolean any = false;
+        for (Def d : defs.values()) if (d.inside != null) { any = true; break; }
+        if (!any && insideOf.isEmpty()) return;
+        for (Player pl : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
+            Instance in = pl.getInstance();
+            if (in == null) continue;
+            String now = null;
+            Object[] hit = any ? insideAt(in, pl.getPosition()) : null;
+            if (hit != null) now = in.getUuid() + "|" + hit[0] + "|" + ((int[]) hit[1])[0] + "|" + ((int[]) hit[1])[1] + "|" + ((int[]) hit[1])[2];
+            String was = now == null ? insideOf.remove(pl.getUuid()) : insideOf.put(pl.getUuid(), now);
+            if (java.util.Objects.equals(was, now)) continue;
+            if (was != null) fireInside(pl, in, was, false);
+            if (now != null) fireInside(pl, in, now, true);
+        }
+        insideOf.keySet().removeIf(u -> MinecraftServer.getConnectionManager().getOnlinePlayerByUuid(u) == null);
+    }
+
+    private void fireInside(Player pl, Instance in, String key, boolean entered) {
+        String[] k = key.split(java.util.regex.Pattern.quote("|"));
+        int rot = 0;
+        Def d = defs.get(k[1]);
+        var main = new net.minestom.server.coordinate.BlockVec(Integer.parseInt(k[2]), Integer.parseInt(k[3]), Integer.parseInt(k[4]));
+        if (d != null) {
+            Placed p = byState.get(in.getBlock(main).stateId());
+            if (p != null) rot = p.rot;
+        }
+        net.minestom.server.event.EventDispatcher.call(new HoBlockInsideEvent(pl, in, k[1], main, rot, entered));
+        if (server().isOp(pl))                                              // отладка (только OP)
+            pl.sendActionBar(Component.text((entered ? "Внутри: " : "Вышел: ") + (d != null ? d.name : k[1]), NamedTextColor.GRAY));
+    }
+
+    /** Свой блок с inside, в коробке которого точка ног pos: {id, главная клетка} или null. */
+    private Object[] insideAt(Instance in, net.minestom.server.coordinate.Pos pos) {
+        int bx = pos.blockX(), by = pos.blockY(), bz = pos.blockZ();
+        if (!in.isChunkLoaded(bx >> 4, bz >> 4)) return null;
+        for (int dy = 0; dy >= -1; dy--) {                                     // клетка ног и под ней (пол на 4 px)
+            Placed p = byState.get(in.getBlock(bx, by + dy, bz).stateId());
+            if (p == null || p.def.inside == null) continue;
+            int[] mc = Multi.main(p.def.size, bx, by + dy, bz, p.part, p.rot);
+            double[] box = Collision.insideBox(p.def.inside, p.def.size, p.rot);
+            if (Collision.contains(box, (pos.x() - mc[0]) * 16, (pos.y() - mc[1]) * 16, (pos.z() - mc[2]) * 16))
+                return new Object[]{p.def.id, mc};
+        }
+        return null;
     }
 
     @Override

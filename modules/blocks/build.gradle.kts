@@ -13,4 +13,7 @@ dependencies {
 
 tasks.test { useJUnitPlatform() }
 
+// тесты — с реестром боевого сервера (блоки мода hoka_odyssey:*, server/build.gradle.kts generateHokaBlocks)
+sourceSets.test { resources.srcDir(project(":server").tasks.named("generateHokaBlocks")) }
+
 tasks.jar { archiveFileName.set("blocks.jar") }

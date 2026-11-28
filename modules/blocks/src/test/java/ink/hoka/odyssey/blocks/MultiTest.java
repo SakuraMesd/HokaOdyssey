@@ -123,7 +123,9 @@ class MultiTest {
         var placed = a.byState().get(wb.get(90)[3].stateId());
         assertEquals(90, placed.rot());
         assertEquals(3, placed.part());
-        assertEquals(20, a.used().get(BlocksModule.Kind.TRANSPARENT));
+        assertEquals(1, a.used().get(BlocksModule.Kind.TRANSPARENT), "носитель — только старое место ступки");
+        assertEquals(19, a.direct().get(BlocksModule.Kind.TRANSPARENT), "новые места — блоки мода");
+        assertEquals("hoka_odyssey:clear_1023", a.blockOf().get("mortar").get(90)[0].key().asString(), "блоки мода — с конца запаса");
         String saved = Files.readString(f);
         assertTrue(saved.contains("space_workbench@90#3"), saved);
 

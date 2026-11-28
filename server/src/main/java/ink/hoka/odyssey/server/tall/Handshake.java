@@ -111,6 +111,14 @@ public final class Handshake {
                 boolean sodium = b.read(NetworkBuffer.BOOLEAN);
                 String sv = b.read(NetworkBuffer.STRING);
                 Hi hi = new Hi(core, sodium, sv, 0);
+                // ядро 0.88+: номер solid_0000 у клиента — должен совпасть с нашим реестром, иначе блоки мода не те
+                if (b.readableBytes() >= 4) {
+                    int base = b.read(NetworkBuffer.INT);
+                    var s0 = net.minestom.server.instance.block.Block.fromKey("hoka_odyssey:solid_0000");
+                    int ours = s0 == null ? -1 : s0.stateId();
+                    if (base != ours) LOG.warn("{}: блоки мода у клиента с номера {}, у сервера {} — свои блоки будут не те (другие моды с блоками?)",
+                            e.getPlayer().getUsername(), base, ours);
+                }
                 // запомнить всегда: ожидание могло только что кончиться (окно после паков) — тогда будущее уже никто не
                 // прочтёт, а итог onConfiguration не должен затереть ответ (см. HI.merge там)
                 HI.put(e.getPlayer().getUuid(), hi);

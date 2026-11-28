@@ -48,8 +48,9 @@ public final class Net {
     /**
      * Ответ ядра на {@link Tall} (этап входа): версия ядра, есть ли Sodium и его версия. Сервер решает по нему, пускать
      * ли на карты с кубическими чанками (CUBIC-CHUNKS.md §3.8). Строки — как у Minecraft (varint длина + UTF-8).
+     * 0.88: в конце int poolBase — номер состояния solid_0000 (сервер сверяет со своим реестром).
      */
-    public record Hi(String core, boolean sodium, String sodiumVersion) implements CustomPacketPayload {
+    public record Hi(String core, boolean sodium, String sodiumVersion, int poolBase) implements CustomPacketPayload {
         public static final Type<Hi> TYPE = new Type<>(Identifier.fromNamespaceAndPath(NS, "hi"));
         @Override public Type<Hi> type() { return TYPE; }
     }
@@ -79,8 +80,8 @@ public final class Net {
     static void register() {
         PayloadTypeRegistry.configurationS2C().register(Tall.TYPE, StreamCodec.unit(new Tall()));
         PayloadTypeRegistry.configurationC2S().register(Hi.TYPE, StreamCodec.of(
-                (net.minecraft.network.FriendlyByteBuf buf, Hi p) -> { buf.writeUtf(p.core()); buf.writeBoolean(p.sodium()); buf.writeUtf(p.sodiumVersion()); },
-                buf -> new Hi(buf.readUtf(), buf.readBoolean(), buf.readUtf())));
+                (net.minecraft.network.FriendlyByteBuf buf, Hi p) -> { buf.writeUtf(p.core()); buf.writeBoolean(p.sodium()); buf.writeUtf(p.sodiumVersion()); buf.writeInt(p.poolBase()); },
+                buf -> new Hi(buf.readUtf(), buf.readBoolean(), buf.readUtf(), buf.readInt())));
         PayloadTypeRegistry.playS2C().registerLarge(S2C.TYPE, CustomPacketPayload.codec(
                 (S2C p, RegistryFriendlyByteBuf buf) -> buf.writeBytes(p.data()), buf -> new S2C(readAll(buf))), 2 << 20);
         PayloadTypeRegistry.playS2C().register(W.TYPE, CustomPacketPayload.codec(

@@ -215,13 +215,15 @@ public final class CustomBlocks {
                 boolean ao = !d.has("ao") || d.get("ao").getAsBoolean();
                 Model model = new Model(new Part(b.quads, particle, ao));
                 models.put(st, model);                                           // носитель (чанки, пришедшие до списка)
-                BlockState pool = PoolBlocks.forCarrier(st, counters);           // 0.73: настоящий блок мода
+                // 0.88: сервер знает блоки мода и шлёт сразу блок запаса — подменять нечего; иначе носитель → блок мода
+                boolean direct = PoolBlocks.isPool(st.getBlock());
+                BlockState pool = direct ? st : PoolBlocks.forCarrier(st, counters);   // 0.73: настоящий блок мода
                 if (pool != null) {
                     models.put(pool, model);
-                    remap.put(Block.BLOCK_STATE_REGISTRY.getId(st), pool);
+                    if (!direct) remap.put(Block.BLOCK_STATE_REGISTRY.getId(st), pool);
                     ((PoolBlocks.PoolBlock) pool.getBlock()).title = d.has("name") ? d.get("name").getAsString() : id;
                     ((PoolBlocks.PoolBlock) pool.getBlock()).customId = id;
-                    ((PoolBlocks.PoolBlock) pool.getBlock()).shape = PoolBlocks.shapeOf(form.box());   // 0.84
+                    ((PoolBlocks.PoolBlock) pool.getBlock()).shape = PoolBlocks.shapeOf(form);   // 0.84; 0.88 — и коробки по частям
                 }
                 if (animated) {
                     var at = new ink.hoka.odyssey.client.model.BlockAnims.Type(modelPath, form.animation(), placement(rot, form, javaBlock(modelPath), 1));

@@ -70,6 +70,14 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
     private final Set<UUID> announced = ConcurrentHashMap.newKeySet();
     private final Set<UUID> pushed = ConcurrentHashMap.newKeySet();
     private final Set<UUID> answered = ConcurrentHashMap.newKeySet();
+    /** Версия ядра мода у игрока (из рукопожатия или HELLO). */
+    private final Map<UUID, String> coreOf = new ConcurrentHashMap<>();
+    /**
+     * Ядро 0.88: сервер шлёт блоки мода своими номерами (без носителей). Старее ядро такой номер не знает — Minecraft
+     * рвёт связь «ошибкой протокола». Поэтому игроку со старым ядром, когда новое ядро ему ушло, — выход с просьбой
+     * перезапустить игру.
+     */
+    static final String DIRECT_BLOCKS_CORE = "0.88.0";
     private final Map<String, List<BiConsumer<Player, byte[]>>> handlers = new ConcurrentHashMap<>();
     private final Map<String, List<Consumer<Player>>> readyHandlers = new ConcurrentHashMap<>();
     private final Map<Integer, BiConsumer<Player, byte[]>> coreHandlers = new ConcurrentHashMap<>();
@@ -107,6 +115,7 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
             ready.remove(u);
             announced.remove(u);
             pushed.remove(u);
+            coreOf.remove(u);
             answered.remove(u);
         });
         registerCommand(new HoClientCommand());
@@ -365,6 +374,7 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
                         return;
                     }
                     ready.put(p.getUuid(), ConcurrentHashMap.newKeySet());
+                    coreOf.put(p.getUuid(), ver);
                     logger().info("{}: мод Hoka Odyssey {} (протокол {})", p.getUsername(), ver, proto);
                     warnOldCore(p, ver);
                     sendLists(p);
@@ -433,6 +443,7 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
     private void push(Player p, String ver) {
         if (!pushed.add(p.getUuid())) return;
         ready.put(p.getUuid(), ConcurrentHashMap.newKeySet());
+        coreOf.put(p.getUuid(), ver);
         logger().info("{}: мод Hoka Odyssey {} (из рукопожатия) — список модулей сразу", p.getUsername(), ver);
         warnOldCore(p, ver);
         sendLists(p);
@@ -449,6 +460,7 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
             Jar j = bySha.get(sha);
             final byte[] b = j != null ? j.bytes() : fobjs.get(sha);
             if (b == null) continue;
+            if (core != null && sha.equals(core.sha())) kickAfterCore(p, core);
             for (int off = 0; off < b.length; off += chunk) {
                 int o = off, len = Math.min(chunk, b.length - off);
                 p.sendPluginMessage(CH_S2C, packet(2, out -> {
@@ -460,6 +472,20 @@ public final class ClientModsModule extends OdysseyModule implements ClientModsA
                 }));
             }
         }
+    }
+
+    /**
+     * Новое ядро ушло игроку (куски идут по порядку, выход — после них): если его ядро не знает блоков мода по номерам
+     * (старее {@link #DIRECT_BLOCKS_CORE}), а новое знает — через 3 с выход с просьбой перезапустить игру.
+     */
+    private void kickAfterCore(Player p, Jar core) {
+        String ver = coreOf.get(p.getUuid());
+        if (ver == null || compareVersions(ver, DIRECT_BLOCKS_CORE) >= 0 || compareVersions(core.version(), DIRECT_BLOCKS_CORE) < 0) return;
+        logger().info("{}: ядро {} → {} ушло, выход для перезапуска", p.getUsername(), ver, core.version());
+        scheduler().later(() -> {
+            if (p.isOnline()) p.kick(Component.text("Мод Hoka Odyssey обновлён до " + core.version()
+                    + ". Перезапустите игру — со старым модом новые блоки не видны.", NamedTextColor.YELLOW));
+        }, 60);
     }
 
     private void safe(String id, Runnable r) {
