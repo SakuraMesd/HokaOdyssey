@@ -1,0 +1,9 @@
+# Станции: регионы с видимыми границами (рисует клиентский модуль stations) и гравитацией станции
+id: stations
+name: Станции
+version: 0.1.0
+main: ink.hoka.odyssey.stations.StationsModule
+authors: [Takuyamo]
+description: Регионы космических станций — видимые границы, сообщение входа/выхода, гравитация внутри (через gravity)
+depends: []
+softdepends: [clientmods, gravity]

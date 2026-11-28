@@ -1,0 +1,7 @@
+{
+  "id": "stations",
+  "version": "0.1.0",
+  "main": "ink.hoka.odyssey.client.stations.StationsClientModule",
+  "authors": ["Takuyamo"],
+  "description": "Станции: видимые границы регионов (светящиеся рёбра, силовая плёнка вблизи), надпись входа/выхода, выделение указкой"
+}
