@@ -534,6 +534,8 @@ V1–V8, `HokaViewArea`, затем снять требование Sodium из 
 
 **Проверить игроку:** ядро без Sodium — мир рисуется, при движении по Y секции не пропадают; F3 «C:» около 15 тыс.
 
+**Сделано (ядро 0.83.0, задача cubes-final):** V1–V3 — `@Inject` в сам `ViewArea` (`mixin/ViewAreaRingMixin`, вместо подкласса и `@Redirect NEW`): кольцо по Y ±rY, rY = min(«Дальность по высоте»+1, дальность прорисовки), окно прижато к границам мира (`ViewRing`). V4 — `@WrapOperation` на `NEW Octree` в `SectionOcclusionGraph$GraphStorage` (`mixin/OctreeHeightMixin`). V5–V8 не нужны: столбец у клиента целиком (пустые секции — заглушки), камера всегда в окне. Набор `loadedEmptySections` без Sodium в высоком мире тоже не ведётся. Сервер: `/hocubes go` пускает ядро 0.83+ без Sodium (`Handshake.cubesReady`).
+
 ### Этап 7. Чистка (1–2 д)
 
 Перевести tall-карты на `cubes: true` конвертером, удалить старый код (§9).
