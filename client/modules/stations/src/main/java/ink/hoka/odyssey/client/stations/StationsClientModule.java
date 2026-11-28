@@ -119,6 +119,45 @@ public final class StationsClientModule implements ClientModule {
     private static final net.minecraft.client.renderer.rendertype.RenderType BORDER = net.minecraft.client.renderer.rendertype.RenderType.create(
             "hoka_station_border", net.minecraft.client.renderer.rendertype.RenderSetup.builder(PIPE).createRenderSetup());
 
+    // сетка плёнки — текстурой с повтором (один квад на клетку вместо тысяч линий): та же смесь «свечение»
+    private static final com.mojang.blaze3d.pipeline.RenderPipeline PIPE_HEX = com.mojang.blaze3d.pipeline.RenderPipeline
+            .builder(net.minecraft.client.renderer.RenderPipelines.MATRICES_PROJECTION_SNIPPET)
+            .withLocation(net.minecraft.resources.Identifier.fromNamespaceAndPath("hoka_odyssey", "pipeline/station_hex"))
+            .withVertexShader("core/position_tex_color").withFragmentShader("core/position_tex_color").withSampler("Sampler0")
+            .withBlend(com.mojang.blaze3d.pipeline.BlendFunction.LIGHTNING).withDepthWrite(false).withCull(false)
+            .withVertexFormat(com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_TEX_COLOR, com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS)
+            .build();
+    private static final net.minecraft.resources.Identifier HEX_TEX = net.minecraft.resources.Identifier.fromNamespaceAndPath("hoka_odyssey", "stations/hexgrid");
+    private static final net.minecraft.client.renderer.rendertype.RenderType HEXES = net.minecraft.client.renderer.rendertype.RenderType.create(
+            "hoka_station_hex", net.minecraft.client.renderer.rendertype.RenderSetup.builder(PIPE_HEX)
+                    .withTexture("Sampler0", HEX_TEX, () -> com.mojang.blaze3d.systems.RenderSystem.getSamplerCache().getSampler(
+                            com.mojang.blaze3d.textures.AddressMode.REPEAT, com.mojang.blaze3d.textures.AddressMode.REPEAT,
+                            com.mojang.blaze3d.textures.FilterMode.LINEAR, com.mojang.blaze3d.textures.FilterMode.LINEAR, false))
+                    .createRenderSetup());
+    private boolean hexReady;
+    private float[] hexBuf = new float[24 * 512];
+    private int hexN;
+
+    /**
+     * Текстура сетки (один период: ширина шестигранника × два ряда): линии — белые непрозрачные со сглаживанием,
+     * внутри — слабое свечение (доля filmAlpha/hexAlpha). Цвет и общая яркость — от вершин.
+     */
+    private void makeHexTexture() {
+        int W = 128, H = (int) Math.round(W * BorderMesh.texPeriodV(style) / BorderMesh.texPeriodU(style));
+        var img = new com.mojang.blaze3d.platform.NativeImage(W, H, false);
+        double half = Math.max(style.hexWidth * 0.5, BorderMesh.texPeriodU(style) / W * 0.9);   // не тоньше ~2 текселей
+        float fill = style.filmAlpha / style.hexAlpha;
+        for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
+            float l = BorderMesh.hexTexel((x + 0.5) / W, (y + 0.5) / H, style, half);
+            float a = Math.max(l, fill * (1 - l));
+            int g = Math.round(255 * (0.78f + 0.22f * l));                          // внутри чуть темнее линий
+            img.setPixel(x, y, (Math.round(a * 255) << 24) | (g << 16) | (g << 8) | g);
+        }
+        Minecraft.getInstance().getTextureManager().register(HEX_TEX,
+                new net.minecraft.client.renderer.texture.DynamicTexture(HEX_TEX::toString, img));
+        hexReady = true;
+    }
+
     private void render(ClientContext.WorldFrame f) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return;
@@ -140,6 +179,18 @@ public final class StationsClientModule implements ClientModule {
             vc.addVertex(m, x3, y3, z3).setColor(c3);
         };
         int[] col = colors;
+        if (!hexReady) makeHexTexture();
+        hexN = 0;                                                               // квады сетки — в массив, рисуются после рёбер
+        style.hexSink = (x0, y0, z0, u0, v0, c0, x1, y1, z1, u1, v1, c1, x2, y2, z2, u2, v2, c2, x3, y3, z3, u3, v3, c3) -> {
+            if (hexN + 24 > hexBuf.length) hexBuf = java.util.Arrays.copyOf(hexBuf, hexBuf.length * 2);
+            float[] h = hexBuf;
+            int i = hexN;
+            h[i] = x0; h[i + 1] = y0; h[i + 2] = z0; h[i + 3] = u0; h[i + 4] = v0; h[i + 5] = Float.intBitsToFloat(c0);
+            h[i + 6] = x1; h[i + 7] = y1; h[i + 8] = z1; h[i + 9] = u1; h[i + 10] = v1; h[i + 11] = Float.intBitsToFloat(c1);
+            h[i + 12] = x2; h[i + 13] = y2; h[i + 14] = z2; h[i + 15] = u2; h[i + 16] = v2; h[i + 17] = Float.intBitsToFloat(c2);
+            h[i + 18] = x3; h[i + 19] = y3; h[i + 20] = z3; h[i + 21] = u3; h[i + 22] = v3; h[i + 23] = Float.intBitsToFloat(c3);
+            hexN = i + 24;
+        };
         style.visible = (ax, ay, az, bx, by, bz) -> f.visible(new AABB(ax, ay, az, bx, by, bz));   // плёнка — только в кадре
         List<Reg> labels = new ArrayList<>();
         for (Reg r : regs) {
@@ -176,6 +227,13 @@ public final class StationsClientModule implements ClientModule {
                     BorderMesh.lighten(col[3], 0.3f), 1.6f, false, true, cam.x, cam.y, cam.z, eye.x, eye.y, eye.z, t, style, sink);
         }
         if (f.buffers() instanceof net.minecraft.client.renderer.MultiBufferSource.BufferSource bs) bs.endBatch(BORDER);
+        if (hexN > 0) {
+            VertexConsumer hv = f.buffers().getBuffer(HEXES);
+            float[] h = hexBuf;
+            for (int i = 0; i < hexN; i += 6)
+                hv.addVertex(m, h[i], h[i + 1], h[i + 2]).setUv(h[i + 3], h[i + 4]).setColor(Float.floatToRawIntBits(h[i + 5]));
+            if (f.buffers() instanceof net.minecraft.client.renderer.MultiBufferSource.BufferSource bs) bs.endBatch(HEXES);
+        }
         for (Reg r : labels) label(f, mc, r, cam, col[Math.min(r.grav(), 2)]);
     }
 

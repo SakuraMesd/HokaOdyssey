@@ -35,6 +35,41 @@ public final class BorderMesh {
         public float minAlpha = 0.015f;                  // линии сетки прозрачнее этого не рисуются (край круга)
         /** Видна ли коробка в кадре (мировые координаты); null — рисовать всё. Ставит модуль перед кадром. */
         public Visible visible;
+        /**
+         * Сетка плёнки текстурой (один квад на клетку {@link #texCell} блоков, шестигранники и заливка — в текстуре
+         * {@link #hexTexel}, повтор по миру). null — по-старому, линиями (превью в тестах).
+         */
+        public TexSink hexSink;
+        public double texCell = 4;
+    }
+
+    /** Квад с текстурой сетки: вершины относительно камеры, uv (повтор), цвет ARGB. */
+    public interface TexSink {
+        void quad(float x0, float y0, float z0, float u0, float v0, int c0, float x1, float y1, float z1, float u1, float v1, int c1,
+                  float x2, float y2, float z2, float u2, float v2, int c2, float x3, float y3, float z3, float u3, float v3, int c3);
+    }
+
+    /** Период текстуры сетки (блоки): по u — ширина шестигранника √3·s, по v — 3·s (два ряда). */
+    public static double texPeriodU(Style st) { return Math.sqrt(3) * st.hexSize; }
+    public static double texPeriodV(Style st) { return 3 * st.hexSize; }
+
+    /**
+     * Тексель сетки в точке периода (fu, fv ∈ [0,1)): {яркость линии 0..1}. Шестигранники остриём вверх, центры —
+     * (0,0), (1,0), (½,½), (0,1), (1,1) в долях периода; расстояние до края — по шестиугольной норме.
+     */
+    public static float hexTexel(double fu, double fv, Style st, double halfWidthBlocks) {
+        double s = st.hexSize, pu = fu * texPeriodU(st), pv = fv * texPeriodV(st);
+        double best = Double.MAX_VALUE, bu = 0, bv = 0;
+        double[][] cs = {{0, 0}, {1, 0}, {0.5, 0.5}, {0, 1}, {1, 1}};
+        for (double[] c : cs) {
+            double du = pu - c[0] * texPeriodU(st), dv = pv - c[1] * texPeriodV(st);
+            double d = du * du + dv * dv;
+            if (d < best) { best = d; bu = du; bv = dv; }
+        }
+        double ap = s * Math.sqrt(3) / 2;                                    // апофема
+        double h = Math.max(Math.abs(bu), Math.max(Math.abs(bu * 0.5 + bv * Math.sqrt(3) / 2), Math.abs(-bu * 0.5 + bv * Math.sqrt(3) / 2)));
+        double edge = ap - h;                                                // до ближнего края шестигранника
+        return (float) Math.clamp(1 - (edge - halfWidthBlocks) / (halfWidthBlocks * 0.9 + 1e-6), 0, 1);
     }
 
     /** Отсечение по кадру (фрустум). */
@@ -252,6 +287,7 @@ public final class BorderMesh {
                     b[k] = plane + 0.1; b[ku] = tb; b[kv] = td;
                     if (!st.visible.test(a[0], a[1], a[2], b[0], b[1], b[2])) continue;
                 }
+                if (st.hexSink != null) { f.texTile(ta, tc, tb, td, hex); continue; }
                 // заливка: клетки (1 блок, при большом радиусе крупнее), прозрачность по вершинам
                 for (double u = Math.floor(ta / cell) * cell; u < tb; u += cell) {
                     double ua = Math.max(u, ta), ub = Math.min(u + cell, tb);
@@ -323,6 +359,25 @@ public final class BorderMesh {
         float hexA(double u, double v) { return near(u, v) * st.hexAlpha * bright * wave(u, v); }
 
         private final float[] q = new float[12];
+
+        /** Плитка плёнки текстурой: клетки texCell, uv от начала плитки (точность float при больших координатах). */
+        void texTile(double ta, double tc, double tb, double td, int color) {
+            double c = st.texCell, PU = texPeriodU(st), PV = texPeriodV(st);
+            double ou = Math.floor(ta / PU) * PU, ov = Math.floor(tc / PV) * PV;   // начало повтора — у плитки
+            for (double u = ta; u < tb - 1e-9; u += c) {
+                double ub = Math.min(u + c, tb);
+                for (double v = tc; v < td - 1e-9; v += c) {
+                    double vb = Math.min(v + c, td);
+                    float a00 = hexA(u, v), a10 = hexA(ub, v), a11 = hexA(ub, vb), a01 = hexA(u, vb);
+                    if (a00 < st.minAlpha && a10 < st.minAlpha && a11 < st.minAlpha && a01 < st.minAlpha) continue;
+                    point(u, v, q, 0); point(ub, v, q, 3); point(ub, vb, q, 6); point(u, vb, q, 9);
+                    st.hexSink.quad(q[0], q[1], q[2], (float) ((u - ou) / PU), (float) ((v - ov) / PV), argb(color, a00),
+                            q[3], q[4], q[5], (float) ((ub - ou) / PU), (float) ((v - ov) / PV), argb(color, a10),
+                            q[6], q[7], q[8], (float) ((ub - ou) / PU), (float) ((vb - ov) / PV), argb(color, a11),
+                            q[9], q[10], q[11], (float) ((u - ou) / PU), (float) ((vb - ov) / PV), argb(color, a01));
+                }
+            }
+        }
 
         void point(double u, double v, float[] o, int at) {
             o[at + k] = (float) w;
