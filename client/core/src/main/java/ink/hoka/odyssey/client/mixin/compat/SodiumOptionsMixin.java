@@ -72,7 +72,16 @@ public abstract class SodiumOptionsMixin {
                         .setValueFormatter(ink.hoka.odyssey.client.GenSetting::diskText)
                         .setImpact(OptionImpact.LOW)
                         .setBinding(ink.hoka.odyssey.client.GenSetting::setDisk, ink.hoka.odyssey.client.GenSetting::diskMb)
-                        .setStorageHandler(ink.hoka.odyssey.client.GenSetting::saveDisk)));
+                        .setStorageHandler(ink.hoka.odyssey.client.GenSetting::saveDisk))
+                .addOption(builder.createIntegerOption(Identifier.fromNamespaceAndPath("hoka_odyssey", "smooth"))   // 0.90
+                        .setName(Component.translatable("options.hoka_odyssey.smooth"))
+                        .setTooltip(Component.translatable("options.hoka_odyssey.smooth.tooltip"))
+                        .setRange(ink.hoka.odyssey.client.Smooth.OFF, ink.hoka.odyssey.client.Smooth.MAX_MODE, 1)
+                        .setDefaultValue(ink.hoka.odyssey.client.Smooth.AUTO)
+                        .setValueFormatter(ink.hoka.odyssey.client.Smooth::valueText)
+                        .setImpact(OptionImpact.LOW)
+                        .setBinding(ink.hoka.odyssey.client.Smooth::set, ink.hoka.odyssey.client.Smooth::mode)
+                        .setStorageHandler(ink.hoka.odyssey.client.Smooth::save)));
         // 0.64: дальняя прорисовка — своей группой
         page.addOptionGroup(builder.createOptionGroup()
                 .setName(Component.translatable("options.hoka_odyssey.lod.group"))

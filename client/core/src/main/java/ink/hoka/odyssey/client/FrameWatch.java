@@ -80,9 +80,14 @@ public final class FrameWatch {
     private static void start() {
         Thread t = new Thread(() -> {
             while (true) {
-                try { Thread.sleep(5); } catch (InterruptedException e) { return; }
-                if (!TallWorld.net || reported) continue;
+                try { Thread.sleep(Perf.SAMPLE_MS); } catch (InterruptedException e) { return; }
                 long s = frameStart;
+                if (s != 0 && Perf.on()) {                                      // 0.90: профилировщик (файл hoka-perf.on)
+                    Perf.renderThread = render;
+                    Perf.sample(render, (System.nanoTime() - s) / 1_000_000);
+                    Perf.report(render);
+                }
+                if (!TallWorld.net || reported) continue;
                 if (s == 0) continue;
                 long ms = (System.nanoTime() - s) / 1_000_000;
                 if (ms < LIMIT_MS) continue;

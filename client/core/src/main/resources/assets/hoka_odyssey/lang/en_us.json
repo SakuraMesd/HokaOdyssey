@@ -33,5 +33,10 @@
   "options.hoka_odyssey.lod_body": "Distant Asteroids",
   "options.hoka_odyssey.lod_body.tooltip": "In space, asteroids beyond Render Distance are shown simplified (shape, ores, textures) without cut edges. Off — normal rendering only.",
   "options.hoka_odyssey.lod_body_quality": "Distant Asteroid Detail",
-  "options.hoka_odyssey.lod_body_quality.tooltip": "How detailed distant asteroids are. Higher — more accurate shape, more memory and GPU work."
+  "options.hoka_odyssey.lod_body_quality.tooltip": "How detailed distant asteroids are. Higher — more accurate shape, more memory and GPU work.",
+  "options.hoka_odyssey.smooth": "Smoothness",
+  "options.hoka_odyssey.smooth.tooltip": "Even frame pacing: the game picks an FPS cap it can hold almost always and presents frames on a strict time grid — no 300↔700 swings. \"Stable\" is even smoother at lower FPS. Inactive with VSync.",
+  "options.hoka_odyssey.smooth.off": "Off",
+  "options.hoka_odyssey.smooth.auto": "Auto",
+  "options.hoka_odyssey.smooth.stable": "Stable"
 }
