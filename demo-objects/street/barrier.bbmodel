@@ -1,0 +1,1158 @@
+{
+ "meta": {
+  "format_version": "5.0",
+  "model_format": "free",
+  "box_uv": false
+ },
+ "name": "Ограждение",
+ "model_identifier": "",
+ "visible_box": [
+  2,
+  2,
+  0
+ ],
+ "variable_placeholders": "",
+ "variable_placeholder_buttons": [],
+ "timeline_setups": [],
+ "unhandled_root_fields": {},
+ "resolution": {
+  "width": 64,
+  "height": 64
+ },
+ "elements": [
+  {
+   "name": "Доска верхняя",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -14,
+    11,
+    -1
+   ],
+   "to": [
+    14,
+    15,
+    0.5
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    13.0,
+    -0.25
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      0,
+      17,
+      28,
+      21
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      58,
+      17,
+      60,
+      21
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      29,
+      17,
+      57,
+      21
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      61,
+      17,
+      63,
+      21
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      0,
+      22,
+      28,
+      24
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      29,
+      22,
+      57,
+      24
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "188403cc-0c0a-5cec-9d1b-54cbcb9063c3"
+  },
+  {
+   "name": "Доска нижняя",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -14,
+    6,
+    -1
+   ],
+   "to": [
+    14,
+    8.5,
+    0.5
+   ],
+   "autouv": 0,
+   "color": 1,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    7.25,
+    -0.25
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      0,
+      25,
+      28,
+      27
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      44,
+      31,
+      46,
+      33
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      29,
+      25,
+      57,
+      27
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      47,
+      31,
+      49,
+      33
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      0,
+      28,
+      28,
+      30
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      29,
+      28,
+      57,
+      30
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "8c4734c8-938f-510a-a638-85b78961f440"
+  },
+  {
+   "name": "Нога -1 1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -12,
+    0,
+    -0.75
+   ],
+   "to": [
+    -10,
+    16,
+    0.75
+   ],
+   "autouv": 0,
+   "color": 2,
+   "rotation": [
+    -14,
+    0,
+    0
+   ],
+   "origin": [
+    -11,
+    15,
+    -0.25
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      0,
+      0,
+      2,
+      16
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      3,
+      0,
+      5,
+      16
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      6,
+      0,
+      8,
+      16
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      9,
+      0,
+      11,
+      16
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      50,
+      31,
+      52,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      53,
+      31,
+      55,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "ec6df800-a608-5a2a-90ae-963e10637d86"
+  },
+  {
+   "name": "Нога -1 2",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -12,
+    0,
+    -0.75
+   ],
+   "to": [
+    -10,
+    16,
+    0.75
+   ],
+   "autouv": 0,
+   "color": 3,
+   "rotation": [
+    14,
+    0,
+    0
+   ],
+   "origin": [
+    -11,
+    15,
+    -0.25
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      12,
+      0,
+      14,
+      16
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      15,
+      0,
+      17,
+      16
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      18,
+      0,
+      20,
+      16
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      21,
+      0,
+      23,
+      16
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      56,
+      31,
+      58,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      59,
+      31,
+      61,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "7c11a9f8-a4bd-56bb-8e4a-1089b5962521"
+  },
+  {
+   "name": "Шарнир -1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -12.5,
+    14.5,
+    -1.5
+   ],
+   "to": [
+    -9.5,
+    16,
+    1
+   ],
+   "autouv": 0,
+   "color": 4,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    -11.0,
+    15.25,
+    -0.25
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      58,
+      28,
+      61,
+      30
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      62,
+      31,
+      64,
+      33
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      0,
+      31,
+      3,
+      33
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      0,
+      34,
+      2,
+      36
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      4,
+      31,
+      7,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      8,
+      31,
+      11,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "39d60c6b-152e-5528-b917-4080c153f0f1"
+  },
+  {
+   "name": "Опора -1 1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -12.5,
+    0,
+    -4.6
+   ],
+   "to": [
+    -9.5,
+    0.8,
+    -3.0999999999999996
+   ],
+   "autouv": 0,
+   "color": 5,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    -11.0,
+    0.4,
+    -3.8499999999999996
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      21,
+      34,
+      24,
+      35
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      4,
+      37,
+      6,
+      38
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      25,
+      34,
+      28,
+      35
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      7,
+      37,
+      9,
+      38
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      12,
+      31,
+      15,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      16,
+      31,
+      19,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "b425295c-774f-5dca-a9a6-66f1220572e6"
+  },
+  {
+   "name": "Опора -1 2",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -12.5,
+    0,
+    3.6
+   ],
+   "to": [
+    -9.5,
+    0.8,
+    5.1
+   ],
+   "autouv": 0,
+   "color": 6,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    -11.0,
+    0.4,
+    4.35
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      29,
+      34,
+      32,
+      35
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      16,
+      37,
+      17,
+      38
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      33,
+      34,
+      36,
+      35
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      18,
+      37,
+      19,
+      38
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      37,
+      34,
+      40,
+      35
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      41,
+      34,
+      44,
+      35
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "60b23515-d0bd-5a3d-bfda-57db8a7e33f9"
+  },
+  {
+   "name": "Нога +1 1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    10,
+    0,
+    -0.75
+   ],
+   "to": [
+    12,
+    16,
+    0.75
+   ],
+   "autouv": 0,
+   "color": 7,
+   "rotation": [
+    -14,
+    0,
+    0
+   ],
+   "origin": [
+    11,
+    15,
+    -0.25
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      24,
+      0,
+      26,
+      16
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      27,
+      0,
+      29,
+      16
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      30,
+      0,
+      32,
+      16
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      33,
+      0,
+      35,
+      16
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      3,
+      34,
+      5,
+      36
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      6,
+      34,
+      8,
+      36
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "b593e0f8-8511-57b4-b0ea-652c4eefefee"
+  },
+  {
+   "name": "Нога +1 2",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    10,
+    0,
+    -0.75
+   ],
+   "to": [
+    12,
+    16,
+    0.75
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    14,
+    0,
+    0
+   ],
+   "origin": [
+    11,
+    15,
+    -0.25
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      36,
+      0,
+      38,
+      16
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      39,
+      0,
+      41,
+      16
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      42,
+      0,
+      44,
+      16
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      45,
+      0,
+      47,
+      16
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      9,
+      34,
+      11,
+      36
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      12,
+      34,
+      14,
+      36
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "d4c548b7-d5af-5f59-89e3-11bf3bb8be8c"
+  },
+  {
+   "name": "Шарнир +1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    9.5,
+    14.5,
+    -1.5
+   ],
+   "to": [
+    12.5,
+    16,
+    1
+   ],
+   "autouv": 0,
+   "color": 1,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    11.0,
+    15.25,
+    -0.25
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      20,
+      31,
+      23,
+      33
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      15,
+      34,
+      17,
+      36
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      24,
+      31,
+      27,
+      33
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      18,
+      34,
+      20,
+      36
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      28,
+      31,
+      31,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      32,
+      31,
+      35,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "16aeb468-bbf7-51fa-89f3-f6fca6b0aebc"
+  },
+  {
+   "name": "Опора +1 1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    9.5,
+    0,
+    -4.6
+   ],
+   "to": [
+    12.5,
+    0.8,
+    -3.0999999999999996
+   ],
+   "autouv": 0,
+   "color": 2,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    11.0,
+    0.4,
+    -3.8499999999999996
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      45,
+      34,
+      48,
+      35
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      10,
+      37,
+      12,
+      38
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      49,
+      34,
+      52,
+      35
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      13,
+      37,
+      15,
+      38
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      36,
+      31,
+      39,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      40,
+      31,
+      43,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "f7aa0129-04ae-5c18-8fb6-2adf32c5d277"
+  },
+  {
+   "name": "Опора +1 2",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    9.5,
+    0,
+    3.6
+   ],
+   "to": [
+    12.5,
+    0.8,
+    5.1
+   ],
+   "autouv": 0,
+   "color": 3,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    11.0,
+    0.4,
+    4.35
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      53,
+      34,
+      56,
+      35
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      20,
+      37,
+      21,
+      38
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      57,
+      34,
+      60,
+      35
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      22,
+      37,
+      23,
+      38
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      61,
+      34,
+      64,
+      35
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      0,
+      37,
+      3,
+      38
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "3687f8b8-6c75-5dab-a2ca-f03daa892e9d"
+  }
+ ],
+ "groups": [
+  {
+   "name": "Ограждение",
+   "uuid": "7222ea03-edfc-5d99-bf6f-6009aed26fa4",
+   "export": true,
+   "locked": false,
+   "visibility": true,
+   "origin": [
+    0,
+    0,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": 0,
+   "children": [],
+   "reset": false,
+   "shade": true,
+   "mirror_uv": false,
+   "autouv": 0,
+   "isOpen": true
+  }
+ ],
+ "outliner": [
+  {
+   "uuid": "7222ea03-edfc-5d99-bf6f-6009aed26fa4",
+   "isOpen": true,
+   "children": [
+    "188403cc-0c0a-5cec-9d1b-54cbcb9063c3",
+    "8c4734c8-938f-510a-a638-85b78961f440",
+    "ec6df800-a608-5a2a-90ae-963e10637d86",
+    "7c11a9f8-a4bd-56bb-8e4a-1089b5962521",
+    "39d60c6b-152e-5528-b917-4080c153f0f1",
+    "b425295c-774f-5dca-a9a6-66f1220572e6",
+    "60b23515-d0bd-5a3d-bfda-57db8a7e33f9",
+    "b593e0f8-8511-57b4-b0ea-652c4eefefee",
+    "d4c548b7-d5af-5f59-89e3-11bf3bb8be8c",
+    "16aeb468-bbf7-51fa-89f3-f6fca6b0aebc",
+    "f7aa0129-04ae-5c18-8fb6-2adf32c5d277",
+    "3687f8b8-6c75-5dab-a2ca-f03daa892e9d"
+   ]
+  }
+ ],
+ "textures": [
+  {
+   "path": "",
+   "name": "Ограждение.png",
+   "folder": "",
+   "namespace": "",
+   "id": "0",
+   "group": "",
+   "width": 64,
+   "height": 64,
+   "uv_width": 64,
+   "uv_height": 64,
+   "particle": true,
+   "use_as_default": false,
+   "layers_enabled": false,
+   "sync_to_project": "",
+   "render_mode": "default",
+   "render_sides": "auto",
+   "frame_time": 1,
+   "frame_order_type": "loop",
+   "frame_order": "",
+   "frame_interpolate": false,
+   "visible": true,
+   "internal": true,
+   "saved": true,
+   "uuid": "ac919fe6-f537-5a15-a54d-32e7152a31e9",
+   "relative_path": "Ограждение.png",
+   "mode": "bitmap",
+   "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABZElEQVR42u2YsUrDUBSGT0pAdFfEkMEOLoU4dXFTEDefxsfQl+kmBTsIOoiDRUEi2KEgFQW31rocp1zSkFRr0htDvg9K/1PIObd/zkluIuPJVMeTqYqIVFHnxX19/zBBFXVeGlJzMAADMAADMAADMAADMAADMKCeuOHTswmqqCEnjqqq1YKOU0rN6AXK2urKjHYnn18iItLf3TEHBHeh0cv4vYyaWS9UGrYXsszcP9VM7Y7TrXWr7Xjy8lZKzfOLKxUROTrYm9FcBAfDkdWzse1vllKTjRDUfB+QuRU+8zasu15GTaj7XWD/8NjU7HU7ZiTcupzp8PGedk8dgWRrtIK2iR/6NwvHyXxF5896qovGKj5i83S0Lrfo1kjmKzr/5fVtqmYk8o5Ar9v5cxvFW72INrcZi+c31fObKiIyGI40+oO/0fFj4xqqRCtoa/SJx4voed8AAAAAAAAAAAAAAAAA/4NvuigpKwpR/zoAAAAASUVORK5CYII="
+  }
+ ],
+ "animations": []
+}

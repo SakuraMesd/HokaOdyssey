@@ -269,7 +269,8 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
             }
             case TRANSPARENT -> {
                 for (Block leaves : new Block[]{Block.OAK_LEAVES, Block.SPRUCE_LEAVES, Block.BIRCH_LEAVES, Block.JUNGLE_LEAVES,
-                        Block.ACACIA_LEAVES, Block.DARK_OAK_LEAVES, Block.MANGROVE_LEAVES, Block.AZALEA_LEAVES, Block.FLOWERING_AZALEA_LEAVES})
+                        Block.ACACIA_LEAVES, Block.DARK_OAK_LEAVES, Block.MANGROVE_LEAVES, Block.AZALEA_LEAVES, Block.FLOWERING_AZALEA_LEAVES,
+                        Block.CHERRY_LEAVES})   // 28ноя: вишня (генераторы её не ставят; pale_oak — ставит vale, нельзя)
                     for (Block b : leaves.possibleStates())                        // 28ноя: и залитые водой — 126 мест вместо 63
                         if ("true".equals(b.getProperty("persistent"))) out.add(b);
             }

@@ -1,0 +1,981 @@
+{
+ "meta": {
+  "format_version": "5.0",
+  "model_format": "free",
+  "box_uv": false
+ },
+ "name": "Стопка конусов",
+ "model_identifier": "",
+ "visible_box": [
+  2,
+  2,
+  0
+ ],
+ "variable_placeholders": "",
+ "variable_placeholder_buttons": [],
+ "timeline_setups": [],
+ "unhandled_root_fields": {},
+ "resolution": {
+  "width": 64,
+  "height": 64
+ },
+ "elements": [
+  {
+   "name": "Основание 1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -6,
+    0.0,
+    -6
+   ],
+   "to": [
+    6,
+    1.0,
+    6
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    0.5,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      48,
+      41,
+      60,
+      42
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      0,
+      46,
+      12,
+      47
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      13,
+      46,
+      25,
+      47
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      26,
+      46,
+      38,
+      47
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      0,
+      0,
+      12,
+      12
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      13,
+      0,
+      25,
+      12
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "56174996-7ce0-5541-9e22-382015bd25e2"
+  },
+  {
+   "name": "Край яруса 1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4.8,
+    1.0,
+    -4.8
+   ],
+   "to": [
+    4.8,
+    2.2,
+    4.8
+   ],
+   "autouv": 0,
+   "color": 1,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    1.6,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      13,
+      50,
+      23,
+      51
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      24,
+      50,
+      34,
+      51
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      35,
+      50,
+      45,
+      51
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      46,
+      50,
+      56,
+      51
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      13,
+      13,
+      23,
+      23
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      24,
+      13,
+      34,
+      23
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "65b0d171-4a72-5a29-9592-3f9daaddb5ab"
+  },
+  {
+   "name": "Основание 2",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -6,
+    2.2,
+    -6
+   ],
+   "to": [
+    6,
+    3.2,
+    6
+   ],
+   "autouv": 0,
+   "color": 2,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    2.7,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      39,
+      46,
+      51,
+      47
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      52,
+      46,
+      64,
+      47
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      0,
+      48,
+      12,
+      49
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      13,
+      48,
+      25,
+      49
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      26,
+      0,
+      38,
+      12
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      39,
+      0,
+      51,
+      12
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "9e2a3413-ebe5-5cc7-9034-0ec38b282e50"
+  },
+  {
+   "name": "Край яруса 2",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4.8,
+    3.2,
+    -4.8
+   ],
+   "to": [
+    4.8,
+    4.4,
+    4.8
+   ],
+   "autouv": 0,
+   "color": 3,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    3.8000000000000003,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      0,
+      52,
+      10,
+      53
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      11,
+      52,
+      21,
+      53
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      22,
+      52,
+      32,
+      53
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      33,
+      52,
+      43,
+      53
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      35,
+      13,
+      45,
+      23
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      46,
+      13,
+      56,
+      23
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "c5b1981a-021a-56c0-89ac-c373c3c84983"
+  },
+  {
+   "name": "Верхний конус: основание",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -6,
+    4.4,
+    -6
+   ],
+   "to": [
+    6,
+    5.4,
+    6
+   ],
+   "autouv": 0,
+   "color": 4,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    4.9,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      26,
+      48,
+      38,
+      49
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      39,
+      48,
+      51,
+      49
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      52,
+      48,
+      64,
+      49
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      0,
+      50,
+      12,
+      51
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      52,
+      0,
+      64,
+      12
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      0,
+      13,
+      12,
+      25
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "082f06c1-ce67-5eff-8abe-5ce56b89525b"
+  },
+  {
+   "name": "Верхний конус: ярус 1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4.5,
+    5.4,
+    -4.5
+   ],
+   "to": [
+    4.5,
+    9.4,
+    4.5
+   ],
+   "autouv": 0,
+   "color": 5,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    7.4,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      48,
+      26,
+      57,
+      30
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      0,
+      36,
+      9,
+      40
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      10,
+      36,
+      19,
+      40
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      20,
+      36,
+      29,
+      40
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      0,
+      26,
+      9,
+      35
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      10,
+      26,
+      19,
+      35
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "ffcfbd59-ff70-5574-9448-646807b0c3f7"
+  },
+  {
+   "name": "Верхний конус: ярус 2",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -3.5,
+    9.4,
+    -3.5
+   ],
+   "to": [
+    3.5,
+    13.4,
+    3.5
+   ],
+   "autouv": 0,
+   "color": 6,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    11.4,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      30,
+      36,
+      37,
+      40
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      38,
+      36,
+      45,
+      40
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      46,
+      36,
+      53,
+      40
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      54,
+      36,
+      61,
+      40
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      20,
+      26,
+      27,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      28,
+      26,
+      35,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "9a5b3826-beae-5ab1-9931-e100aa8319c9"
+  },
+  {
+   "name": "Верхний конус: ярус 3",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -2.5,
+    13.4,
+    -2.5
+   ],
+   "to": [
+    2.5,
+    17.4,
+    2.5
+   ],
+   "autouv": 0,
+   "color": 7,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    15.399999999999999,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      0,
+      41,
+      5,
+      45
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      6,
+      41,
+      11,
+      45
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      12,
+      41,
+      17,
+      45
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      18,
+      41,
+      23,
+      45
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      36,
+      26,
+      41,
+      31
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      42,
+      26,
+      47,
+      31
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "50b5fa55-4b4d-5b98-8e1f-ae2d55187d96"
+  },
+  {
+   "name": "Верхний конус: ярус 4",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -1.5,
+    17.4,
+    -1.5
+   ],
+   "to": [
+    1.5,
+    20.4,
+    1.5
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    18.9,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      24,
+      41,
+      27,
+      44
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      28,
+      41,
+      31,
+      44
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      32,
+      41,
+      35,
+      44
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      36,
+      41,
+      39,
+      44
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      40,
+      41,
+      43,
+      44
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      44,
+      41,
+      47,
+      44
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "dc662faf-cd51-5ade-aed4-7561ac56f20f"
+  }
+ ],
+ "groups": [
+  {
+   "name": "Стопка",
+   "uuid": "40d2b98a-44e7-5644-afb3-ddb81e3653dd",
+   "export": true,
+   "locked": false,
+   "visibility": true,
+   "origin": [
+    0,
+    0,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": 0,
+   "children": [],
+   "reset": false,
+   "shade": true,
+   "mirror_uv": false,
+   "autouv": 0,
+   "isOpen": true
+  },
+  {
+   "name": "Нижний конус 1",
+   "uuid": "dcb4de2a-06ee-5f10-82ed-9f151105257c",
+   "export": true,
+   "locked": false,
+   "visibility": true,
+   "origin": [
+    0,
+    0.0,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": 0,
+   "children": [],
+   "reset": false,
+   "shade": true,
+   "mirror_uv": false,
+   "autouv": 0,
+   "isOpen": true
+  },
+  {
+   "name": "Нижний конус 2",
+   "uuid": "7c6e9569-878d-53ac-9248-793fce3a968b",
+   "export": true,
+   "locked": false,
+   "visibility": true,
+   "origin": [
+    0,
+    2.2,
+    0
+   ],
+   "rotation": [
+    0,
+    7,
+    0
+   ],
+   "color": 0,
+   "children": [],
+   "reset": false,
+   "shade": true,
+   "mirror_uv": false,
+   "autouv": 0,
+   "isOpen": true
+  },
+  {
+   "name": "Верхний конус",
+   "uuid": "6d7a0ce0-8058-5e68-bbf5-459ad18f52aa",
+   "export": true,
+   "locked": false,
+   "visibility": true,
+   "origin": [
+    0,
+    4.4,
+    0
+   ],
+   "rotation": [
+    0,
+    -5,
+    0
+   ],
+   "color": 0,
+   "children": [],
+   "reset": false,
+   "shade": true,
+   "mirror_uv": false,
+   "autouv": 0,
+   "isOpen": true
+  }
+ ],
+ "outliner": [
+  {
+   "uuid": "40d2b98a-44e7-5644-afb3-ddb81e3653dd",
+   "isOpen": true,
+   "children": [
+    {
+     "uuid": "dcb4de2a-06ee-5f10-82ed-9f151105257c",
+     "isOpen": true,
+     "children": [
+      "56174996-7ce0-5541-9e22-382015bd25e2",
+      "65b0d171-4a72-5a29-9592-3f9daaddb5ab"
+     ]
+    },
+    {
+     "uuid": "7c6e9569-878d-53ac-9248-793fce3a968b",
+     "isOpen": true,
+     "children": [
+      "9e2a3413-ebe5-5cc7-9034-0ec38b282e50",
+      "c5b1981a-021a-56c0-89ac-c373c3c84983"
+     ]
+    },
+    {
+     "uuid": "6d7a0ce0-8058-5e68-bbf5-459ad18f52aa",
+     "isOpen": true,
+     "children": [
+      "082f06c1-ce67-5eff-8abe-5ce56b89525b",
+      "ffcfbd59-ff70-5574-9448-646807b0c3f7",
+      "9a5b3826-beae-5ab1-9931-e100aa8319c9",
+      "50b5fa55-4b4d-5b98-8e1f-ae2d55187d96",
+      "dc662faf-cd51-5ade-aed4-7561ac56f20f"
+     ]
+    }
+   ]
+  }
+ ],
+ "textures": [
+  {
+   "path": "",
+   "name": "Стопка конусов.png",
+   "folder": "",
+   "namespace": "",
+   "id": "0",
+   "group": "",
+   "width": 64,
+   "height": 64,
+   "uv_width": 64,
+   "uv_height": 64,
+   "particle": true,
+   "use_as_default": false,
+   "layers_enabled": false,
+   "sync_to_project": "",
+   "render_mode": "default",
+   "render_sides": "auto",
+   "frame_time": 1,
+   "frame_order_type": "loop",
+   "frame_order": "",
+   "frame_interpolate": false,
+   "visible": true,
+   "internal": true,
+   "saved": true,
+   "uuid": "57a3a5f2-dbdc-5612-8756-e9e996dbf9cf",
+   "relative_path": "Стопка конусов.png",
+   "mode": "bitmap",
+   "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABWUlEQVR42u2aO2rDQBCG/zWC4EZNwIRAwJ3BBwkufIG0IW1aHcJnMGlTuVNhfBCjKqQwBoPzIBdIqjQma62y3pUsfX+32oekb2dWM4PM12z6rQpKs9y83o8rzRk+rU1T79NTxwUAAAAAAAAAAAAAAADUUQVNONIsN8vba6exk9U22Lq4AAAAAAAAAAAAAADAqSJBLAC1yAVcEhDX5KMsoSlbxzbfNu93/HvxYn2mYvN5NCHiKwCAjis59xdIs9y0CoDthcoqO7hAUyygzCRD7SQWgDwiQZdIKta4WP21fwWSx4UGf1wfSFL/Inh/7QB2+49a+2sHcPn8IJuJxuhHtkPQdoj4Xvdp29LiyWrrXdEK7gJvd3NJ0kiSbq4qt0OX6JJYvn7om67ts88GD0Nj33bTQululsXbNAcLwAKwgP/9JHUs46uSHcYYyzb71APYTYQQQgghhFqpH5kmxgfcWZfLAAAAAElFTkSuQmCC"
+  }
+ ],
+ "animations": []
+}

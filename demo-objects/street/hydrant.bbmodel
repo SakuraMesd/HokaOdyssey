@@ -1,0 +1,1603 @@
+{
+ "meta": {
+  "format_version": "5.0",
+  "model_format": "free",
+  "box_uv": false
+ },
+ "name": "Гидрант",
+ "model_identifier": "",
+ "visible_box": [
+  2,
+  2,
+  0
+ ],
+ "variable_placeholders": "",
+ "variable_placeholder_buttons": [],
+ "timeline_setups": [],
+ "unhandled_root_fields": {},
+ "resolution": {
+  "width": 64,
+  "height": 64
+ },
+ "elements": [
+  {
+   "name": "Фланец",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -5,
+    0,
+    -5
+   ],
+   "to": [
+    5,
+    1.5,
+    5
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    0.75,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      52,
+      20,
+      62,
+      22
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      0,
+      24,
+      10,
+      26
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      11,
+      24,
+      21,
+      26
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      22,
+      24,
+      32,
+      26
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      0,
+      0,
+      10,
+      10
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      11,
+      0,
+      21,
+      10
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "32733da5-a984-5c7f-bb40-42f3c4cd86bd"
+  },
+  {
+   "name": "Болт 1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4,
+    1.5,
+    -4
+   ],
+   "to": [
+    -3,
+    2,
+    -3
+   ],
+   "autouv": 0,
+   "color": 1,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    -3.5,
+    1.75,
+    -3.5
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      3,
+      32,
+      4,
+      33
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      5,
+      32,
+      6,
+      33
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      7,
+      32,
+      8,
+      33
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      9,
+      32,
+      10,
+      33
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      11,
+      32,
+      12,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      13,
+      32,
+      14,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "2e56d75b-155f-521d-8a9c-30223abad4b6"
+  },
+  {
+   "name": "Болт 2",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    3,
+    1.5,
+    -4
+   ],
+   "to": [
+    4,
+    2,
+    -3
+   ],
+   "autouv": 0,
+   "color": 2,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    3.5,
+    1.75,
+    -3.5
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      15,
+      32,
+      16,
+      33
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      17,
+      32,
+      18,
+      33
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      19,
+      32,
+      20,
+      33
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      21,
+      32,
+      22,
+      33
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      23,
+      32,
+      24,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      25,
+      32,
+      26,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "0d2b45dd-7446-5358-b3e9-a2d1d5ca16d6"
+  },
+  {
+   "name": "Болт 3",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4,
+    1.5,
+    3
+   ],
+   "to": [
+    -3,
+    2,
+    4
+   ],
+   "autouv": 0,
+   "color": 3,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    -3.5,
+    1.75,
+    3.5
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      27,
+      32,
+      28,
+      33
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      29,
+      32,
+      30,
+      33
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      31,
+      32,
+      32,
+      33
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      33,
+      32,
+      34,
+      33
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      35,
+      32,
+      36,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      37,
+      32,
+      38,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "d105042c-1afe-5588-a156-33ca3ec0b4f6"
+  },
+  {
+   "name": "Болт 4",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    3,
+    1.5,
+    3
+   ],
+   "to": [
+    4,
+    2,
+    4
+   ],
+   "autouv": 0,
+   "color": 4,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    3.5,
+    1.75,
+    3.5
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      39,
+      32,
+      40,
+      33
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      41,
+      32,
+      42,
+      33
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      43,
+      32,
+      44,
+      33
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      45,
+      32,
+      46,
+      33
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      47,
+      32,
+      48,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      49,
+      32,
+      50,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "dedc745a-4739-567a-be6e-3f6fa3a3e356"
+  },
+  {
+   "name": "Ствол",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -3.5,
+    1.5,
+    -3.5
+   ],
+   "to": [
+    3.5,
+    11,
+    3.5
+   ],
+   "autouv": 0,
+   "color": 5,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    6.25,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      22,
+      0,
+      29,
+      10
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      30,
+      0,
+      37,
+      10
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      38,
+      0,
+      45,
+      10
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      46,
+      0,
+      53,
+      10
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      9,
+      11,
+      16,
+      18
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      17,
+      11,
+      24,
+      18
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "db06d77d-fff0-5e81-a834-c0f77bd1a576"
+  },
+  {
+   "name": "Кольцо",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4,
+    11,
+    -4
+   ],
+   "to": [
+    4,
+    12,
+    4
+   ],
+   "autouv": 0,
+   "color": 6,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    11.5,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      52,
+      27,
+      60,
+      28
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      0,
+      30,
+      8,
+      31
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      9,
+      30,
+      17,
+      31
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      18,
+      30,
+      26,
+      31
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      54,
+      0,
+      62,
+      8
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      0,
+      11,
+      8,
+      19
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "844e2fce-8e82-5c35-852e-7156af7abf04"
+  },
+  {
+   "name": "Купол",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -3,
+    12,
+    -3
+   ],
+   "to": [
+    3,
+    14,
+    3
+   ],
+   "autouv": 0,
+   "color": 7,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    13.0,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      33,
+      24,
+      39,
+      26
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      40,
+      24,
+      46,
+      26
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      47,
+      24,
+      53,
+      26
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      54,
+      24,
+      60,
+      26
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      25,
+      11,
+      31,
+      17
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      32,
+      11,
+      38,
+      17
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "7438c02e-6260-59e7-88d6-69f37819e90d"
+  },
+  {
+   "name": "Купол 2",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -2,
+    14,
+    -2
+   ],
+   "to": [
+    2,
+    15,
+    2
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    14.5,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      27,
+      30,
+      31,
+      31
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      32,
+      30,
+      36,
+      31
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      37,
+      30,
+      41,
+      31
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      42,
+      30,
+      46,
+      31
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      39,
+      11,
+      43,
+      15
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      44,
+      11,
+      48,
+      15
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "a9836b8c-0c69-5ab9-8681-0f22c72b6486"
+  },
+  {
+   "name": "Гайка",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -1,
+    15,
+    -1
+   ],
+   "to": [
+    1,
+    16,
+    1
+   ],
+   "autouv": 0,
+   "color": 1,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    15.5,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      55,
+      30,
+      57,
+      31
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      58,
+      30,
+      60,
+      31
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      61,
+      30,
+      63,
+      31
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      0,
+      32,
+      2,
+      33
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      10,
+      27,
+      12,
+      29
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      13,
+      27,
+      15,
+      29
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "677e6730-2767-594a-84c8-0a6c79a5a254"
+  },
+  {
+   "name": "Патрубок -1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -5.5,
+    5.5,
+    -1.5
+   ],
+   "to": [
+    -3.5,
+    8.5,
+    1.5
+   ],
+   "autouv": 0,
+   "color": 2,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    -4.5,
+    7.0,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      24,
+      20,
+      26,
+      23
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      0,
+      20,
+      3,
+      23
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      27,
+      20,
+      29,
+      23
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      4,
+      20,
+      7,
+      23
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      30,
+      20,
+      32,
+      23
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      33,
+      20,
+      35,
+      23
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "16d7ba88-9857-5d82-92c9-c0c22d095ebc"
+  },
+  {
+   "name": "Заглушка -1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -6.5,
+    6,
+    -1
+   ],
+   "to": [
+    -5.5,
+    8,
+    1
+   ],
+   "autouv": 0,
+   "color": 3,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    -6.0,
+    7.0,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      28,
+      27,
+      29,
+      29
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      16,
+      27,
+      18,
+      29
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      30,
+      27,
+      31,
+      29
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      19,
+      27,
+      21,
+      29
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      32,
+      27,
+      33,
+      29
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      34,
+      27,
+      35,
+      29
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "3ee73d24-2494-543d-ac5c-a1985ef00677"
+  },
+  {
+   "name": "Патрубок +1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    3.5,
+    5.5,
+    -1.5
+   ],
+   "to": [
+    5.5,
+    8.5,
+    1.5
+   ],
+   "autouv": 0,
+   "color": 4,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    4.5,
+    7.0,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      36,
+      20,
+      38,
+      23
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      8,
+      20,
+      11,
+      23
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      39,
+      20,
+      41,
+      23
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      12,
+      20,
+      15,
+      23
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      42,
+      20,
+      44,
+      23
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      45,
+      20,
+      47,
+      23
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "6d8bdd76-a3c3-5807-b3fa-ca9c606f1ee3"
+  },
+  {
+   "name": "Заглушка +1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    5.5,
+    6,
+    -1
+   ],
+   "to": [
+    6.5,
+    8,
+    1
+   ],
+   "autouv": 0,
+   "color": 5,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    6.0,
+    7.0,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      36,
+      27,
+      37,
+      29
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      22,
+      27,
+      24,
+      29
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      38,
+      27,
+      39,
+      29
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      25,
+      27,
+      27,
+      29
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      40,
+      27,
+      41,
+      29
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      42,
+      27,
+      43,
+      29
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "03b3d7e6-3d09-52d5-846d-94500b3dd1ed"
+  },
+  {
+   "name": "Передний патрубок",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -2,
+    4.5,
+    -5.5
+   ],
+   "to": [
+    2,
+    8.5,
+    -3.5
+   ],
+   "autouv": 0,
+   "color": 6,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    6.5,
+    -4.5
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      49,
+      11,
+      53,
+      15
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      59,
+      11,
+      61,
+      15
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      54,
+      11,
+      58,
+      15
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      62,
+      11,
+      64,
+      15
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      0,
+      27,
+      4,
+      29
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      5,
+      27,
+      9,
+      29
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "69f09234-aa08-5377-a073-96f74adae131"
+  },
+  {
+   "name": "Передняя заглушка",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -1.5,
+    5,
+    -6.5
+   ],
+   "to": [
+    1.5,
+    8,
+    -5.5
+   ],
+   "autouv": 0,
+   "color": 7,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    6.5,
+    -6.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      16,
+      20,
+      19,
+      23
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      48,
+      20,
+      49,
+      23
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      20,
+      20,
+      23,
+      23
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      50,
+      20,
+      51,
+      23
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      47,
+      30,
+      50,
+      31
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      51,
+      30,
+      54,
+      31
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "8909b1eb-1a17-57ab-97d3-d3a68fa08118"
+  },
+  {
+   "name": "Цепочка",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    1.5,
+    4,
+    -6
+   ],
+   "to": [
+    2,
+    6.5,
+    -5.5
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    1.75,
+    5.25,
+    -5.75
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      44,
+      27,
+      45,
+      29
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      46,
+      27,
+      47,
+      29
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      48,
+      27,
+      49,
+      29
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      50,
+      27,
+      51,
+      29
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      51,
+      32,
+      52,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      53,
+      32,
+      54,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "fc8a6735-48d2-5cc8-9486-5aa3f45f3201"
+  }
+ ],
+ "groups": [
+  {
+   "name": "Гидрант",
+   "uuid": "78bce940-4a42-5469-96f9-5b81dc3c7978",
+   "export": true,
+   "locked": false,
+   "visibility": true,
+   "origin": [
+    0,
+    0,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": 0,
+   "children": [],
+   "reset": false,
+   "shade": true,
+   "mirror_uv": false,
+   "autouv": 0,
+   "isOpen": true
+  }
+ ],
+ "outliner": [
+  {
+   "uuid": "78bce940-4a42-5469-96f9-5b81dc3c7978",
+   "isOpen": true,
+   "children": [
+    "32733da5-a984-5c7f-bb40-42f3c4cd86bd",
+    "2e56d75b-155f-521d-8a9c-30223abad4b6",
+    "0d2b45dd-7446-5358-b3e9-a2d1d5ca16d6",
+    "d105042c-1afe-5588-a156-33ca3ec0b4f6",
+    "dedc745a-4739-567a-be6e-3f6fa3a3e356",
+    "db06d77d-fff0-5e81-a834-c0f77bd1a576",
+    "844e2fce-8e82-5c35-852e-7156af7abf04",
+    "7438c02e-6260-59e7-88d6-69f37819e90d",
+    "a9836b8c-0c69-5ab9-8681-0f22c72b6486",
+    "677e6730-2767-594a-84c8-0a6c79a5a254",
+    "16d7ba88-9857-5d82-92c9-c0c22d095ebc",
+    "3ee73d24-2494-543d-ac5c-a1985ef00677",
+    "6d8bdd76-a3c3-5807-b3fa-ca9c606f1ee3",
+    "03b3d7e6-3d09-52d5-846d-94500b3dd1ed",
+    "69f09234-aa08-5377-a073-96f74adae131",
+    "8909b1eb-1a17-57ab-97d3-d3a68fa08118",
+    "fc8a6735-48d2-5cc8-9486-5aa3f45f3201"
+   ]
+  }
+ ],
+ "textures": [
+  {
+   "path": "",
+   "name": "Гидрант.png",
+   "folder": "",
+   "namespace": "",
+   "id": "0",
+   "group": "",
+   "width": 64,
+   "height": 64,
+   "uv_width": 64,
+   "uv_height": 64,
+   "particle": true,
+   "use_as_default": false,
+   "layers_enabled": false,
+   "sync_to_project": "",
+   "render_mode": "default",
+   "render_sides": "auto",
+   "frame_time": 1,
+   "frame_order_type": "loop",
+   "frame_order": "",
+   "frame_interpolate": false,
+   "visible": true,
+   "internal": true,
+   "saved": true,
+   "uuid": "16488364-bdc0-5103-ae76-7493af5a38a0",
+   "relative_path": "Гидрант.png",
+   "mode": "bitmap",
+   "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABp0lEQVR42u2YPUvDQBjHn0hAdHbv1s8QHDoIgtDVD+DqZr9JtqwBP0IVOnVwqB06Fxu7ZCxkcbDidE5Xzsvl8hztpSX5/6DkeQv07vK8JEExHAhicPX6Fsz7PVZslOVBMRyI9Wde8r1/fdNoUzTir1sPEdEZdRxsADYAG4AN6DSBrza4/fmtjL28OPfu57bB0NfObu9vqapPN+GXC0QKgJoaUJfXUZZbYzj+qny01RXTfab4qjibTZXDNpyiqRbU2aTc+RrQiidAVn4Xm5RPegNMrSzK8pJttCmcbVJGChzrJG0nenJtENNCV16G9AGCo0+ms51+d3Nd0k3DhzrQqIOUOtRw4+MkFU+PD7ury8sdEVGoDwyu+scqs+qm4YM71HDidZ4XS7ciqPdLV32dray6qfdyezonntP+wKE+iDQd68v3LwVccuYYsT58QGXe7wn1V2WbTGdCtrg4SUWcpCU7R5b3+brq/920loOOwi/jsZPsG0yuTX8S2ydmX5s+dco0ICKS02GdjEdALWhtuwIAAAAAAAAAAAAAAAAAAAAAAACAiIj+AIJvWY3TgipVAAAAAElFTkSuQmCC"
+  }
+ ],
+ "animations": []
+}

@@ -117,3 +117,50 @@ blocks:
     shape: [2, 12, 2, 14, 16, 14]
     rotatable: true
     sounds: { type: metal }
+  hydrant:
+    name: "Гидрант"
+    model: hydrant.bbmodel
+    shape: [3, 0, 3, 13, 16, 13]
+    sounds: { type: metal }
+  cone:
+    name: "Дорожный конус"
+    model: cone.bbmodel
+    shape: [2, 0, 2, 14, 16, 14]
+    sounds: { type: wool }
+  cone_stack:
+    name: "Стопка конусов"
+    model: cone_stack.bbmodel
+    shape: [2, 0, 2, 14, 21, 14]
+    sounds: { type: wool }
+  trash_bin:
+    name: "Урна"
+    model: trash_bin.bbmodel
+    shape: [2, 0, 2, 14, 16, 14]
+    sounds: { type: metal }
+  caution_sign:
+    name: "Табличка «Осторожно»"
+    model: caution_sign.bbmodel
+    shape: [0, 0, 5, 16, 15, 11]
+    rotatable: true
+    sounds: { type: metal }
+  ladder:
+    name: "Лестница"
+    model: ladder.bbmodel
+    size: [1, 2, 1]
+    shape: [2, 0, 5, 14, 16, 11]
+    rotatable: true
+    sounds: { type: metal }
+  stepladder:
+    name: "Стремянка"
+    model: stepladder.bbmodel
+    size: [1, 2, 1]
+    shape: [2, 0, 4, 14, 16, 12]
+    rotatable: true
+    sounds: { type: metal }
+  barrier_fence:
+    name: "Ограждение"
+    model: barrier.bbmodel
+    size: [2, 1, 1]
+    shape: [0, 0, 6, 16, 16, 10]
+    rotatable: true
+    sounds: { type: wood }

@@ -14,8 +14,8 @@ class CarriersTest {
     @Test
     void poolsStable() {
         // states.yml хранит строки состояний — набор и порядок пулов не меняли (миграция не нужна)
-        // 28ноя: и залитая водой (126 = 9 видов × 7 distance × 2); прежние 63 — по-прежнему в пуле (states.yml те же)
-        assertEquals(126, BlocksModule.pool(BlocksModule.Kind.TRANSPARENT).size());
+        // 28ноя: и залитая водой (140 = 10 видов × 7 distance × 2, с вишней); прежние 63 — по-прежнему в пуле (states.yml те же)
+        assertEquals(140, BlocksModule.pool(BlocksModule.Kind.TRANSPARENT).size());
         for (Block b : BlocksModule.pool(BlocksModule.Kind.TRANSPARENT))
             assertEquals("true", b.getProperty("persistent"), b.state());
         assertTrue(BlocksModule.carrier(Block.fromState("minecraft:acacia_leaves[distance=1,persistent=true,waterlogged=false]")));
