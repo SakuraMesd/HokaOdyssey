@@ -1,0 +1,1275 @@
+{
+ "meta": {
+  "format_version": "5.0",
+  "model_format": "java_block",
+  "box_uv": false
+ },
+ "name": "Пульт управления",
+ "model_identifier": "",
+ "visible_box": [
+  2,
+  2,
+  0
+ ],
+ "variable_placeholders": "",
+ "variable_placeholder_buttons": [],
+ "timeline_setups": [],
+ "unhandled_root_fields": {},
+ "resolution": {
+  "width": 128,
+  "height": 128
+ },
+ "elements": [
+  {
+   "name": "Корпус",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "render_order": "default",
+   "allow_mirror_modeling": true,
+   "from": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "to": [
+    32.0,
+    11.0,
+    15.0
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    16.0,
+    8.0,
+    8.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      69,
+      16,
+      101,
+      27
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      33,
+      32,
+      47,
+      43
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      0,
+      32,
+      32,
+      43
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      48,
+      32,
+      62,
+      43
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      3,
+      16,
+      35,
+      30
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      36,
+      16,
+      68,
+      30
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "8884118d-bac6-5b4e-837d-7bcacbc17c39"
+  },
+  {
+   "name": "Столешница",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "render_order": "default",
+   "allow_mirror_modeling": true,
+   "from": [
+    -0.5,
+    11.0,
+    0.5
+   ],
+   "to": [
+    32.5,
+    12.0,
+    15.5
+   ],
+   "autouv": 0,
+   "color": 1,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    16.0,
+    8.0,
+    8.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      3,
+      48,
+      36,
+      49
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      71,
+      48,
+      86,
+      49
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      37,
+      48,
+      70,
+      49
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      87,
+      48,
+      102,
+      49
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      0,
+      0,
+      33,
+      15
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      34,
+      0,
+      67,
+      15
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "503c5213-81af-57de-8588-040ece0fbc36"
+  },
+  {
+   "name": "Монитор",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "render_order": "default",
+   "allow_mirror_modeling": true,
+   "from": [
+    2.0,
+    12.0,
+    11.0
+   ],
+   "to": [
+    30.0,
+    27.0,
+    13.0
+   ],
+   "autouv": 0,
+   "color": 2,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    16.0,
+    8.0,
+    8.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      68,
+      0,
+      96,
+      15
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      126,
+      0,
+      128,
+      15
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      97,
+      0,
+      125,
+      15
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      0,
+      16,
+      2,
+      31
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      22,
+      44,
+      50,
+      46
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      51,
+      44,
+      79,
+      46
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "2a19af2e-b73d-5ccb-8858-5dc9a860ee48"
+  },
+  {
+   "name": "Подставка монитора",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "render_order": "default",
+   "allow_mirror_modeling": true,
+   "from": [
+    13.0,
+    12.0,
+    13.0
+   ],
+   "to": [
+    19.0,
+    15.0,
+    15.0
+   ],
+   "autouv": 0,
+   "color": 3,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    16.0,
+    8.0,
+    8.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      113,
+      32,
+      119,
+      35
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      16,
+      44,
+      18,
+      47
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      120,
+      32,
+      126,
+      35
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      19,
+      44,
+      21,
+      47
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      80,
+      44,
+      86,
+      46
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      87,
+      44,
+      93,
+      46
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "ede948a3-f5f7-5e8c-bfd6-7676876e1c99"
+  },
+  {
+   "name": "Пачка бумаг",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "render_order": "default",
+   "allow_mirror_modeling": true,
+   "from": [
+    2.0,
+    12.0,
+    2.0
+   ],
+   "to": [
+    7.0,
+    13.0,
+    7.0
+   ],
+   "autouv": 0,
+   "color": 4,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    16.0,
+    8.0,
+    8.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      123,
+      48,
+      128,
+      49
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      0,
+      51,
+      5,
+      52
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      6,
+      51,
+      11,
+      52
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      12,
+      51,
+      17,
+      52
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      63,
+      32,
+      68,
+      37
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      69,
+      32,
+      74,
+      37
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "36a60ce4-eecf-5c5e-9073-afae7b8d9225"
+  },
+  {
+   "name": "Клавиатура",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "render_order": "default",
+   "allow_mirror_modeling": true,
+   "from": [
+    8.0,
+    12.0,
+    2.0
+   ],
+   "to": [
+    17.0,
+    13.0,
+    6.0
+   ],
+   "autouv": 0,
+   "color": 5,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    16.0,
+    8.0,
+    8.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      103,
+      48,
+      112,
+      49
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      18,
+      51,
+      22,
+      52
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      113,
+      48,
+      122,
+      49
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      23,
+      51,
+      27,
+      52
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      75,
+      32,
+      84,
+      36
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      85,
+      32,
+      94,
+      36
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "ee78de70-9d17-51be-945b-c616e3a33758"
+  },
+  {
+   "name": "Лист",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "render_order": "default",
+   "allow_mirror_modeling": true,
+   "from": [
+    18.0,
+    12.0,
+    3.0
+   ],
+   "to": [
+    22.0,
+    12.25,
+    7.0
+   ],
+   "autouv": 0,
+   "color": 6,
+   "rotation": [
+    0,
+    22.5,
+    0
+   ],
+   "origin": [
+    20.0,
+    12.0,
+    5.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      28,
+      51,
+      32,
+      52
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      33,
+      51,
+      37,
+      52
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      38,
+      51,
+      42,
+      52
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      43,
+      51,
+      47,
+      52
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      95,
+      32,
+      99,
+      36
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      100,
+      32,
+      104,
+      36
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "891094bc-16ff-50f9-baa4-40e6e9257102"
+  },
+  {
+   "name": "Пульт с кнопкой",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "render_order": "default",
+   "allow_mirror_modeling": true,
+   "from": [
+    23.0,
+    12.0,
+    2.0
+   ],
+   "to": [
+    26.0,
+    13.5,
+    5.0
+   ],
+   "autouv": 0,
+   "color": 7,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    16.0,
+    8.0,
+    8.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      94,
+      44,
+      97,
+      46
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      98,
+      44,
+      101,
+      46
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      102,
+      44,
+      105,
+      46
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      106,
+      44,
+      109,
+      46
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      0,
+      44,
+      3,
+      47
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      4,
+      44,
+      7,
+      47
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "5b2db43e-a5da-51e4-b1d7-1812711d8b8e"
+  },
+  {
+   "name": "Кнопка",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "render_order": "default",
+   "allow_mirror_modeling": true,
+   "from": [
+    24.0,
+    13.5,
+    3.0
+   ],
+   "to": [
+    25.0,
+    14.0,
+    4.0
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    16.0,
+    8.0,
+    8.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      64,
+      51,
+      65,
+      52
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      66,
+      51,
+      67,
+      52
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      68,
+      51,
+      69,
+      52
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      70,
+      51,
+      71,
+      52
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      72,
+      51,
+      73,
+      52
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      74,
+      51,
+      75,
+      52
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "0a1bfef3-28b1-5d85-859e-d76bb77c408e"
+  },
+  {
+   "name": "Основание рычага",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "render_order": "default",
+   "allow_mirror_modeling": true,
+   "from": [
+    27.0,
+    12.0,
+    3.0
+   ],
+   "to": [
+    30.0,
+    13.0,
+    6.0
+   ],
+   "autouv": 0,
+   "color": 1,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    16.0,
+    8.0,
+    8.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      48,
+      51,
+      51,
+      52
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      52,
+      51,
+      55,
+      52
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      56,
+      51,
+      59,
+      52
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      60,
+      51,
+      63,
+      52
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      8,
+      44,
+      11,
+      47
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      12,
+      44,
+      15,
+      47
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "d724f525-f1c7-5ab7-9b0a-bf41ae49574c"
+  },
+  {
+   "name": "Рычаг",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "render_order": "default",
+   "allow_mirror_modeling": true,
+   "from": [
+    28.0,
+    12.5,
+    4.0
+   ],
+   "to": [
+    29.0,
+    16.0,
+    5.0
+   ],
+   "autouv": 0,
+   "color": 2,
+   "rotation": [
+    -22.5,
+    0,
+    0
+   ],
+   "origin": [
+    28.5,
+    13.0,
+    4.5
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      105,
+      32,
+      106,
+      36
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      107,
+      32,
+      108,
+      36
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      109,
+      32,
+      110,
+      36
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      111,
+      32,
+      112,
+      36
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      76,
+      51,
+      77,
+      52
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      78,
+      51,
+      79,
+      52
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "8d9ab074-3899-58f5-b308-989235d5f5a6"
+  },
+  {
+   "name": "Ручка рычага",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "render_order": "default",
+   "allow_mirror_modeling": true,
+   "from": [
+    27.0,
+    15.5,
+    2.5
+   ],
+   "to": [
+    30.0,
+    17.0,
+    4.5
+   ],
+   "autouv": 0,
+   "color": 3,
+   "rotation": [
+    -22.5,
+    0,
+    0
+   ],
+   "origin": [
+    28.5,
+    13.0,
+    4.5
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      110,
+      44,
+      113,
+      46
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      126,
+      44,
+      128,
+      46
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      114,
+      44,
+      117,
+      46
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      0,
+      48,
+      2,
+      50
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      118,
+      44,
+      121,
+      46
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      122,
+      44,
+      125,
+      46
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "4cf67519-e73b-576b-8cba-a599705e6812"
+  }
+ ],
+ "outliner": [
+  {
+   "name": "Корпус",
+   "origin": [
+    16.0,
+    8.0,
+    8.0
+   ],
+   "color": 0,
+   "uuid": "697ba82a-75b3-5059-b105-74da15004153",
+   "export": true,
+   "mirror_uv": false,
+   "isOpen": true,
+   "locked": false,
+   "visibility": true,
+   "autouv": 0,
+   "children": [
+    "8884118d-bac6-5b4e-837d-7bcacbc17c39",
+    "503c5213-81af-57de-8588-040ece0fbc36"
+   ]
+  },
+  {
+   "name": "Монитор",
+   "origin": [
+    16.0,
+    8.0,
+    8.0
+   ],
+   "color": 0,
+   "uuid": "f8c53648-1ff9-5842-bb14-82a0647f1ed6",
+   "export": true,
+   "mirror_uv": false,
+   "isOpen": true,
+   "locked": false,
+   "visibility": true,
+   "autouv": 0,
+   "children": [
+    "2a19af2e-b73d-5ccb-8858-5dc9a860ee48",
+    "ede948a3-f5f7-5e8c-bfd6-7676876e1c99"
+   ]
+  },
+  {
+   "name": "Стол",
+   "origin": [
+    16.0,
+    8.0,
+    8.0
+   ],
+   "color": 0,
+   "uuid": "78fa34b1-1e70-55e0-b6dd-00ed5d3d0cb0",
+   "export": true,
+   "mirror_uv": false,
+   "isOpen": true,
+   "locked": false,
+   "visibility": true,
+   "autouv": 0,
+   "children": [
+    "36a60ce4-eecf-5c5e-9073-afae7b8d9225",
+    "ee78de70-9d17-51be-945b-c616e3a33758",
+    "891094bc-16ff-50f9-baa4-40e6e9257102",
+    "5b2db43e-a5da-51e4-b1d7-1812711d8b8e",
+    "0a1bfef3-28b1-5d85-859e-d76bb77c408e",
+    "d724f525-f1c7-5ab7-9b0a-bf41ae49574c",
+    "8d9ab074-3899-58f5-b308-989235d5f5a6",
+    "4cf67519-e73b-576b-8cba-a599705e6812"
+   ]
+  }
+ ],
+ "textures": [
+  {
+   "path": "",
+   "name": "Пульт управления.png",
+   "folder": "block",
+   "namespace": "",
+   "id": "0",
+   "group": "",
+   "width": 128,
+   "height": 128,
+   "uv_width": 128,
+   "uv_height": 128,
+   "particle": true,
+   "use_as_default": false,
+   "layers_enabled": false,
+   "sync_to_project": "",
+   "render_mode": "default",
+   "render_sides": "auto",
+   "frame_time": 1,
+   "frame_order_type": "loop",
+   "frame_order": "",
+   "frame_interpolate": false,
+   "visible": true,
+   "internal": true,
+   "saved": true,
+   "uuid": "e34d4b67-68cc-540b-974a-f025a3f321be",
+   "relative_path": "Пульт управления.png",
+   "mode": "bitmap",
+   "source": "data:image/png;base64,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"
+  }
+ ],
+ "display": {
+  "thirdperson_righthand": {
+   "rotation": [
+    75,
+    45,
+    0
+   ],
+   "translation": [
+    0,
+    2.5,
+    0
+   ],
+   "scale": [
+    0.25,
+    0.25,
+    0.25
+   ]
+  },
+  "thirdperson_lefthand": {
+   "rotation": [
+    75,
+    45,
+    0
+   ],
+   "translation": [
+    0,
+    2.5,
+    0
+   ],
+   "scale": [
+    0.25,
+    0.25,
+    0.25
+   ]
+  },
+  "firstperson_righthand": {
+   "rotation": [
+    0,
+    45,
+    0
+   ],
+   "scale": [
+    0.28,
+    0.28,
+    0.28
+   ]
+  },
+  "firstperson_lefthand": {
+   "rotation": [
+    0,
+    225,
+    0
+   ],
+   "scale": [
+    0.28,
+    0.28,
+    0.28
+   ]
+  },
+  "ground": {
+   "translation": [
+    0,
+    3,
+    0
+   ],
+   "scale": [
+    0.18,
+    0.18,
+    0.18
+   ]
+  },
+  "gui": {
+   "rotation": [
+    30,
+    225,
+    0
+   ],
+   "translation": [
+    0,
+    -1,
+    0
+   ],
+   "scale": [
+    0.36,
+    0.36,
+    0.36
+   ]
+  },
+  "fixed": {
+   "scale": [
+    0.35,
+    0.35,
+    0.35
+   ]
+  }
+ }
+}
