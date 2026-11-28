@@ -34,7 +34,7 @@ public final class ShopInfo {
             try {
                 JsonObject r = e.getAsJsonObject();
                 List<Need> needs = new ArrayList<>();
-                if (r.has("needs")) for (JsonElement ne : r.getAsJsonArray("needs")) {
+                for (JsonElement ne : r.getAsJsonArray("needs")) {                        // нет needs — битый рецепт
                     JsonObject n = ne.getAsJsonObject();
                     needs.add(new Need(n.get("name").getAsString(), n.get("need").getAsInt(), n.get("have").getAsInt()));
                 }

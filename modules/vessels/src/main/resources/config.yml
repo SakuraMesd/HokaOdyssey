@@ -127,3 +127,64 @@ planet:
   beam-reach: 16        # посадка лучом и меню (G) с земли — не дальше стольких блоков от корабля
   beam-down-speed: 4    # бл/с — выход (F): луч опускает
   beam-up-speed: 7      # бл/с — посадка: луч поднимает
+
+# ── vessels-4: топливо и улучшения в выживании ──
+# Добыча (не в творческом): блок → шанс (0…1) и сколько «Топливных кристаллов» (vessel_crystal) выпадает. Ключ —
+# свой блок модуля blocks (hoka:<id>, руды астероидов генератора space) или ванильный (minecraft:coal_ore).
+fuel-drops:
+  hoka:uranium_ore: {chance: 0.6, min: 1, max: 3}
+  hoka:platinum_ore: {chance: 0.4, min: 1, max: 2}
+  hoka:cobalt_ore: {chance: 0.3, min: 1, max: 2}
+  hoka:silver_ore: {chance: 0.25, min: 1, max: 1}
+  hoka:gold_ore: {chance: 0.25, min: 1, max: 1}
+  hoka:silicon_ore: {chance: 0.2, min: 1, max: 1}
+  hoka:magnesium_ore: {chance: 0.2, min: 1, max: 1}
+  hoka:nickel_ore: {chance: 0.15, min: 1, max: 1}
+  hoka:coal_ore: {chance: 0.12, min: 1, max: 1}
+  hoka:iron_ore: {chance: 0.1, min: 1, max: 1}
+  hoka:copper_ore: {chance: 0.1, min: 1, max: 1}
+  hoka:meteor_rock: {chance: 0.05, min: 1, max: 1}
+
+# Мастерская (меню корабля G → «Мастерская»): берёт из груза корабля (27 слотов), кладёт туда же (топливо — в бак).
+# Не больше 8 рецептов. Предметы: vessel:<fuel|crystal|repair|engine|tank|gun|warp>, hoka:<свой блок>,
+# item:<предмет hoitems>, minecraft:<ванильный>. result — что получится, count — сколько, needs — что нужно.
+recipes:
+  fuel:
+    result: vessel:fuel
+    count: 16
+    needs:
+      vessel:crystal: 4
+  repair:
+    result: vessel:repair
+    needs:
+      hoka:iron_ore: 4
+      hoka:nickel_ore: 2
+      vessel:crystal: 1
+  engine:
+    result: vessel:engine
+    needs:
+      hoka:cobalt_ore: 6
+      hoka:platinum_ore: 2
+      vessel:crystal: 8
+  tank:
+    result: vessel:tank
+    needs:
+      hoka:magnesium_ore: 8
+      hoka:copper_ore: 6
+      vessel:crystal: 4
+  gun:
+    result: vessel:gun
+    needs:
+      hoka:silver_ore: 4
+      hoka:iron_ore: 8
+      vessel:crystal: 6
+  warp:
+    result: vessel:warp
+    needs:
+      hoka:uranium_ore: 2
+      hoka:gold_ore: 4
+      hoka:silicon_ore: 6
+      vessel:crystal: 12
+
+# Свои названия предметов в рецептах (иначе — встроенные для руд космоса и предметов кораблей)
+item-names: {}

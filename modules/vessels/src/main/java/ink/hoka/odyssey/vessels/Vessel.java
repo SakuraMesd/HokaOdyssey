@@ -35,6 +35,7 @@ final class Vessel {
     transient double burn;
     /** Меню корабля (пока открыто кем-то) и мастерская. */
     transient VesselMenu menu;
+    transient Workshop.Menu shop;
     /** Тик, когда удар о блоки снова считается (не чаще), и последнее попадание. */
     transient long impactReady;
 

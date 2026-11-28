@@ -4,6 +4,7 @@ dependencies {
     compileOnly(project(":api"))
     compileOnly(project(":modules:clientmods"))   // ClientModsApi: связь с клиентским модулем vessels
     compileOnly(project(":modules:hoitems"))      // HoItems: топливо и улучшения — свои предметы с иконками (softdepends)
+    compileOnly(project(":modules:blocks"))       // HoBlocks: руды астероидов (свои блоки) — топливные кристаллы (softdepends)
     testImplementation(project(":api"))
     testImplementation(project(":modules:hoitems"))
     testImplementation(platform("org.junit:junit-bom:5.13.4"))

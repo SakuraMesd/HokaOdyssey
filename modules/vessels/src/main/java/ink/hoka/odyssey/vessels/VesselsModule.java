@@ -53,6 +53,9 @@ public final class VesselsModule extends OdysseyModule {
     /** Карта — планета (подушка, лучи) или космос: по имени карты (сбрасывается при reload). */
     private final Map<String, Boolean> planetMaps = new ConcurrentHashMap<>();
     private Upgrades.Config upgradeCfg = Upgrades.Config.DEFAULT;
+    /** Рецепты мастерской (recipes:) и свои названия предметов (item-names:). */
+    private List<Workshop.Recipe> recipes = List.of();
+    private Map<String, String> itemNames = Map.of();
     private VesselStore store;
     private long ticks;
     private boolean dirty;
@@ -82,7 +85,10 @@ public final class VesselsModule extends OdysseyModule {
         events().addListener(InventoryPreClickEvent.class, e -> {               // меню корабля: что куда можно класть
             VesselMenu m = menuOf(e.getPlayer().getOpenInventory());
             if (m != null) m.onClick(e);
+            Workshop.Menu w = shopOf(e.getPlayer().getOpenInventory());
+            if (w != null) w.onClick(e);
         });
+        events().addListener(PlayerBlockBreakEvent.class, this::fuelDrop);       // руды астероидов — топливные кристаллы
         events().addListener(InventoryItemChangeEvent.class, e -> {
             VesselMenu m = menuOf(e.getInventory());
             if (m != null) m.onChange(e);
@@ -105,6 +111,7 @@ public final class VesselsModule extends OdysseyModule {
         beams.clear();
         for (Vessel v : vessels.values()) if (v.pilot != null) exit(v.pilot.player, true);
         for (Vessel v : vessels.values()) if (v.menu != null) { v.menu.closeAll(); v.menu = null; }
+        for (Vessel v : vessels.values()) if (v.shop != null) { v.shop.closeAll(); v.shop = null; }
         client.disable();
         for (Vessel v : vessels.values()) {
             if (v.carrier != null) v.carrier.remove();
@@ -122,6 +129,12 @@ public final class VesselsModule extends OdysseyModule {
     void loadKinds() {
         kinds.clear();
         planetMaps.clear();
+        List<String> bad = new ArrayList<>();
+        recipes = Workshop.parse(config().get("recipes"), bad);
+        for (String b : bad) logger().warn("рецепт мастерской {}", b);
+        Map<String, String> names = new LinkedHashMap<>();
+        if (config().get("item-names") instanceof Map<?, ?> nm) for (var e : nm.entrySet()) names.put(String.valueOf(e.getKey()), String.valueOf(e.getValue()));
+        itemNames = Map.copyOf(names);
         upgradeCfg = Upgrades.Config.of(config().get("upgrades"));
         limits = new VesselMath.Limits(config().getDouble("check.speed-margin", 1.3), config().getDouble("check.slack", 1.5),
                 config().getDouble("check.turn-margin", 1.5), config().getDouble("check.turn-slack", 10), config().getInt("check.max-dt-ticks", 40));
@@ -180,6 +193,7 @@ public final class VesselsModule extends OdysseyModule {
     void remove(Vessel v) {
         if (v.pilot != null) exit(v.pilot.player, true);
         if (v.menu != null) { v.menu.closeAll(); v.menu = null; }
+        if (v.shop != null) { v.shop.closeAll(); v.shop = null; }
         if (!v.cargo.isEmpty()) {
             for (ItemStack it : v.cargo.all()) dropNear(v, it);
             v.cargo.clear();
@@ -494,6 +508,7 @@ public final class VesselsModule extends OdysseyModule {
     void cargoChanged(Vessel v) {
         dirty = true;
         if (v.menu != null) v.menu.refresh();
+        if (v.shop != null) v.shop.refresh();
         client.state(v);
     }
 
@@ -585,9 +600,107 @@ public final class VesselsModule extends OdysseyModule {
 
     void markDirty() { dirty = true; }
 
-    /** Кнопка «Мастерская» в меню корабля. */
+    /** Кнопка «Мастерская» в меню корабля: окно рецептов (тем, кто может открыть меню). */
     void openWorkshop(Player p, Vessel v) {
-        client.message(p, "Мастерская ещё не готова", true);
+        if (vessels.get(v.id) != v || !canOpen(v, p.getUuid().toString(), server().isOp(p))) return;
+        if (recipes.isEmpty()) { client.message(p, "В мастерской нет рецептов (config.yml, recipes:)", true); return; }
+        if (v.shop == null) v.shop = new Workshop.Menu(this, v);
+        else v.shop.refresh();
+        if (v.shop.lastJson != null && client.isReady(p)) client.shop(p, v.shop.lastJson);   // моду — до окна
+        p.openInventory(v.shop.inv);
+    }
+
+    List<Workshop.Recipe> recipes() { return recipes; }
+
+    Map<String, String> itemNames() { return itemNames; }
+
+    /** Предмет по ключу мастерской (vessel:…, item:…, minecraft:…); свой блок (hoka:…) не делается — null. */
+    ItemStack make(String key, int count) {
+        if (key == null) return null;
+        int c = Math.max(1, count);
+        if (key.startsWith("vessel:")) return items.of(key.substring(7), c);
+        if (key.startsWith("item:")) {
+            var h = hoItems();
+            ItemStack it = h != null ? h.item(key.substring(5), c) : null;
+            return it == null || it.isAir() ? null : it;
+        }
+        if (key.startsWith("hoka:")) return null;
+        net.minestom.server.item.Material m = net.minestom.server.item.Material.fromKey(key.contains(":") ? key : "minecraft:" + key);
+        return m == null ? null : ItemStack.of(m, Math.min(c, m.maxStackSize()));
+    }
+
+    /** Мастерская: сделать по рецепту (Shift — сколько хватит, до 8 раз). */
+    void craft(Player p, Vessel v, Workshop.Recipe r, boolean many) {
+        if (vessels.get(v.id) != v || !canOpen(v, p.getUuid().toString(), server().isOp(p))) return;
+        int times = many ? Math.max(1, Workshop.maxTimes(v.cargo.storage, r, 8)) : 1;
+        Workshop.Result res = Workshop.craft(v.cargo, r, times, k -> make(k, 1));
+        String name = Workshop.name(r.result(), itemNames);
+        switch (res) {
+            case OK -> {
+                client.message(p, "Мастерская: " + name + " ×" + r.count() * times + " — в грузе корабля", false);
+                p.playSound(net.kyori.adventure.sound.Sound.sound(net.minestom.server.sound.SoundEvent.BLOCK_SMITHING_TABLE_USE,
+                        net.kyori.adventure.sound.Sound.Source.BLOCK, 0.8f, 1.1f));
+                cargoChanged(v);
+            }
+            case MISSING -> {
+                StringBuilder sb = new StringBuilder();
+                for (var e : r.needs().entrySet()) {
+                    int h = Workshop.have(v.cargo.storage, e.getKey());
+                    if (h < e.getValue()) sb.append(sb.isEmpty() ? "" : ", ").append(Workshop.name(e.getKey(), itemNames)).append(" ").append(h).append("/").append(e.getValue());
+                }
+                client.message(p, "Не хватает в грузе: " + sb, true);
+            }
+            case NO_ROOM -> client.message(p, "Нет места в грузе корабля для «" + name + "»", true);
+            case BAD -> {
+                client.message(p, "Рецепт «" + r.id() + "» не работает (см. лог)", true);
+                logger().warn("рецепт {}: результат {} не сделать (vessel:…, item:…, minecraft:…)", r.id(), r.result());
+            }
+        }
+    }
+
+    /** Окно мастерской этого окна (или null). */
+    Workshop.Menu shopOf(net.minestom.server.inventory.AbstractInventory inv) {
+        if (inv == null) return null;
+        for (Vessel v : vessels.values()) if (v.shop != null && v.shop.inv == inv) return v.shop;
+        return null;
+    }
+
+    /**
+     * Добыча руд астероидов (выживание): с шансом из fuel-drops выпадают «Топливные кристаллы». Ключ блока — свой
+     * блок модуля blocks (hoka:id) или ванильный. Выпадают после ломания (другие модули могли его отменить).
+     */
+    private void fuelDrop(PlayerBlockBreakEvent e) {
+        Player p = e.getPlayer();
+        if (e.isCancelled() || p.getGameMode() == net.minestom.server.entity.GameMode.CREATIVE
+                || p.getGameMode() == net.minestom.server.entity.GameMode.SPECTATOR) return;
+        if (!(config().get("fuel-drops") instanceof Map<?, ?> drops) || drops.isEmpty()) return;
+        String key = blockKey(e.getBlock());
+        if (!(drops.get(key) instanceof Map<?, ?> d)) return;
+        double chance = VesselKind.num(d, "chance", 0);
+        java.util.concurrent.ThreadLocalRandom r = java.util.concurrent.ThreadLocalRandom.current();
+        if (chance <= 0 || r.nextDouble() >= chance) return;
+        int min = (int) Math.max(1, VesselKind.num(d, "min", 1)), max = (int) Math.max(min, VesselKind.num(d, "max", min));
+        int n = min + r.nextInt(max - min + 1);
+        Instance inst = p.getInstance();
+        var pos = e.getBlockPosition();
+        scheduler().run(() -> {
+            if (inst == null || !inst.getBlock(pos).isAir()) return;              // ломание отменили
+            net.minestom.server.entity.ItemEntity it = new net.minestom.server.entity.ItemEntity(items.crystal(n));
+            it.setPickupDelay(java.time.Duration.ofMillis(300));
+            it.setVelocity(new net.minestom.server.coordinate.Vec(r.nextDouble() - 0.5, 3, r.nextDouble() - 0.5));
+            it.setInstance(inst, new Pos(pos.blockX() + 0.5, pos.blockY() + 0.4, pos.blockZ() + 0.5));
+        });
+    }
+
+    /** Ключ блока для fuel-drops: свой блок (модуль blocks) — «hoka:<id>», иначе ванильный «minecraft:…». */
+    private String blockKey(Block b) {
+        try {
+            var hb = services().get(ink.hoka.odyssey.blocks.HoBlocks.class).orElse(null);
+            String id = hb == null ? null : hb.idOf(b);
+            if (id != null) return "hoka:" + id;
+        } catch (Throwable noModule) {                                          // blocks не стоит — класса нет
+        }
+        return b.key().asString();
     }
 
     /** Подушка над планетой: ближе стольких блоков корпус к блокам не подходит. */

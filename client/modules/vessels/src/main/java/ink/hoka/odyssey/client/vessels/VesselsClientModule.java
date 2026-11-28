@@ -247,7 +247,11 @@ public final class VesselsClientModule implements ClientModule {
                 case 14 -> {                                                    // SHOP: окно мастерской
                     JsonObject o = JsonParser.parseString(in.readUTF()).getAsJsonObject();
                     ShopInfo m = ShopInfo.read(o);
-                    shopInfo = m;
+                    ShopInfo was = shopInfo;
+                    if (was != null && was.window == m.window && was.title.equals(m.title)) {   // открытое окно — на лету
+                        was.recipes.clear();
+                        was.recipes.addAll(m.recipes);
+                    } else shopInfo = m;
                 }
                 case 15 -> {                                                    // WORLD: планета или космос
                     JsonObject o = JsonParser.parseString(in.readUTF()).getAsJsonObject();
@@ -312,8 +316,14 @@ public final class VesselsClientModule implements ClientModule {
         }
     }
 
-    /** Окно игры открывается: это окно корабля (S2C MENU пришёл до него) — своё оформление. */
-    private ShipMenu skin(net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> screen, int containerId) {
+    /** Окно игры открывается: окно корабля или мастерской (S2C MENU / SHOP пришёл до него) — своё оформление. */
+    private ClientContext.ContainerSkin skin(net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> screen, int containerId) {
+        ShopInfo sh = shopInfo;
+        if (sh != null && sh.matches(containerId, screen.getTitle().getString())) {
+            if (screen.getMenu() instanceof net.minecraft.world.inventory.ChestMenu cm && cm.getRowCount() == 6 && cm.slots.size() == ink.hoka.odyssey.client.vessels.hud.ShopArt.SLOTS)
+                return new ShopMenu(sh, shopGfx);
+            return null;
+        }
         MenuInfo m = menuInfo;
         if (m == null || !m.matches(containerId, screen.getTitle().getString())) return null;
         if (!(screen.getMenu() instanceof net.minecraft.world.inventory.ChestMenu cm) || cm.getRowCount() != 5
