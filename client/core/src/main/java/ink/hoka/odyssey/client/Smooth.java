@@ -26,7 +26,13 @@ public final class Smooth {
     private Smooth() {}
 
     /** Режимы: 0 — выкл (как в игре), 1 — авто (потолок по силам машины), 2 — авто «с запасом» (ещё ровнее, ниже FPS). */
-    public static final int OFF = 0, AUTO = 1, STABLE = 2, MAX_MODE = 2;
+    public static final int OFF = 0, AUTO = 1, STABLE = 2;
+    /** 0.90: режимы 3…8 — авто с потолком: ровные «до N» (игрок хочет стабильные 500, а не скачки 700…900). */
+    static final int[] CAPS = {120, 144, 165, 240, 360, 500};
+    public static final int CAP_500 = 8, MAX_MODE = 2 + CAPS.length, DEFAULT = CAP_500;
+
+    /** Потолок режима (без потолка — Integer.MAX_VALUE). */
+    static int cap(int m) { return m > STABLE && m <= MAX_MODE ? CAPS[m - STABLE - 1] : Integer.MAX_VALUE; }
     /** Ступени потолка: ровные значения, частые у мониторов (60/120/144/165/240…). */
     static final int[] STEPS = {30, 40, 48, 60, 72, 90, 100, 120, 144, 165, 180, 200, 240, 280, 320, 360, 400, 450, 500, 560, 640, 720, 800, 900, 1000};
     static final long UP_HOLD_NS = 3_000_000_000L, EVAL_NS = 500_000_000L, WINDOW_NS = 1_500_000_000L;
@@ -51,13 +57,14 @@ public final class Smooth {
     private static int load() {
         try {
             JsonObject o = VerticalView.read();
-            return o.has("smooth") ? Math.max(OFF, Math.min(MAX_MODE, o.get("smooth").getAsInt())) : AUTO;
+            return o.has("smooth") ? Math.max(OFF, Math.min(MAX_MODE, o.get("smooth").getAsInt())) : DEFAULT;
         } catch (Throwable e) {                                                // и без игры (тесты)
-            return AUTO;
+            return DEFAULT;
         }
     }
 
     public static Component valueText(int v) {
+        if (v > STABLE) return Component.translatable("options.hoka_odyssey.smooth.cap", cap(v));
         return Component.translatable(switch (v) {
             case OFF -> "options.hoka_odyssey.smooth.off";
             case STABLE -> "options.hoka_odyssey.smooth.stable";
@@ -137,13 +144,13 @@ public final class Smooth {
         Arrays.sort(a, 0, n);
         long p90 = a[Math.min(n - 1, (int) (n * 0.90))];
         double margin = mode == STABLE ? 1.25 : 1.08;
-        int want = pick(1e9 / (p90 * margin), userLimit);
+        int want = pick(1e9 / (p90 * margin), Math.min(userLimit >= 260 ? Integer.MAX_VALUE : userLimit, cap(mode)));
         target = next(target, want, now);
     }
 
-    /** Наибольшая ступень не выше fps и потолка игрока (260+ — без потолка). */
-    static int pick(double fps, int userLimit) {
-        int cap = userLimit >= 260 ? Integer.MAX_VALUE : userLimit;
+    /** Наибольшая ступень не выше fps и потолка limit (Integer.MAX_VALUE — без потолка). */
+    static int pick(double fps, int limit) {
+        int cap = limit;
         int best = STEPS[0];
         for (int s : STEPS) if (s <= fps && s <= cap) best = s;
         return Math.min(best, cap);

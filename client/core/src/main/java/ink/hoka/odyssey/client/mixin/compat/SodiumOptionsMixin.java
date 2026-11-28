@@ -77,7 +77,7 @@ public abstract class SodiumOptionsMixin {
                         .setName(Component.translatable("options.hoka_odyssey.smooth"))
                         .setTooltip(Component.translatable("options.hoka_odyssey.smooth.tooltip"))
                         .setRange(ink.hoka.odyssey.client.Smooth.OFF, ink.hoka.odyssey.client.Smooth.MAX_MODE, 1)
-                        .setDefaultValue(ink.hoka.odyssey.client.Smooth.AUTO)
+                        .setDefaultValue(ink.hoka.odyssey.client.Smooth.DEFAULT)
                         .setValueFormatter(ink.hoka.odyssey.client.Smooth::valueText)
                         .setImpact(OptionImpact.LOW)
                         .setBinding(ink.hoka.odyssey.client.Smooth::set, ink.hoka.odyssey.client.Smooth::mode)

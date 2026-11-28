@@ -35,8 +35,9 @@
   "options.hoka_odyssey.lod_body_quality": "Детализация астероидов",
   "options.hoka_odyssey.lod_body_quality.tooltip": "Насколько подробно строятся дальние астероиды. Выше — точнее форма, но больше памяти и работы видеокарты.",
   "options.hoka_odyssey.smooth": "Плавность",
-  "options.hoka_odyssey.smooth.tooltip": "Ровные кадры: игра сама выбирает потолок FPS, который держит почти всегда, и выдаёт кадры строго по сетке времени — без скачков 300↔700. «С запасом» — ещё ровнее, но FPS ниже. Не действует с вертикальной синхронизацией.",
+  "options.hoka_odyssey.smooth.tooltip": "Ровные кадры: игра выдаёт кадры строго по сетке времени с потолком, который держит почти всегда — без скачков 300↔900. «До N» — не выше N (если не тянет — ступенью ниже). «Авто» — без потолка, «С запасом» — ещё ровнее, но ниже FPS. Не действует с вертикальной синхронизацией.",
   "options.hoka_odyssey.smooth.off": "Выкл",
   "options.hoka_odyssey.smooth.auto": "Авто",
-  "options.hoka_odyssey.smooth.stable": "С запасом"
+  "options.hoka_odyssey.smooth.stable": "С запасом",
+  "options.hoka_odyssey.smooth.cap": "До %s FPS"
 }

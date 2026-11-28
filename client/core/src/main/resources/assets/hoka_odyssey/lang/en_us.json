@@ -35,8 +35,9 @@
   "options.hoka_odyssey.lod_body_quality": "Distant Asteroid Detail",
   "options.hoka_odyssey.lod_body_quality.tooltip": "How detailed distant asteroids are. Higher — more accurate shape, more memory and GPU work.",
   "options.hoka_odyssey.smooth": "Smoothness",
-  "options.hoka_odyssey.smooth.tooltip": "Even frame pacing: the game picks an FPS cap it can hold almost always and presents frames on a strict time grid — no 300↔700 swings. \"Stable\" is even smoother at lower FPS. Inactive with VSync.",
+  "options.hoka_odyssey.smooth.tooltip": "Even frame pacing: frames are presented on a strict time grid under a cap the game can hold almost always — no 300↔900 swings. \"Up to N\" never exceeds N (steps lower if it cannot hold). \"Auto\" has no cap, \"Stable\" is even smoother at lower FPS. Inactive with VSync.",
   "options.hoka_odyssey.smooth.off": "Off",
   "options.hoka_odyssey.smooth.auto": "Auto",
-  "options.hoka_odyssey.smooth.stable": "Stable"
+  "options.hoka_odyssey.smooth.stable": "Stable",
+  "options.hoka_odyssey.smooth.cap": "Up to %s FPS"
 }
