@@ -295,7 +295,7 @@ final class Pilot {
     }
 
     /**
-     * Блоки для подушки: твёрдый (мешает движению) или жидкость; незагруженный столбец — тоже (не подходить вслепую).
+     * Блоки для подушки: твёрдый (мешает движению) или жидкость; незагруженный столбец — пусто (как у сервера).
      * Кусок 16³ целиком из воздуха — сразу «пусто»; столбец берётся один раз подряд (поле читается столбцами).
      */
     private static final class CushionBlocks implements DistField.Blocked {
@@ -320,7 +320,7 @@ final class Pilot {
         public int section(int sx, int sy, int sz) {
             if ((sy << 4) + 15 < minY || (sy << 4) >= topY) return 0;
             var c = chunk(sx, sz);
-            if (c == null) return 1;
+            if (c == null) return 0;                                            // не пришёл — пусто (как у сервера; поле не «залипнет» стеной)
             int i = c.getSectionIndexFromSectionY(sy);
             var secs = c.getSections();
             if (i < 0 || i >= secs.length || secs[i] == null || secs[i].hasOnlyAir()) return 0;
@@ -333,7 +333,7 @@ final class Pilot {
         public boolean at(int bx, int by, int bz) {
             if (by < minY || by >= topY) return false;
             var c = chunk(bx >> 4, bz >> 4);
-            if (c == null) return true;
+            if (c == null) return false;
             var secs = c.getSections();
             int i = c.getSectionIndexFromSectionY(by >> 4);
             if (i < 0 || i >= secs.length || secs[i] == null || secs[i].hasOnlyAir()) return false;

@@ -74,6 +74,7 @@ final class HullDamage {
         Instance inst = v.carrier != null ? v.carrier.getInstance() : mod.instanceOf(v);
         if (inst != null && at != null) sparks(inst, at, amount);
         mod.client.hull(v, true, zone);
+        mod.client.state(v);                                                    // ход мог измениться (двигатели)
         if (v.menu != null) v.menu.info();
         if (left <= 0) {
             destroy(v, by, cause);
@@ -154,6 +155,7 @@ final class HullDamage {
         mod.markDirty();
         mod.save();
         mod.client.hull(v, false, -1);
+        mod.client.state(v);
         if (v.menu != null) v.menu.info();
         Instance inst = v.carrier != null ? v.carrier.getInstance() : null;
         if (inst != null) {

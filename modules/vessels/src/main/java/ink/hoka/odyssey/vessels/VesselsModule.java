@@ -72,8 +72,14 @@ public final class VesselsModule extends OdysseyModule {
         for (Vessel v : vessels.values()) spawnCarrier(v);
 
         events().addListener(PlayerSwapItemEvent.class, e -> {                  // F — выйти
-            if (pilotOf(e.getPlayer()) == null) return;
+            Piloting pl = pilotOf(e.getPlayer());
+            if (pl == null) return;
             e.setCancelled(true);
+            Vessel v = pl.vessel;
+            if (v.carrier != null && isPlanet(v.carrier.getInstance()) && beams.lavaBelow(v, kinds.get(v.kind))) {
+                client.message(e.getPlayer(), "Внизу лава — отлетите в сторону, чтобы выйти", true);
+                return;
+            }
             exit(e.getPlayer(), true);
         });
         events().addListener(PlayerStopFlyingEvent.class, e -> {               // пилот не падает: двигает мод

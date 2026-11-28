@@ -221,6 +221,11 @@ final class HoVesselCommand extends Command {
         if (v == null) { err(s, "Нет корабля " + id); return; }
         double max = mod.hull.maxHp(v);
         if (hp <= 0) {
+            var inst = mod.instanceOf(v);
+            if (inst == null || !mod.server().isCubeLoaded(inst, (int) Math.floor(v.x), (int) Math.floor(v.y), (int) Math.floor(v.z))) {
+                err(s, "Корабль " + id + " не загружен (груз некуда выронить) — подойдите к нему");
+                return;
+            }
             mod.hull.destroy(v, null, "команда");
             ok(s, "Корабль " + id + " разрушен (груз выпал на месте)");
             return;
@@ -228,6 +233,7 @@ final class HoVesselCommand extends Command {
         v.setHp(hp, max);
         mod.save();
         mod.client.hull(v, false, -1);
+        mod.client.state(v);
         if (v.menu != null) v.menu.info();
         ok(s, "Корабль " + id + ": прочность " + Math.round(v.hp(max)) + " / " + Math.round(max));
     }

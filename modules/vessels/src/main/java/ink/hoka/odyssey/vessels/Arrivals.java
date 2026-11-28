@@ -70,7 +70,7 @@ final class Arrivals {
         final int total;
         final Player to;
         final Object pin;
-        int t;
+        int t, waited;
 
         Flight(ArrivalPlan.Path p, int total, Player to, Object pin) {
             this.pts = p.points();
@@ -244,7 +244,7 @@ final class Arrivals {
         }
         double[] st = p.points().get(0);
         double[] d0 = ArrivalPlan.at(p.points(), 0);
-        Vessel v = mod.create(c.kind, c.inst, st[0], st[1], st[2], rot(d0[3], d0[4], d0[5]), c.player);
+        Vessel v = mod.create(c.kind, c.inst, st[0], st[1], st[2], rot(d0[3], d0[4], d0[5], p.endYaw()), c.player);
         if (v == null) { mod.server().unpin(c.pin); mod.client.message(c.player, "Корабль не создан", true); return; }
         int total = ArrivalPlan.duration(p.length(), mod.config().getDouble("call.speed", 25), 160, 240);
         v.arrival = new Flight(p, total, c.player, c.pin);
@@ -266,12 +266,15 @@ final class Arrivals {
         VesselKind k = mod.kinds().get(v.kind);
         Instance inst = v.carrier != null ? v.carrier.getInstance() : null;
         if (k == null || mod.instanceOf(v) == null) { finish(v, false); return; }
-        if (inst == null) return;                                               // носитель ещё ставится — подождать
+        if (inst == null) {                                                     // носитель ещё ставится — подождать (не вечно)
+            if (++f.waited > 200) finish(v, false);
+            return;
+        }
         f.t++;
         double u = (double) f.t / f.total;
         double[] p = ArrivalPlan.at(f.pts, f.len * ArrivalPlan.ease(u));
-        Quat want = u >= 1 ? Quat.yaw(f.endYaw) : rot(p[3], p[4], p[5]);
-        v.rot = nlerp(v.rot, want, u >= 0.85 ? 0.35 : 0.2);
+        Quat want = u >= 1 ? Quat.yaw(f.endYaw) : rot(p[3], p[4], p[5], f.endYaw);
+        v.rot = nlerp(v.rot, want, 0.5);
         v.x = p[0]; v.y = p[1]; v.z = p[2];
         move(v);
         // хвост: пламя и дым из сопел (корма), всем рядом; звук двигателя
@@ -349,12 +352,13 @@ final class Arrivals {
     }
 
     /** Поворот по направлению полёта: курс по горизонтали, наклон носа (не больше 20°). */
-    static Quat rot(double dx, double dy, double dz) {
+    /**
+     * Поворот по направлению полёта: только курс (корпус ровный — так же, как путь проверялся на блоки); на отвесном
+     * отрезке — курс fallback.
+     */
+    static Quat rot(double dx, double dy, double dz, double fallback) {
         double h = Math.sqrt(dx * dx + dz * dz);
-        double yaw = h > 1e-6 ? ArrivalPlan.yawOf(dx, dz) : 0;
-        double pitch = Math.max(-20, Math.min(20, Math.toDegrees(Math.atan2(dy, Math.max(h, 1e-6)))));
-        double a = Math.toRadians(-pitch) / 2;                                  // вверх — нос вверх (поворот вокруг X на −наклон)
-        return Quat.yaw(yaw).mul(new Quat(Math.sin(a), 0, 0, Math.cos(a))).normalized();
+        return Quat.yaw(h > 1e-3 ? ArrivalPlan.yawOf(dx, dz) : fallback);
     }
 
     static Quat nlerp(Quat a, Quat b, double t) {

@@ -137,12 +137,13 @@ class ArrivalTest {
         double[] a = ArrivalPlan.at(pts, 15);
         assertArrayEquals(new double[]{10, 0, 5, 0, 0, 1}, a, 1e-9);
         assertArrayEquals(new double[]{10, 0, 10}, java.util.Arrays.copyOf(ArrivalPlan.at(pts, 999), 3), 1e-9);
-        // поворот по направлению полёта: нос — туда, куда летит (наклон не больше 20°)
-        Quat q = Arrivals.rot(0, 1, 1);
-        double[] nose = q.rotate(0, 0, 1);
-        assertTrue(nose[1] > 0.3 && nose[1] < Math.sin(Math.toRadians(20)) + 1e-6, "нос вверх, ≤ 20°: " + nose[1]);
-        assertTrue(nose[2] > 0.9);
-        double[] west = Arrivals.rot(-1, 0, 0).rotate(0, 0, 1);
+        // поворот по направлению полёта: курс по ходу, корпус ровный (как проверялся путь); отвесно — запасной курс
+        double[] nose = Arrivals.rot(0, 1, 1, 90).rotate(0, 0, 1);
+        assertEquals(0, nose[1], 1e-9);
+        assertEquals(1, nose[2], 1e-9);
+        double[] west = Arrivals.rot(-1, 0, 0, 0).rotate(0, 0, 1);
         assertEquals(-1, west[0], 1e-9);
+        double[] down = Arrivals.rot(0, -1, 0, 90).rotate(0, 0, 1);
+        assertEquals(-1, down[0], 1e-9, "отвесно вниз — с курсом конца пути");
     }
 }

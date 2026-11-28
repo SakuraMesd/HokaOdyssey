@@ -45,20 +45,29 @@ final class ArrivalPlan {
     }
 
     /** Отрезок a→b свободен: середина корабля через каждые step (≤ 1) блока, курс — по отрезку (горизонталь). */
-    static boolean segmentFree(double[] a, double[] b, double step, Free free) {
+    static boolean segmentFree(double[] a, double[] b, double step, Free free) { return segmentFree(a, b, step, free, 0); }
+
+    /** То же; отвесный отрезок — с курсом fallback (как полетит корабль). */
+    static boolean segmentFree(double[] a, double[] b, double step, Free free, double fallback) {
         double len = dist(a, b);
-        double yaw = Math.abs(b[0] - a[0]) + Math.abs(b[2] - a[2]) > 1e-6 ? yawOf(b[0] - a[0], b[2] - a[2]) : Double.NaN;
+        double yaw = Math.abs(b[0] - a[0]) + Math.abs(b[2] - a[2]) > 1e-3 ? yawOf(b[0] - a[0], b[2] - a[2]) : fallback;
         int n = Math.max(1, (int) Math.ceil(len / Math.min(1, step)));
         for (int i = 0; i <= n; i++) {
             double t = (double) i / n;
-            if (!free.free(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, Double.isNaN(yaw) ? 0 : yaw)) return false;
+            if (!free.free(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, yaw)) return false;
         }
         return true;
     }
 
     /** Весь путь свободен. */
     static boolean pathFree(List<double[]> pts, double step, Free free) {
-        for (int i = 1; i < pts.size(); i++) if (!segmentFree(pts.get(i - 1), pts.get(i), step, free)) return false;
+        double yaw = 0;
+        for (int i = 1; i < pts.size(); i++) {
+            double[] a = pts.get(i - 1), b = pts.get(i);
+            if (Math.abs(b[0] - a[0]) + Math.abs(b[2] - a[2]) > 1e-3) yaw = yawOf(b[0] - a[0], b[2] - a[2]);
+            if (!segmentFree(a, b, step, free, yaw)) return false;
+            if (i > 1 && !free.free(a[0], a[1], a[2], yaw)) return false;      // на повороте — и с новым курсом
+        }
         return true;
     }
 

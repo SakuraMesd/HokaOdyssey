@@ -115,6 +115,25 @@ final class Beams {
         return new Pos(w[0], y, w[2]);
     }
 
+    private static boolean liquid(Instance inst, Pos p) {
+        return inst.getBlock(p, Block.Getter.Condition.TYPE).isLiquid() || inst.getBlock(p.add(0, 1, 0), Block.Getter.Condition.TYPE).isLiquid();
+    }
+
+    /** Под кораблём (под местом пилота) первым внизу — лава (до 48 блоков): выходить лучом нельзя. */
+    boolean lavaBelow(Vessel v, VesselKind k) {
+        Instance inst = mod.instanceOf(v);
+        if (inst == null || k == null) return false;
+        double[] w = VesselMath.toWorld(k.seat[0], -k.half[1] - 1.5, k.seat[2], v.pos(), v.rot);
+        int x = (int) Math.floor(w[0]), z = (int) Math.floor(w[2]);
+        for (int y = (int) Math.floor(w[1]); y > w[1] - 48; y--) {
+            if (!mod.server().isCubeLoaded(inst, x, y, z)) return false;
+            Block b = inst.getBlock(x, y, z, Block.Getter.Condition.TYPE);
+            if (b.isAir()) continue;
+            return b.compare(Block.LAVA);
+        }
+        return false;
+    }
+
     private static boolean solid(Instance inst, int x, int y, int z) {
         Block b = inst.getBlock(x, y, z, Block.Getter.Condition.TYPE);
         return !b.isAir() && b.isSolid();
@@ -136,7 +155,7 @@ final class Beams {
             safe(p, 3000);
             switch (b.mode) {
                 case DOWN -> {
-                    if ((b.ticks > 3 && p.isOnGround()) || mod.ticks() > b.until) { finish(b); continue; }
+                    if ((b.ticks > 3 && p.isOnGround()) || mod.ticks() > b.until || liquid(inst, pp)) { finish(b); continue; }   // в воде — сам
                     p.setVelocity(new Vec(0, -downSpeed(), 0));
                     if (b.ticks % 2 == 0) column(inst, pp, b.vessel);
                 }

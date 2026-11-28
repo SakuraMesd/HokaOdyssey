@@ -256,6 +256,7 @@ public final class VesselsClientModule implements ClientModule {
                 case 15 -> {                                                    // WORLD: планета или космос
                     JsonObject o = JsonParser.parseString(in.readUTF()).getAsJsonObject();
                     world = Cushion.Settings.read(o);
+                    if (world != null && world.clearance() <= 0) world = null;          // clearance 0 — подушки нет
                     if (pilot != null) pilot.cushion = world;
                 }
                 default -> { }

@@ -257,6 +257,7 @@ final class VesselsClient {
         m.put("planet", mod.isPlanet(inst));
         m.put("clearance", mod.clearance());
         m.put("soft", mod.config().getDouble("planet.soft", 6));
+        m.put("climb", mod.config().getDouble("planet.climb", 0.8));
         m.put("beam-reach", mod.beamReach());
         String js = new Gson().toJson(m);
         send(p, bytes(out -> {
