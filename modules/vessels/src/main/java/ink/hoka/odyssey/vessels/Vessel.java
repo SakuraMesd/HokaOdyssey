@@ -40,6 +40,10 @@ final class Vessel {
     transient long impactReady;
     /** Прилёт (/hovessel call): пока летит — сесть и открыть меню нельзя. */
     transient Arrivals.Flight arrival;
+    /** Подушка над планетой: поле расстояний до блоков для проверки сервера (строится в фоне), прошлый зазор. */
+    transient volatile DistField cushionField;
+    transient volatile boolean cushionBuilding;
+    transient double cushionLast = Double.NaN;
 
     /** Носитель: невидимый item display — его положение и поворот (с интерполяцией) мод берёт для отрисовки. */
     transient Entity carrier;

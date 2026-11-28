@@ -62,36 +62,42 @@ final class Cushion {
      */
     static double[] apply(DistField f, double[] probes, double vx, double vy, double vz, double cap, Settings s) {
         double lim = s.clearance() + s.soft();
-        double nx = 0, ny = 0, nz = 0, cmin = DistField.FAR;
+        int n = 0;
+        double[] cs = new double[probes.length / 3], ns = new double[probes.length];
         double[] g = new double[3];
-        for (int i = 0; i + 2 < probes.length; i += 3) {
+        double cmin = DistField.FAR, ox = 0, oy = 0, oz = 0;
+        for (int i = 0; i + 2 < probes.length; i += 3) {                        // ограничения: точки корпуса в мягкой зоне
             double c = f.at(probes[i], probes[i + 1], probes[i + 2]) - 1;
-            if (c < cmin) cmin = c;
             if (c >= lim) continue;
             f.grad(probes[i], probes[i + 1], probes[i + 2], g);
             double gl = Math.sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2]);
             if (gl < 1e-6) continue;
-            double w = force(c, s) + 0.05;                                      // ближние точки — главнее
-            w *= w;
-            nx += g[0] / gl * w; ny += g[1] / gl * w; nz += g[2] / gl * w;
+            cs[n] = c;
+            ns[n * 3] = g[0] / gl; ns[n * 3 + 1] = g[1] / gl; ns[n * 3 + 2] = g[2] / gl;
+            if (c < cmin) { cmin = c; ox = ns[n * 3]; oy = ns[n * 3 + 1]; oz = ns[n * 3 + 2]; }
+            n++;
         }
-        double nl = Math.sqrt(nx * nx + ny * ny + nz * nz);
-        if (cmin >= lim || nl < 1e-9) return new double[]{vx, vy, vz};
-        nx /= nl; ny /= nl; nz /= nl;
-        double vn = vx * nx + vy * ny + vz * nz;                                // > 0 — от блоков, < 0 — к блокам
-        double a = approach(cmin, cap, s);
-        if (vn < -a) {
-            double dv = -a - vn;                                                // сколько скорости «к блокам» убрать
-            vx += nx * dv; vy += ny * dv; vz += nz * dv;
-            double side = 1 - Math.abs(ny);                                     // упёрлись вбок (гора, стена) — вверх
-            if (side > 0.05) vy += dv * s.climb() * side;
+        if (n == 0) return new double[]{vx, vy, vz};
+        for (int pass = 0; pass < 4; pass++) {                                  // каждая точка: к блокам не быстрее approach(зазор)
+            boolean changed = false;
+            for (int i = 0; i < n; i++) {
+                double nx = ns[i * 3], ny = ns[i * 3 + 1], nz = ns[i * 3 + 2];
+                double vn = vx * nx + vy * ny + vz * nz, a = approach(cs[i], cap, s);
+                if (vn >= -a - 1e-9) continue;
+                double dv = -a - vn;
+                vx += nx * dv; vy += ny * dv; vz += nz * dv;
+                double side = 1 - Math.abs(ny);                                 // упёрлись вбок (гора, стена) — вверх
+                if (pass == 0 && side > 0.05 && ny > -0.5) vy += dv * s.climb() * side;
+                changed = true;
+            }
+            if (!changed) break;
         }
         if (cmin < s.clearance()) {                                             // ближе clearance — мягко наружу
             double push = Math.min((s.clearance() - cmin) * 0.15, Math.max(0.05, cap * 0.3));
-            double out = vx * nx + vy * ny + vz * nz;
+            double out = vx * ox + vy * oy + vz * oz;
             if (out < push) {
                 double add = push - out;
-                vx += nx * add; vy += ny * add; vz += nz * add;
+                vx += ox * add; vy += oy * add; vz += oz * add;
             }
         }
         return new double[]{vx, vy, vz};

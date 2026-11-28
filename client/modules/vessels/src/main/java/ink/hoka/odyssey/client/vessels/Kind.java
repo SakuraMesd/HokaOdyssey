@@ -109,14 +109,29 @@ final class Kind {
         }
         hull = hullOf(t, hullLo, hullHi);
         fine = fineOf(t);
-        if (!noseGiven) {                                                       // старый сервер — посчитать как он (середины клеток)
+        zonesFor(t);
+        tris = t;
+    }
+
+    /** Та же модель у нового описания вида (KINDS пришёл снова): форма — от прежнего, зоны — заново. */
+    void adopt(Kind was) {
+        hull = was.hull;
+        fine = was.fine;
+        System.arraycopy(was.hullLo, 0, hullLo, 0, 3);
+        System.arraycopy(was.hullHi, 0, hullHi, 0, 3);
+        zonesFor(was.tris);
+        tris = was.tris;
+    }
+
+    /** Начало носа (нет от сервера — как он, по серединам клеток корпуса) и зоны треугольников. */
+    private void zonesFor(float[] t) {
+        if (!noseGiven) {
             float[] h = hull;
             double[] xz = new double[h.length / 3 * 2];
             for (int i = 0, j = 0; i + 2 < h.length; i += 3, j += 2) { xz[j] = h[i]; xz[j + 1] = h[i + 2]; }
             noseFrom = Zones.noseFrom(xz, half, zones);
         }
         triZone = zonesOf(t);
-        tris = t;
     }
 
     static long fineKey(int ix, int iy, int iz) {

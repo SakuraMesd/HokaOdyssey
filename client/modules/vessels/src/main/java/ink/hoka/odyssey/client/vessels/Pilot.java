@@ -73,6 +73,9 @@ final class Pilot {
     /** Подушка над планетой (null — космос) и поле расстояний до блоков. */
     Cushion.Settings cushion;
     private final DistField.Cache field = new DistField.Cache();
+    {
+        field.margin = 10;                                                      // поле — с запасом на путь: строится реже
+    }
 
     Pilot(ClientContext ctx, int vessel, Kind kind, JsonObject common, double x, double y, double z, Quaternionf rot, ShipState state, Effects fx) {
         this.ctx = ctx;
@@ -321,6 +324,8 @@ final class Pilot {
             int i = c.getSectionIndexFromSectionY(sy);
             var secs = c.getSections();
             if (i < 0 || i >= secs.length || secs[i] == null || secs[i].hasOnlyAir()) return 0;
+            // ни одного «проходимого» состояния в куске (толща земли) — занят целиком, блоки не перебираем
+            if (!secs[i].getStates().maybeHas(st -> st.isAir() || (!st.blocksMotion() && st.getFluidState().isEmpty()))) return 1;
             return -1;
         }
 

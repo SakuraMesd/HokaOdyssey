@@ -288,6 +288,7 @@ public final class VesselsModule extends OdysseyModule {
         if (k == null || v.pilot != null || pilotOf(p) != null || v.carrier == null || p.getInstance() != v.carrier.getInstance()) return;
         Piloting pl = new Piloting(p, v, ticks);
         pl.checkMul = speedMul(v);
+        v.cushionLast = Double.NaN;
         v.pilot = pl;
         p.setAllowFlying(true);
         p.setFlying(true);                                                      // не падать; двигает мод (скорость полёта 0)
@@ -373,6 +374,7 @@ public final class VesselsModule extends OdysseyModule {
             int minY = inst.getCachedDimensionType().minY(), maxY = minY + inst.getCachedDimensionType().height();
             if (y < minY - 8 || y > maxY + config().getInt("check.above-world", 256)) why = "за границей мира";
             else if (insideBlocks(inst, k, np, q.normalized())) why = "в блоках";
+            else if (isPlanet(inst)) why = cushionCheck(v, k, inst, np, q.normalized());
         }
         if (why != null) {
             pl.strikes++;
@@ -406,6 +408,46 @@ public final class VesselsModule extends OdysseyModule {
                 m.setLeftRotation(r);
             });
         }
+    }
+
+    /**
+     * Подушка над планетой: мод пилота держит корпус не ближе planet.clearance к блокам. Сервер сверяет по своему полю
+     * расстояний (строится в фоне, когда корабль вышел из старого): ближе clearance − server-tolerance и ещё
+     * приближается — поза не принята (мод вернётся назад). Поля ещё нет — не мешаем.
+     */
+    private String cushionCheck(Vessel v, VesselKind k, Instance inst, double[] c, Quat q) {
+        Cushion.Settings cs = cushion();
+        if (cs.clearance() <= 0 || k.hull.isEmpty()) return null;
+        double[] probes = new double[k.hull.size() * 3];
+        for (int i = 0; i < k.hull.size(); i++) {
+            int[] h = k.hull.get(i);
+            double[] w = VesselMath.toWorld(h[0] + 0.5, h[1] + 0.5, h[2] + 0.5, c, q);
+            probes[i * 3] = w[0]; probes[i * 3 + 1] = w[1]; probes[i * 3 + 2] = w[2];
+        }
+        double[] box = DistField.bounds(probes);
+        DistField f = v.cushionField;
+        double reach = cs.reach();
+        if (box == null) return null;
+        if (f == null || !f.covers(box[0], box[1], box[2], reach) || !f.covers(box[3], box[4], box[5], reach)) {
+            if (!v.cushionBuilding) {                                           // новое поле — в фоне, с запасом на путь
+                v.cushionBuilding = true;
+                double pad = reach + 12;
+                int x0 = (int) Math.floor(box[0] - pad), y0 = (int) Math.floor(box[1] - pad), z0 = (int) Math.floor(box[2] - pad);
+                int nx = (int) Math.ceil(box[3] + pad) - x0, ny = (int) Math.ceil(box[4] + pad) - y0, nz = (int) Math.ceil(box[5] + pad) - z0;
+                DistField.Blocked b = arrivals.cushionBlocks(inst);
+                scheduler().async(() -> {
+                    try { v.cushionField = DistField.build(x0, y0, z0, nx, ny, nz, b); }
+                    catch (RuntimeException e) { logger().warn("корабль {}: поле подушки не построено: {}", v.id, e.toString()); }
+                    finally { v.cushionBuilding = false; }
+                });
+            }
+            return null;
+        }
+        double gap = Cushion.clearance(f, probes);
+        double last = v.cushionLast;
+        if (gap < cs.clearance() - cs.tolerance() && !Double.isNaN(last) && gap < last - 0.25) return "ближе подушки (" + Math.round(gap) + " бл)";
+        v.cushionLast = gap;
+        return null;
     }
 
     /** Корабль заметно в блоках: клетки корпуса (выборка) в твёрдых блоках загруженного мира — не меньше check.hits. */

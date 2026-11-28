@@ -282,12 +282,7 @@ public final class VesselsClientModule implements ClientModule {
                 Kind was = old.get(k.id);
                 if (was != null && was.model.equals(k.model) && was.tris != null && was.scale == k.scale && was.turn == k.turn
                         && java.util.Arrays.equals(was.center, k.center)) {
-                    k.tris = was.tris;
-                    k.hull = was.hull;
-                    k.fine = was.fine;
-                    k.triZone = k.zonesOf(was.tris);
-                    System.arraycopy(was.hullLo, 0, k.hullLo, 0, 3);
-                    System.arraycopy(was.hullHi, 0, k.hullHi, 0, 3);
+                    k.adopt(was);
                 } else {
                     ctx.file(k.model).ifPresent(b -> shape(k.model, b));
                 }
