@@ -35,7 +35,7 @@ public final class Smooth {
     static int cap(int m) { return m > STABLE && m <= MAX_MODE ? CAPS[m - STABLE - 1] : Integer.MAX_VALUE; }
     /** Ступени потолка: ровные значения, частые у мониторов (60/120/144/165/240…). */
     static final int[] STEPS = {30, 40, 48, 60, 72, 90, 100, 120, 144, 165, 180, 200, 240, 280, 320, 360, 400, 450, 500, 560, 640, 720, 800, 900, 1000};
-    static final long UP_HOLD_NS = 3_000_000_000L, EVAL_NS = 500_000_000L, WINDOW_NS = 1_500_000_000L;
+    static final long UP_HOLD_NS = 2_000_000_000L, DOWN_HOLD_NS = 1_000_000_000L, EVAL_NS = 500_000_000L, WINDOW_NS = 2_000_000_000L;
     /** Сколько последних мс до срока ждать в цикле (точно), а не сном. */
     static final long SPIN_NS = 500_000L;
 
@@ -142,9 +142,10 @@ public final class Smooth {
         }
         if (n < 20) return;
         Arrays.sort(a, 0, n);
-        long p90 = a[Math.min(n - 1, (int) (n * 0.90))];
-        double margin = mode == STABLE ? 1.25 : 1.08;
-        int want = pick(1e9 / (p90 * margin), Math.min(userLimit >= 260 ? Integer.MAX_VALUE : userLimit, cap(mode)));
+        // 0.92: типичный кадр (75-й процентиль), а не редкие тяжёлые: подгрузка чанка не роняет потолок
+        long p75 = a[Math.min(n - 1, (int) (n * 0.75))];
+        double margin = mode == STABLE ? 1.25 : 1.06;
+        int want = pick(1e9 / (p75 * margin), Math.min(userLimit >= 260 ? Integer.MAX_VALUE : userLimit, cap(mode)));
         target = next(target, want, now);
     }
 
@@ -157,14 +158,30 @@ public final class Smooth {
     }
 
     /** Вниз — сразу; вверх — когда запас держится UP_HOLD_NS. */
+    /**
+     * 0.92: спокойнее. Вниз — только если тяжело {@link #DOWN_HOLD_NS} подряд и не больше чем на 2 ступени за раз
+     * (раньше — сразу и до любой ступени: одна подгрузка → 120 FPS на 3+ с); вверх — когда запас держится UP_HOLD_NS.
+     */
     static int next(int cur, int want, long now) {
-        if (cur == 0 || want < cur) { upSince = 0; return want; }
-        if (want == cur) { upSince = 0; return cur; }
+        if (cur == 0) { upSince = downSince = 0; return want; }
+        if (want == cur) { upSince = downSince = 0; return cur; }
+        if (want < cur) {
+            upSince = 0;
+            if (downSince == 0) downSince = now;
+            if (now - downSince < DOWN_HOLD_NS) return cur;
+            downSince = 0;
+            int i = Arrays.binarySearch(STEPS, cur);
+            int floor = i > 0 ? STEPS[Math.max(0, i - 2)] : want;
+            return Math.max(want, floor);
+        }
+        downSince = 0;
         if (upSince == 0) upSince = now;
         if (now - upSince >= UP_HOLD_NS) { upSince = 0; return want; }
         return cur;
     }
 
+    private static long downSince;
+
     /** Тесты: сброс состояния. */
-    static void resetForTest() { target = 0; deadline = 0; afterWait = 0; lastEval = 0; upSince = 0; natN = 0; natHead = 0; }
+    static void resetForTest() { downSince = 0; target = 0; deadline = 0; afterWait = 0; lastEval = 0; upSince = 0; natN = 0; natHead = 0; }
 }

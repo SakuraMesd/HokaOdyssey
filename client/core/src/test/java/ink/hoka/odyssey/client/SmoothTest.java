@@ -20,17 +20,16 @@ class SmoothTest {
     }
 
     @Test
-    void downAtOnceUpAfterHold() {
+    void calmSteps() {
         Smooth.resetForTest();
-        long s = 1_000_000_000L;
-        assertEquals(400, Smooth.next(0, 400, 0));
-        assertEquals(300, Smooth.next(400, 300, s), "вниз — сразу");
-        assertEquals(300, Smooth.next(300, 500, 2 * s), "вверх — не сразу");
-        assertEquals(300, Smooth.next(300, 500, 4 * s));
-        assertEquals(500, Smooth.next(300, 500, 5 * s + 1), "запас держится 3 с — вверх");
-        assertEquals(500, Smooth.next(500, 560, 6 * s));
-        assertEquals(240, Smooth.next(500, 240, 6 * s + 1), "провал — сразу вниз, ожидание подъёма сброшено");
-        assertEquals(240, Smooth.next(240, 560, 7 * s));
+        long s = 1_000_000_000L, ms = 1_000_000L;
+        assertEquals(500, Smooth.next(0, 500, 0), "первый выбор — сразу");
+        assertEquals(500, Smooth.next(500, 120, s), "разовая тяжесть — потолок держим");
+        assertEquals(500, Smooth.next(500, 500, s + 500 * ms), "прошло — сброс");
+        assertEquals(500, Smooth.next(500, 120, 2 * s));
+        assertEquals(400, Smooth.next(500, 120, 3 * s + 1), "тяжело секунду подряд — вниз, но не больше 2 ступеней (500→450→400)");
+        assertEquals(400, Smooth.next(400, 500, 4 * s), "вверх — не сразу");
+        assertEquals(500, Smooth.next(400, 500, 6 * s + 1), "запас держится 2 с — вверх");
     }
 
     @Test
