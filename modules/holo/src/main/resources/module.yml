@@ -1,0 +1,9 @@
+# Голограммы: панели в мире (рисует клиентский модуль holo), кнопки с действиями, страницы, редактор в игре
+id: holo
+name: Голограммы
+version: 0.1.0
+main: ink.hoka.odyssey.holo.HoloModule
+authors: [Takuyamo]
+description: Голограммы в кубоидном космическом стиле — текст, предметы, картинки, шкалы, кнопки; редактор в игре (OP)
+depends: []
+softdepends: [clientmods, hoitems, houi]

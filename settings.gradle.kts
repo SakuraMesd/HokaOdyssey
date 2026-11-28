@@ -19,6 +19,7 @@ include("modules:mining")     // добыча: ломать только инс�
 include("modules:stations")   // станции: регионы с видимыми границами и гравитацией станции (через VacuumService модуля gravity)
 include("stubs:gravity-api")  // заглушка API чужого модуля gravity — только для компиляции stations (в jar не идёт)
 include("modules:axiom")      // Axiom (клиентский редактор мира): серверная часть по протоколу AxiomPaperPlugin, только OP
+include("modules:holo")       // голограммы: панели в кубоидном космическом стиле (рисует клиентский модуль holo), редактор в игре
 include("modules:jetpack")    // реактивный ранец: полёт с тягой, топливо в ранце, модель на спине (клиентский модуль jetpack)
 include("generators:noise-test") // переносимый генератор планеты «noise-test» v2 → run/generators/ (сервер и клиент)
 include("generators:planet")     // генератор планеты «planet» v1: −500…2000, море 300, объекты из objects/ (рельеф — позже)

@@ -1,0 +1,28 @@
+# Голограммы (holo). Сами голограммы — module/holo/holograms.json (правятся редактором в игре: /hoholo edit или J),
+# шаблоны — module/holo/templates.json, картинки — module/holo/images/*.png (имя файла → «image» элемента).
+
+# Как часто проверять, какие голограммы рядом с игроком (тики)
+check-period: 10
+# Запас дальности: голограмма уходит моду, когда игрок ближе range + send-margin, и убирается дальше range + 2×margin
+send-margin: 16
+# Максимум расстояния нажатия сверх дальности голограммы (блоки) — защита от кликов издалека
+click-reach: 8
+# Задержка нажатия по умолчанию (тики), если у кнопки не указана своя
+default-cooldown: 4
+
+# Темы оформления: фон, рамка (светлая), рамка (голубая), акцент, текст (RGB). Мод берёт их отсюда.
+themes:
+  space:  { bg: "05080F", frame: "D9E2EE", glow: "8FD8FF", accent: "FFC46B", text: "E6EEF8" }
+  amber:  { bg: "0F0A04", frame: "F2E2C4", glow: "FFC46B", accent: "FF8A3D", text: "FFF1D6" }
+  danger: { bg: "12040A", frame: "F2C9CF", glow: "FF5A6E", accent: "FFC46B", text: "FFE6EA" }
+  green:  { bg: "03100A", frame: "CFF2DC", glow: "6BFFAE", accent: "FFC46B", text: "E2FFEE" }
+
+# Плейсхолдеры ядра: период обновления (тики)
+placeholders:
+  player: 100
+  online: 20
+  time: 20
+  map: 20
+  x: 4
+  y: 4
+  z: 4
