@@ -83,6 +83,12 @@ final class Effects {
                                 (r.nextDouble() - 0.3) * 0.6 - b.dir.y * 0.2, (r.nextDouble() - 0.5) * 0.6 - b.dir.z * 0.2);
                     for (int i = 0; i < 3; i++) mc.level.addParticle(ParticleTypes.SMOKE, back.x, back.y, back.z, 0, 0.03, 0);
                     mc.level.playLocalSound(b.to.x, b.to.y, b.to.z, SoundEvents.SHULKER_BULLET_HIT, SoundSource.NEUTRAL, 0.8f, 1.3f + r.nextFloat() * 0.3f, false);
+                    if (b.kind == 3) {                                          // по кораблю: вспышка на корпусе и звон металла
+                        for (int i = 0; i < 10; i++)
+                            mc.level.addParticle(ParticleTypes.LAVA, back.x, back.y, back.z, 0, 0, 0);
+                        mc.level.addParticle(ParticleTypes.FLAME, back.x, back.y, back.z, 0, 0.02, 0);
+                        mc.level.playLocalSound(b.to.x, b.to.y, b.to.z, SoundEvents.ANVIL_LAND, SoundSource.NEUTRAL, 0.35f, 1.6f + r.nextFloat() * 0.3f, false);
+                    }
                 }
             }
             if (b.hit && now - b.hitAt > 250) it.remove();

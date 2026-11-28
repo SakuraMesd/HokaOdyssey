@@ -15,7 +15,8 @@ import net.minestom.server.item.ItemStack;
 /**
  * /hovessel (то же — /vessel), только OP: spawn &lt;вид&gt; — поставить перед собой (владелец — кто поставил), remove [id]
  * — убрать (по id, на который смотришь или ближайший; груз выпадает), list, tp &lt;id&gt;, reload — перечитать виды
- * из config.yml, owner &lt;id&gt; &lt;ник&gt;, fuel [кол-во] [ник], upgrade &lt;вид&gt; [ник].
+ * из config.yml, owner &lt;id&gt; &lt;ник&gt;, fuel [кол-во] [ник], upgrade &lt;вид&gt; [ник], give &lt;repair|crystal&gt; [кол-во] [ник],
+ * repair &lt;id&gt; [hp], hp &lt;id&gt; &lt;hp&gt; (0 — разрушить), call &lt;вид&gt; [ник] — новый корабль прилетает к игроку.
  */
 final class HoVesselCommand extends Command {
 
@@ -50,12 +51,26 @@ final class HoVesselCommand extends Command {
         addSyntax((s, c) -> giveFuel(s, c.get(count), c.get(nick)), ArgumentType.Literal("fuel"), count, nick);
         addSyntax((s, c) -> giveUpgrade(s, c.get(up), null), ArgumentType.Literal("upgrade"), up);
         addSyntax((s, c) -> giveUpgrade(s, c.get(up), c.get(nick)), ArgumentType.Literal("upgrade"), up, nick);
+
+        addSyntax((s, c) -> { if (s instanceof Player p) call(s, c.get(kind), p); else err(s, "Укажите ник: /hovessel call <вид> <ник>"); },
+                ArgumentType.Literal("call"), kind);
+        addSyntax((s, c) -> { Player p = online(s, c.get(nick)); if (p != null) call(s, c.get(kind), p); }, ArgumentType.Literal("call"), kind, nick);
+
+        var hp = ArgumentType.Double("прочность").min(0.0);
+        addSyntax((s, c) -> repair(s, c.get(id), -1), ArgumentType.Literal("repair"), id);
+        addSyntax((s, c) -> repair(s, c.get(id), c.get(hp)), ArgumentType.Literal("repair"), id, hp);
+        addSyntax((s, c) -> setHp(s, c.get(id), c.get(hp)), ArgumentType.Literal("hp"), id, hp);
+        var item = ArgumentType.Word("предмет").from("repair", "crystal");
+        addSyntax((s, c) -> giveItem(s, c.get(item), 1, null), ArgumentType.Literal("give"), item);
+        addSyntax((s, c) -> giveItem(s, c.get(item), c.get(count), null), ArgumentType.Literal("give"), item, count);
+        addSyntax((s, c) -> giveItem(s, c.get(item), c.get(count), c.get(nick)), ArgumentType.Literal("give"), item, count, nick);
     }
 
     private void help(CommandSender s) {
         info(s, "/hovessel (/vessel) spawn <вид> — поставить перед собой  |  remove [id] — убрать (на который смотрите / ближайший)  |  "
                 + "list  |  tp <id>  |  reload — перечитать виды  |  owner <id> <ник>  |  fuel [кол-во] [ник]  |  "
-                + "upgrade <engine|tank|gun|warp> [ник]. Сесть — ПКМ по кораблю, выйти — F, меню — G.");
+                + "upgrade <engine|tank|gun|warp> [ник]  |  call <вид> [ник] — прилёт корабля к игроку  |  give <repair|crystal> [кол-во] [ник]  |  repair <id> [hp]  |  hp <id> <hp>. "
+                + "Сесть — ПКМ по кораблю, выйти — F, меню — G.");
     }
 
     private void spawn(Player p, String kindId) {
@@ -182,6 +197,60 @@ final class HoVesselCommand extends Command {
         ItemStack it = mod.items.upgrade(t);
         if (!p.getInventory().addItemStack(it)) p.dropItem(it);
         ok(s, t.title + " → " + p.getUsername());
+    }
+
+    /** Прилёт корабля к игроку (владелец — он). */
+    private void call(CommandSender s, String kind, Player to) {
+        String why = mod.arrivals.call(to, kind);
+        if (why != null) { err(s, why); return; }
+        ok(s, "Корабль " + kind + " летит к " + to.getUsername() + " (владелец — он)");
+    }
+
+    /** Починить: на hp (−1 — полностью). */
+    private void repair(CommandSender s, int id, double hp) {
+        Vessel v = mod.vessel(id);
+        if (v == null) { err(s, "Нет корабля " + id); return; }
+        double max = mod.hull.maxHp(v);
+        double add = mod.hull.repair(v, hp < 0 ? max : hp);
+        ok(s, "Корабль " + id + ": +" + Math.round(add) + ", прочность " + Math.round(v.hp(max)) + " / " + Math.round(max));
+    }
+
+    /** Задать прочность (0 — корабль разрушается, как от урона). */
+    private void setHp(CommandSender s, int id, double hp) {
+        Vessel v = mod.vessel(id);
+        if (v == null) { err(s, "Нет корабля " + id); return; }
+        double max = mod.hull.maxHp(v);
+        if (hp <= 0) {
+            var inst = mod.instanceOf(v);
+            if (inst == null || !mod.server().isCubeLoaded(inst, (int) Math.floor(v.x), (int) Math.floor(v.y), (int) Math.floor(v.z))) {
+                err(s, "Корабль " + id + " не загружен (груз некуда выронить) — подойдите к нему");
+                return;
+            }
+            mod.hull.destroy(v, null, "команда");
+            ok(s, "Корабль " + id + " разрушен (груз выпал на месте)");
+            return;
+        }
+        v.setHp(hp, max);
+        mod.save();
+        mod.client.hull(v, false, -1);
+        mod.client.state(v);
+        if (v.menu != null) v.menu.info();
+        ok(s, "Корабль " + id + ": прочность " + Math.round(v.hp(max)) + " / " + Math.round(max));
+    }
+
+    private void giveItem(CommandSender s, String what, int n, String nick) {
+        Player p = target(s, nick);
+        if (p == null) return;
+        int left = n;
+        while (left > 0) {
+            ItemStack it = mod.items.of(what, 1);
+            if (it == null) { err(s, "Нет предмета " + what); return; }
+            int c = Math.min(Math.max(1, it.maxStackSize()), left);
+            it = it.withAmount(c);
+            if (!p.getInventory().addItemStack(it)) p.dropItem(it);
+            left -= c;
+        }
+        ok(s, what + " ×" + n + " → " + p.getUsername());
     }
 
     private static void info(CommandSender s, String t) { s.sendMessage(Component.text(t, NamedTextColor.AQUA)); }

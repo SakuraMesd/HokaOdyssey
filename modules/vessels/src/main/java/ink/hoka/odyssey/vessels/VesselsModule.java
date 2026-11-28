@@ -48,7 +48,15 @@ public final class VesselsModule extends OdysseyModule {
     final Combat combat = new Combat(this);
     final WarpDrive warp = new WarpDrive(this);
     final VesselItems items = new VesselItems(this::hoItems);
+    final HullDamage hull = new HullDamage(this);
+    final Beams beams = new Beams(this);
+    final Arrivals arrivals = new Arrivals(this);
+    /** Карта — планета (подушка, лучи) или космос: по имени карты (сбрасывается при reload). */
+    private final Map<String, Boolean> planetMaps = new ConcurrentHashMap<>();
     private Upgrades.Config upgradeCfg = Upgrades.Config.DEFAULT;
+    /** Рецепты мастерской (recipes:) и свои названия предметов (item-names:). */
+    private List<Workshop.Recipe> recipes = List.of();
+    private Map<String, String> itemNames = Map.of();
     private VesselStore store;
     private long ticks;
     private boolean dirty;
@@ -64,8 +72,14 @@ public final class VesselsModule extends OdysseyModule {
         for (Vessel v : vessels.values()) spawnCarrier(v);
 
         events().addListener(PlayerSwapItemEvent.class, e -> {                  // F — выйти
-            if (pilotOf(e.getPlayer()) == null) return;
+            Piloting pl = pilotOf(e.getPlayer());
+            if (pl == null) return;
             e.setCancelled(true);
+            Vessel v = pl.vessel;
+            if (v.carrier != null && isPlanet(v.carrier.getInstance()) && beams.lavaBelow(v, kinds.get(v.kind))) {
+                client.message(e.getPlayer(), "Внизу лава — отлетите в сторону, чтобы выйти", true);
+                return;
+            }
             exit(e.getPlayer(), true);
         });
         events().addListener(PlayerStopFlyingEvent.class, e -> {               // пилот не падает: двигает мод
@@ -78,7 +92,10 @@ public final class VesselsModule extends OdysseyModule {
         events().addListener(InventoryPreClickEvent.class, e -> {               // меню корабля: что куда можно класть
             VesselMenu m = menuOf(e.getPlayer().getOpenInventory());
             if (m != null) m.onClick(e);
+            Workshop.Menu w = shopOf(e.getPlayer().getOpenInventory());
+            if (w != null) w.onClick(e);
         });
+        events().addListener(PlayerBlockBreakEvent.class, this::fuelDrop);       // руды астероидов — топливные кристаллы
         events().addListener(InventoryItemChangeEvent.class, e -> {
             VesselMenu m = menuOf(e.getInventory());
             if (m != null) m.onChange(e);
@@ -88,6 +105,7 @@ public final class VesselsModule extends OdysseyModule {
         events().addListener(PlayerSpawnEvent.class, e -> {                   // сменил мир — корабль остаётся, пилот снимается
             Piloting pl = pilotOf(e.getPlayer());
             if (pl != null && pl.vessel.carrier != null && e.getInstance() != pl.vessel.carrier.getInstance()) exit(e.getPlayer(), false);
+            client.world(e.getPlayer(), e.getInstance());                      // планета или космос — моду (подушка, лучи)
         });
         registerCommand(new HoVesselCommand(this));
         scheduler().repeat(this::tick, 1, 1);
@@ -97,8 +115,11 @@ public final class VesselsModule extends OdysseyModule {
 
     @Override
     protected void onDisable() {
+        beams.clear();
+        arrivals.stop();
         for (Vessel v : vessels.values()) if (v.pilot != null) exit(v.pilot.player, true);
         for (Vessel v : vessels.values()) if (v.menu != null) { v.menu.closeAll(); v.menu = null; }
+        for (Vessel v : vessels.values()) if (v.shop != null) { v.shop.closeAll(); v.shop = null; }
         client.disable();
         for (Vessel v : vessels.values()) {
             if (v.carrier != null) v.carrier.remove();
@@ -115,6 +136,13 @@ public final class VesselsModule extends OdysseyModule {
     /** Перечитать виды из конфига и их модели. */
     void loadKinds() {
         kinds.clear();
+        planetMaps.clear();
+        List<String> bad = new ArrayList<>();
+        recipes = Workshop.parse(config().get("recipes"), bad);
+        for (String b : bad) logger().warn("рецепт мастерской {}", b);
+        Map<String, String> names = new LinkedHashMap<>();
+        if (config().get("item-names") instanceof Map<?, ?> nm) for (var e : nm.entrySet()) names.put(String.valueOf(e.getKey()), String.valueOf(e.getValue()));
+        itemNames = Map.copyOf(names);
         upgradeCfg = Upgrades.Config.of(config().get("upgrades"));
         limits = new VesselMath.Limits(config().getDouble("check.speed-margin", 1.3), config().getDouble("check.slack", 1.5),
                 config().getDouble("check.turn-margin", 1.5), config().getDouble("check.turn-slack", 10), config().getInt("check.max-dt-ticks", 40));
@@ -172,7 +200,9 @@ public final class VesselsModule extends OdysseyModule {
     /** Убрать корабль: груз выпадает рядом (мира/столбца нет — в лог), окно закрывается. */
     void remove(Vessel v) {
         if (v.pilot != null) exit(v.pilot.player, true);
+        arrivals.cancel(v);
         if (v.menu != null) { v.menu.closeAll(); v.menu = null; }
+        if (v.shop != null) { v.shop.closeAll(); v.shop = null; }
         if (!v.cargo.isEmpty()) {
             for (ItemStack it : v.cargo.all()) dropNear(v, it);
             v.cargo.clear();
@@ -225,22 +255,46 @@ public final class VesselsModule extends OdysseyModule {
     /** Глаза пилота в мире. */
     double[] seatWorld(Vessel v, VesselKind k) { return VesselMath.toWorld(k.seat[0], k.seat[1], k.seat[2], v.pos(), v.rot); }
 
-    /** Мод: игрок хочет сесть в корабль (ПКМ по нему). */
+    /**
+     * Мод: ПКМ по кораблю — сесть. С ремкомплектом в руке (владелец, OP) — ремонт. На планете дальше board-reach, но
+     * в пределах planet.beam-reach — луч поднимает в кабину.
+     */
     void board(Player p, int id) {
         Vessel v = vessels.get(id);
         VesselKind k = v == null ? null : kinds.get(v.kind);
         if (v == null || k == null || v.carrier == null || v.carrier.isRemoved()) return;
         if (p.getInstance() != v.carrier.getInstance()) return;
-        if (pilotOf(p) != null) return;
-        if (v.pilot != null) { p.sendActionBar(Component.text("Место пилота занято", NamedTextColor.RED)); return; }
+        if (pilotOf(p) != null || beams.active(p)) return;
+        if (v.arrival != null) { client.message(p, "Корабль ещё не прибыл", true); return; }
         Pos pp = p.getPosition();
         double d = VesselMath.distanceToBox(pp.x(), pp.y() + p.getEyeHeight(), pp.z(), v.pos(), v.rot, k.half);
-        if (d > boardReach() + config().getDouble("board-slack", 1)) {
+        double slack = config().getDouble("board-slack", 1);
+        boolean planet = isPlanet(p.getInstance());
+        if (VesselItems.isRepair(p.getItemInMainHand())) {                      // ремкомплект в руке — чинить, не садиться
+            if (d > Math.max(boardReach(), planet ? beamReach() : 0) + slack) { client.message(p, "Слишком далеко от корабля", true); return; }
+            if (!canOpen(v, p.getUuid().toString(), server().isOp(p))) {
+                client.message(p, "Это не ваш корабль" + (v.ownerName != null ? " (владелец — " + v.ownerName + ")" : ""), true);
+                return;
+            }
+            hull.repairWithKit(p, v, true);
+            return;
+        }
+        if (v.pilot != null) { p.sendActionBar(Component.text("Место пилота занято", NamedTextColor.RED)); return; }
+        if (d > boardReach() + slack) {
+            if (planet && d <= beamReach() + slack) { beams.up(p, v); return; }
             p.sendActionBar(Component.text("Слишком далеко от корабля", NamedTextColor.RED));
             return;
         }
+        boardNow(p, v);
+    }
+
+    /** Посадить пилотом (проверки уже сделаны: место свободно, рядом). */
+    void boardNow(Player p, Vessel v) {
+        VesselKind k = kinds.get(v.kind);
+        if (k == null || v.pilot != null || pilotOf(p) != null || v.carrier == null || p.getInstance() != v.carrier.getInstance()) return;
         Piloting pl = new Piloting(p, v, ticks);
         pl.checkMul = speedMul(v);
+        v.cushionLast = Double.NaN;
         v.pilot = pl;
         p.setAllowFlying(true);
         p.setFlying(true);                                                      // не падать; двигает мод (скорость полёта 0)
@@ -250,6 +304,7 @@ public final class VesselsModule extends OdysseyModule {
         p.teleport(new Pos(eye[0], eye[1] - p.getEyeHeight(), eye[2], (float) v.rot.yawDeg(), 0f));
         client.start(v);
         client.state(v);
+        client.hull(v, false, -1);
         p.sendMessage(Component.text("Полёт: мышь — прицел, нос доводится к нему. W/S — ход, Ctrl+W — форсаж, A/D — крен, "
                 + "пробел/Shift — вверх/вниз. ЛКМ — огонь, R — варп, G — меню корабля. F5 — вид из кабины / сзади. F — выйти.", NamedTextColor.AQUA));
     }
@@ -267,8 +322,11 @@ public final class VesselsModule extends OdysseyModule {
             Instance inst = v.carrier != null ? v.carrier.getInstance() : null;
             VesselKind k = kinds.get(v.kind);
             if (teleport && inst != null && p.getInstance() == inst && k != null) {
-                Pos at = exitSpot(v, k, inst);
-                p.teleport(at.withView((float) v.rot.yawDeg(), 0f));
+                if (isPlanet(inst)) beams.down(p, v, k);                       // планета: корабль на подушке — луч вниз
+                else {
+                    Pos at = exitSpot(v, k, inst);
+                    p.teleport(at.withView((float) v.rot.yawDeg(), 0f));
+                }
             }
         }
         save();
@@ -322,6 +380,7 @@ public final class VesselsModule extends OdysseyModule {
             int minY = inst.getCachedDimensionType().minY(), maxY = minY + inst.getCachedDimensionType().height();
             if (y < minY - 8 || y > maxY + config().getInt("check.above-world", 256)) why = "за границей мира";
             else if (insideBlocks(inst, k, np, q.normalized())) why = "в блоках";
+            else if (isPlanet(inst)) why = cushionCheck(v, k, inst, np, q.normalized());
         }
         if (why != null) {
             pl.strikes++;
@@ -335,6 +394,8 @@ public final class VesselsModule extends OdysseyModule {
             return;
         }
         long dt = Math.max(1, ticks - pl.lastPose);
+        double moved = Math.sqrt((x - v.x) * (x - v.x) + (y - v.y) * (y - v.y) + (z - v.z) * (z - v.z)) / dt * 20;
+        pl.peakSpeed = Math.max(moved, pl.peakSpeed * 0.85);                     // для проверки удара о блоки
         pl.vx = (x - v.x) / dt;
         pl.vy = (y - v.y) / dt;
         pl.vz = (z - v.z) / dt;
@@ -353,6 +414,46 @@ public final class VesselsModule extends OdysseyModule {
                 m.setLeftRotation(r);
             });
         }
+    }
+
+    /**
+     * Подушка над планетой: мод пилота держит корпус не ближе planet.clearance к блокам. Сервер сверяет по своему полю
+     * расстояний (строится в фоне, когда корабль вышел из старого): ближе clearance − server-tolerance и ещё
+     * приближается — поза не принята (мод вернётся назад). Поля ещё нет — не мешаем.
+     */
+    private String cushionCheck(Vessel v, VesselKind k, Instance inst, double[] c, Quat q) {
+        Cushion.Settings cs = cushion();
+        if (cs.clearance() <= 0 || k.hull.isEmpty()) return null;
+        double[] probes = new double[k.hull.size() * 3];
+        for (int i = 0; i < k.hull.size(); i++) {
+            int[] h = k.hull.get(i);
+            double[] w = VesselMath.toWorld(h[0] + 0.5, h[1] + 0.5, h[2] + 0.5, c, q);
+            probes[i * 3] = w[0]; probes[i * 3 + 1] = w[1]; probes[i * 3 + 2] = w[2];
+        }
+        double[] box = DistField.bounds(probes);
+        DistField f = v.cushionField;
+        double reach = cs.reach();
+        if (box == null) return null;
+        if (f == null || !f.covers(box[0], box[1], box[2], reach) || !f.covers(box[3], box[4], box[5], reach)) {
+            if (!v.cushionBuilding) {                                           // новое поле — в фоне, с запасом на путь
+                v.cushionBuilding = true;
+                double pad = reach + 12;
+                int x0 = (int) Math.floor(box[0] - pad), y0 = (int) Math.floor(box[1] - pad), z0 = (int) Math.floor(box[2] - pad);
+                int nx = (int) Math.ceil(box[3] + pad) - x0, ny = (int) Math.ceil(box[4] + pad) - y0, nz = (int) Math.ceil(box[5] + pad) - z0;
+                DistField.Blocked b = arrivals.cushionBlocks(inst);
+                scheduler().async(() -> {
+                    try { v.cushionField = DistField.build(x0, y0, z0, nx, ny, nz, b); }
+                    catch (RuntimeException e) { logger().warn("корабль {}: поле подушки не построено: {}", v.id, e.toString()); }
+                    finally { v.cushionBuilding = false; }
+                });
+            }
+            return null;
+        }
+        double gap = Cushion.clearance(f, probes);
+        double last = v.cushionLast;
+        if (gap < cs.clearance() - cs.tolerance() && !Double.isNaN(last) && gap < last - 0.25) return "ближе подушки (" + Math.round(gap) + " бл)";
+        v.cushionLast = gap;
+        return null;
     }
 
     /** Корабль заметно в блоках: клетки корпуса (выборка) в твёрдых блоках загруженного мира — не меньше check.hits. */
@@ -392,6 +493,8 @@ public final class VesselsModule extends OdysseyModule {
             warp.tick(v);
             burn(v, pl);
         }
+        beams.tick();
+        arrivals.tick();
         if (dirty && ticks % 100 == 0) save();                                 // в полёте — раз в 5 с
     }
 
@@ -437,7 +540,7 @@ public final class VesselsModule extends OdysseyModule {
 
     /** Множитель скорости корабля (улучшения; пустой бак при расходе — аварийный ход). Быстро — для каждой позы. */
     double speedMul(Vessel v) {
-        double m = stats(v).speed();
+        double m = stats(v).speed() * hull.engineMul(v);
         if (config().getDouble("fuel.burn-per-minute", 0) > 0 && v.cargo.fuelUnits() <= 0) m *= config().getDouble("fuel.empty-speed", 0.25);
         return m;
     }
@@ -448,7 +551,7 @@ public final class VesselsModule extends OdysseyModule {
         int fuel = v.cargo.fuelUnits();
         double bpm = Math.max(0, config().getDouble("fuel.burn-per-minute", 0));
         boolean empty = bpm > 0 && fuel <= 0;
-        double speed = st.speed() * (empty ? config().getDouble("fuel.empty-speed", 0.25) : 1);
+        double speed = st.speed() * hull.engineMul(v) * (empty ? config().getDouble("fuel.empty-speed", 0.25) : 1);
         return new Status(fuel, cap, Cargo.warpCost(cap, warp.costFraction(), st.warpCost()), bpm, warp.distance(),
                 warp.chargeTicks() / 20.0, warp.reloadTicks(st) / 20.0, combat.damage() * st.gunDamage(), combat.reloadTicks(st) / 20.0,
                 combat.range(), speed, empty);
@@ -458,6 +561,7 @@ public final class VesselsModule extends OdysseyModule {
     void cargoChanged(Vessel v) {
         dirty = true;
         if (v.menu != null) v.menu.refresh();
+        if (v.shop != null) v.shop.refresh();
         client.state(v);
     }
 
@@ -511,6 +615,7 @@ public final class VesselsModule extends OdysseyModule {
         Vessel v = vessels.get(id);
         VesselKind k = v == null ? null : kinds.get(v.kind);
         if (v == null || k == null || v.carrier == null || p.getInstance() != v.carrier.getInstance()) return;
+        if (v.arrival != null) { client.message(p, "Корабль ещё не прибыл", true); return; }
         if (!canOpen(v, p.getUuid().toString(), server().isOp(p))) {
             client.message(p, "Это не ваш корабль" + (v.ownerName != null ? " (владелец — " + v.ownerName + ")" : ""), true);
             return;
@@ -519,7 +624,8 @@ public final class VesselsModule extends OdysseyModule {
         if (!pilot) {
             Pos pp = p.getPosition();
             double d = VesselMath.distanceToBox(pp.x(), pp.y() + p.getEyeHeight(), pp.z(), v.pos(), v.rot, k.half);
-            if (d > menuReach() + config().getDouble("board-slack", 1)) { client.message(p, "Слишком далеко от корабля", true); return; }
+            double reach = isPlanet(p.getInstance()) ? Math.max(menuReach(), beamReach()) : menuReach();   // планета: корабль висит высоко
+            if (d > reach + config().getDouble("board-slack", 1)) { client.message(p, "Слишком далеко от корабля", true); return; }
         }
         if (v.menu == null) v.menu = new VesselMenu(this, v);
         else v.menu.refresh();
@@ -545,6 +651,139 @@ public final class VesselsModule extends OdysseyModule {
     }
 
     long ticks() { return ticks; }
+
+    void markDirty() { dirty = true; }
+
+    /** Кнопка «Мастерская» в меню корабля: окно рецептов (тем, кто может открыть меню). */
+    void openWorkshop(Player p, Vessel v) {
+        if (vessels.get(v.id) != v || !canOpen(v, p.getUuid().toString(), server().isOp(p))) return;
+        if (recipes.isEmpty()) { client.message(p, "В мастерской нет рецептов (config.yml, recipes:)", true); return; }
+        if (v.shop == null) v.shop = new Workshop.Menu(this, v);
+        else v.shop.refresh();
+        if (v.shop.lastJson != null && client.isReady(p)) client.shop(p, v.shop.lastJson);   // моду — до окна
+        p.openInventory(v.shop.inv);
+    }
+
+    List<Workshop.Recipe> recipes() { return recipes; }
+
+    Map<String, String> itemNames() { return itemNames; }
+
+    /** Предмет по ключу мастерской (vessel:…, item:…, minecraft:…); свой блок (hoka:…) не делается — null. */
+    ItemStack make(String key, int count) {
+        if (key == null) return null;
+        int c = Math.max(1, count);
+        if (key.startsWith("vessel:")) return items.of(key.substring(7), c);
+        if (key.startsWith("item:")) {
+            var h = hoItems();
+            ItemStack it = h != null ? h.item(key.substring(5), c) : null;
+            return it == null || it.isAir() ? null : it;
+        }
+        if (key.startsWith("hoka:")) return null;
+        net.minestom.server.item.Material m = net.minestom.server.item.Material.fromKey(key.contains(":") ? key : "minecraft:" + key);
+        return m == null ? null : ItemStack.of(m, Math.min(c, m.maxStackSize()));
+    }
+
+    /** Мастерская: сделать по рецепту (Shift — сколько хватит, до 8 раз). */
+    void craft(Player p, Vessel v, Workshop.Recipe r, boolean many) {
+        if (vessels.get(v.id) != v || !canOpen(v, p.getUuid().toString(), server().isOp(p))) return;
+        int times = many ? Math.max(1, Workshop.maxTimes(v.cargo.storage, r, 8)) : 1;
+        Workshop.Result res = Workshop.craft(v.cargo, r, times, k -> make(k, 1));
+        String name = Workshop.name(r.result(), itemNames);
+        switch (res) {
+            case OK -> {
+                client.message(p, "Мастерская: " + name + " ×" + r.count() * times + " — в грузе корабля", false);
+                p.playSound(net.kyori.adventure.sound.Sound.sound(net.minestom.server.sound.SoundEvent.BLOCK_SMITHING_TABLE_USE,
+                        net.kyori.adventure.sound.Sound.Source.BLOCK, 0.8f, 1.1f));
+                cargoChanged(v);
+            }
+            case MISSING -> {
+                StringBuilder sb = new StringBuilder();
+                for (var e : r.needs().entrySet()) {
+                    int h = Workshop.have(v.cargo.storage, e.getKey());
+                    if (h < e.getValue()) sb.append(sb.isEmpty() ? "" : ", ").append(Workshop.name(e.getKey(), itemNames)).append(" ").append(h).append("/").append(e.getValue());
+                }
+                client.message(p, "Не хватает в грузе: " + sb, true);
+            }
+            case NO_ROOM -> client.message(p, "Нет места в грузе корабля для «" + name + "»", true);
+            case BAD -> {
+                client.message(p, "Рецепт «" + r.id() + "» не работает (см. лог)", true);
+                logger().warn("рецепт {}: результат {} не сделать (vessel:…, item:…, minecraft:…)", r.id(), r.result());
+            }
+        }
+    }
+
+    /** Окно мастерской этого окна (или null). */
+    Workshop.Menu shopOf(net.minestom.server.inventory.AbstractInventory inv) {
+        if (inv == null) return null;
+        for (Vessel v : vessels.values()) if (v.shop != null && v.shop.inv == inv) return v.shop;
+        return null;
+    }
+
+    /**
+     * Добыча руд астероидов (выживание): с шансом из fuel-drops выпадают «Топливные кристаллы». Ключ блока — свой
+     * блок модуля blocks (hoka:id) или ванильный. Выпадают после ломания (другие модули могли его отменить).
+     */
+    private void fuelDrop(PlayerBlockBreakEvent e) {
+        Player p = e.getPlayer();
+        if (e.isCancelled() || p.getGameMode() == net.minestom.server.entity.GameMode.CREATIVE
+                || p.getGameMode() == net.minestom.server.entity.GameMode.SPECTATOR) return;
+        if (!(config().get("fuel-drops") instanceof Map<?, ?> drops) || drops.isEmpty()) return;
+        String key = blockKey(e.getBlock());
+        if (!(drops.get(key) instanceof Map<?, ?> d)) return;
+        double chance = VesselKind.num(d, "chance", 0);
+        java.util.concurrent.ThreadLocalRandom r = java.util.concurrent.ThreadLocalRandom.current();
+        if (chance <= 0 || r.nextDouble() >= chance) return;
+        int min = (int) Math.max(1, VesselKind.num(d, "min", 1)), max = (int) Math.max(min, VesselKind.num(d, "max", min));
+        int n = min + r.nextInt(max - min + 1);
+        Instance inst = p.getInstance();
+        var pos = e.getBlockPosition();
+        scheduler().run(() -> {
+            if (inst == null || !inst.getBlock(pos).isAir()) return;              // ломание отменили
+            net.minestom.server.entity.ItemEntity it = new net.minestom.server.entity.ItemEntity(items.crystal(n));
+            it.setPickupDelay(java.time.Duration.ofMillis(300));
+            it.setVelocity(new net.minestom.server.coordinate.Vec(r.nextDouble() - 0.5, 3, r.nextDouble() - 0.5));
+            it.setInstance(inst, new Pos(pos.blockX() + 0.5, pos.blockY() + 0.4, pos.blockZ() + 0.5));
+        });
+    }
+
+    /** Ключ блока для fuel-drops: свой блок (модуль blocks) — «hoka:<id>», иначе ванильный «minecraft:…». */
+    private String blockKey(Block b) {
+        try {
+            var hb = services().get(ink.hoka.odyssey.blocks.HoBlocks.class).orElse(null);
+            String id = hb == null ? null : hb.idOf(b);
+            if (id != null) return "hoka:" + id;
+        } catch (Throwable noModule) {                                          // blocks не стоит — класса нет
+        }
+        return b.key().asString();
+    }
+
+    /** Подушка над планетой: ближе стольких блоков корпус к блокам не подходит. */
+    double clearance() { return Math.max(0, config().getDouble("planet.clearance", 10)); }
+
+    /** Настройки подушки (раздел planet:). */
+    Cushion.Settings cushion() {
+        return new Cushion.Settings(clearance(), Math.max(0.5, config().getDouble("planet.soft", 6)), config().getDouble("planet.climb", 0.8),
+                beamReach(), Math.max(0, config().getDouble("planet.server-tolerance", 3)));
+    }
+
+    /** Посадка лучом и меню с земли на планете — не дальше стольких блоков от коробки корабля. */
+    double beamReach() { return config().getDouble("planet.beam-reach", 16); }
+
+    /**
+     * Планета ли карта (подушка над поверхностью, лучи): нет — космос. Космос — карты из space-maps (по умолчанию
+     * [cosmos]) и карты с генератором space в map.yml; миры не из maps/ — тоже как космос (без подушки).
+     */
+    boolean isPlanet(Instance inst) {
+        if (inst == null || !config().getBoolean("planet.enabled", true)) return false;
+        String name = server().mapName(inst).orElse(null);
+        if (name == null) return false;
+        return planetMaps.computeIfAbsent(name, n -> {
+            List<String> space = config().contains("space-maps") ? config().getStringList("space-maps") : List.of("cosmos");
+            if (space.contains(n)) return false;
+            String gen = server().mapConfig(n).map(c -> c.getString("generator", "")).orElse("");
+            return !"space".equalsIgnoreCase(gen);
+        });
+    }
 
     // ───────────────────────── сохранение ─────────────────────────
 

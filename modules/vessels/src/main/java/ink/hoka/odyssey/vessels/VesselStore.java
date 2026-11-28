@@ -16,7 +16,7 @@ import java.util.List;
 
 /**
  * Файл кораблей module/vessels/vessels.json: {@code {"version":1,"vessels":[{id, kind, map, x, y, z, rot:[x,y,z,w],
- * owner, owner-name, cargo:{storage[27], upgrades[8], fuel[4]}}]}} (предметы — ItemStack.CODEC, пустой слот — null).
+ * owner, owner-name, hp (нет — полная), zones[5] (урон зон), cargo:{storage[27], upgrades[8], fuel[4]}}]}} (предметы — ItemStack.CODEC, пустой слот — null).
  * Запись — во временный файл и переименование (обрыв посреди записи не портит старый файл). Файл не прочитался —
  * {@link #broken}: больше не пишем (копия — vessels.json.broken), чтобы не затереть корабли пустым списком.
  */
@@ -55,6 +55,10 @@ final class VesselStore {
                         Cargo.fromJson(o.getAsJsonObject("cargo")));
                 if (o.has("owner") && !o.get("owner").isJsonNull()) v.owner = o.get("owner").getAsString();
                 if (o.has("owner-name") && !o.get("owner-name").isJsonNull()) v.ownerName = o.get("owner-name").getAsString();
+                if (o.has("hp") && !o.get("hp").isJsonNull()) v.hp = o.get("hp").getAsDouble();
+                JsonArray zd = o.getAsJsonArray("zones");
+                if (zd != null) for (int i = 0; i < Math.min(zd.size(), Zones.COUNT); i++) v.zoneDmg[i] = Math.max(0, zd.get(i).getAsDouble());
+                if (!Double.isFinite(v.hp)) v.hp = -1;
                 if (!Double.isFinite(v.x) || !Double.isFinite(v.y) || !Double.isFinite(v.z)) throw new IllegalStateException("корабль " + v.id + ": плохие координаты");
                 out.add(v);
             }
@@ -85,6 +89,14 @@ final class VesselStore {
             o.add("rot", r);
             if (v.owner != null) o.addProperty("owner", v.owner);
             if (v.ownerName != null) o.addProperty("owner-name", v.ownerName);
+            if (v.hp >= 0) o.addProperty("hp", v.hp);
+            boolean dmg = false;
+            for (double d : v.zoneDmg) dmg |= d > 0;
+            if (dmg) {
+                JsonArray zd = new JsonArray();
+                for (double d : v.zoneDmg) zd.add(Math.round(d * 100) / 100.0);
+                o.add("zones", zd);
+            }
             o.add("cargo", v.cargo.toJson());
             arr.add(o);
         }

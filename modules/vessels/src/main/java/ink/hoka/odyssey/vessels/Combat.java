@@ -20,6 +20,7 @@ import java.util.Set;
  * (guns:, по очереди) бьют в эту точку — болты сходятся там, куда смотрит перекрестие. Попадание считает сервер:
  * блоки (незагруженный куб — промах), сущности, чужие корабли (по клеткам корпуса); свой корабль, пилот и стоящие на
  * своём корабле не задеваются. Урон — когда болт долетел (скорость gun.bolt-speed). Блоки по умолчанию не ломаются.
+ * Чужой корабль теряет прочность (зона — у точки попадания, {@link HullDamage}); игроков бьёт только при PvP survival.
  */
 final class Combat {
 
@@ -36,6 +37,18 @@ final class Combat {
     double boltSpeed() { return Math.max(20, mod.config().getDouble("gun.bolt-speed", 220)); }
 
     boolean breakBlocks() { return mod.config().getBoolean("gun.break-blocks", false); }
+
+    /**
+     * Бьёт ли орудие игроков: как PvP модуля survival (его config.yml, pvp); survival нет — бьёт. Свой экипаж (пилот и
+     * стоящие на своём корабле) не задевается в любом случае.
+     */
+    boolean pvp() {
+        try {
+            return mod.context().module("survival").map(m -> m.config().getBoolean("pvp", true)).orElse(true);
+        } catch (RuntimeException e) {
+            return true;
+        }
+    }
 
     /** Задержка между выстрелами корабля (тики) с улучшениями. */
     int reloadTicks(Upgrades.Stats st) { return Math.max(1, (int) Math.round(cooldownSec() * 20 * st.gunReload())); }
@@ -61,6 +74,7 @@ final class Combat {
         Set<Object> skip = new HashSet<>();
         skip.add(p);
         skip.addAll(mod.riders(v));
+        if (!pvp()) skip.addAll(inst.getPlayers());                            // без PvP болт игроков не задевает
         double range = range();
         double[] eye = mod.seatWorld(v, k);
         List<ShotRay.Target> targets = targets(inst, eye, range + k.radius() + 4, skip);
@@ -81,12 +95,18 @@ final class Combat {
         int delay = (int) Math.round(hit.t() / boltSpeed() * 20);
         float dmg = (float) (damage() * st.gunDamage());
         if (hit.kind() == ShotRay.Kind.ENTITY && hit.ref() instanceof LivingEntity le) {
+            if (le instanceof Player && !pvp()) return;                 // PvP выключен в survival — по игрокам не бьёт
             mod.scheduler().later(() -> {
                 if (le.isRemoved() || le.isDead() || le.getInstance() != inst) return;
                 if (le.damage(Damage.fromPlayer(p, dmg)) || le.isDead()) mod.client.hit(p, le.isDead() ? 2 : 1);   // маркер у прицела
             }, Math.max(1, delay));
-        } else if (hit.kind() == ShotRay.Kind.VESSEL) {
-            mod.scheduler().later(() -> mod.client.hit(p, 3), Math.max(1, delay));
+        } else if (hit.kind() == ShotRay.Kind.VESSEL && hit.ref() instanceof Vessel target) {
+            double[] at = to.clone();
+            mod.scheduler().later(() -> {                                       // болт долетел: урон кораблю (зона — у точки попадания)
+                if (mod.vessel(target.id) != target) return;
+                boolean dead = mod.hull.damage(target, dmg, at, -1, p, "огонь " + p.getUsername());
+                if (!dead) mod.client.hit(p, 3);
+            }, Math.max(1, delay));
         } else if (hit.kind() == ShotRay.Kind.BLOCK && breakBlocks()) {
             int bx = hit.bx(), by = hit.by(), bz = hit.bz();
             mod.scheduler().later(() -> {

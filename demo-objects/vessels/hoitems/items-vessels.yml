@@ -1,8 +1,9 @@
-# Предметы кораблей (модуль vessels 0.2.0) для модуля hoitems.
+# Предметы кораблей (модуль vessels 0.2.0; vessels 0.4.0 — ещё vessel_repair и vessel_crystal) для модуля hoitems.
 # Выкладка: папку vessels/ (иконки 16×16) — в module/hoitems/assets/vessels/, этот раздел — дописать в
 # module/hoitems/config.yml под items:, затем /hoitem reload (или homodule reload hoitems).
 # Без этого vessels тоже работает: выдаёт запасные ванильные предметы (светопыль, огненный стержень…) с тем же смыслом.
-# id менять нельзя: vessels узнаёт предметы по ним (vessel_fuel, vessel_engine, vessel_tank, vessel_gun, vessel_warp).
+# id менять нельзя: vessels узнаёт предметы по ним (vessel_fuel, vessel_engine, vessel_tank, vessel_gun, vessel_warp,
+# vessel_repair, vessel_crystal).
 items:
   vessel_fuel:
     name: "Топливо"
@@ -34,3 +35,15 @@ items:
     lore: ["Улучшение корабля: перезарядка варпа −15%.", "Кладите в слоты улучшений (меню корабля — G)."]
     icon: vessels/warp.png
     stack: 1
+  vessel_repair:
+    name: "Ремкомплект"
+    color: green
+    lore: ["Чинит корпус корабля.", "ПКМ по своему кораблю или «Ремонт» в меню (G)."]
+    icon: vessels/repair.png
+    material: iron_nugget
+  vessel_crystal:
+    name: "Топливный кристалл"
+    color: gold
+    lore: ["Добывается из руд астероидов.", "Мастерская корабля (G) делает из него топливо."]
+    icon: vessels/crystal.png
+    material: prismarine_crystals

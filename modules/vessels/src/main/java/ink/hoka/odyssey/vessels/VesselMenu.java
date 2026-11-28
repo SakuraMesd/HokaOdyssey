@@ -21,7 +21,7 @@ import java.util.List;
  * <pre>
  * ряды 1–3   хранилище 27
  * ряд 4      [Улучшения ▸] 8 слотов улучшений
- * ряд 5      [Топливо ▸] 4 слота топлива  ·  [бак] [варп] [орудие] — сводка
+ * ряд 5      [Топливо ▸] 4 слота топлива  ·  [Мастерская] [Корпус — ремонт] [бак и варп] [орудие]
  * </pre>
  * В слоты улучшений кладутся только улучшения (по одному), в слоты топлива — только топливо. Shift-клик из своего
  * инвентаря раскладывает сам: топливо — в бак, улучшения — в слоты улучшений, остальное (и что не влезло) — в
@@ -33,9 +33,9 @@ import java.util.List;
  */
 final class VesselMenu {
 
-    static final int UP_LABEL = 27, UP0 = 28, FUEL_LABEL = 36, FUEL0 = 37, GAP = 41, INFO_FUEL = 42, INFO_WARP = 43, INFO_GUN = 44;
+    static final int UP_LABEL = 27, UP0 = 28, FUEL_LABEL = 36, FUEL0 = 37, WORKSHOP = 41, REPAIR = 42, INFO_WARP = 43, INFO_GUN = 44;
 
-    enum Role { STORAGE, UPGRADE, FUEL, DECOR }
+    enum Role { STORAGE, UPGRADE, FUEL, DECOR, BUTTON }
 
     final Vessel vessel;
     final Inventory inv;
@@ -54,7 +54,8 @@ final class VesselMenu {
                 List.of("Двигатель+, Бак+, Орудие+, Варп-катушка.", "Одинаковые складываются.")));
         inv.setItemStack(FUEL_LABEL, label(Material.ORANGE_STAINED_GLASS_PANE, "Топливо ▸", NamedTextColor.GOLD,
                 List.of("Бак — 4 слота. Варп тратит топливо отсюда.")));
-        inv.setItemStack(GAP, label(Material.GRAY_STAINED_GLASS_PANE, " ", NamedTextColor.GRAY, List.of()));
+        inv.setItemStack(WORKSHOP, label(Material.CRAFTING_TABLE, "Мастерская", NamedTextColor.YELLOW,
+                List.of("Топливо из кристаллов, ремкомплекты, улучшения —", "из груза корабля. Клик — открыть.")));
         refresh();
     }
 
@@ -63,6 +64,7 @@ final class VesselMenu {
         if (slot >= 0 && slot < Cargo.STORAGE) return Role.STORAGE;
         if (slot >= UP0 && slot < UP0 + Cargo.UPGRADES) return Role.UPGRADE;
         if (slot >= FUEL0 && slot < FUEL0 + Cargo.FUEL) return Role.FUEL;
+        if (slot == WORKSHOP || slot == REPAIR) return Role.BUTTON;
         return Role.DECOR;
     }
 
@@ -73,7 +75,7 @@ final class VesselMenu {
             case STORAGE -> true;
             case UPGRADE -> VesselItems.upgradeOf(it) != null;
             case FUEL -> VesselItems.isFuel(it);
-            case DECOR -> false;
+            case DECOR, BUTTON -> false;
         };
     }
 
@@ -104,10 +106,19 @@ final class VesselMenu {
     void info() {
         VesselsModule.Status s = mod.status(vessel);
         for (Player p : inv.getViewers()) mod.client.menu(p, vessel, this);
-        inv.setItemStack(INFO_FUEL, label(Material.GLOWSTONE_DUST, "Бак: " + s.fuel() + " / " + s.capacity(), NamedTextColor.GOLD,
-                List.of("Варп стоит " + s.warpCost() + " топлива.", s.burnPerMinute() > 0 ? "В полёте: " + s.burnPerMinute() + " в минуту." : "Обычный полёт топливо не тратит.")));
-        inv.setItemStack(INFO_WARP, label(Material.ENDER_PEARL, "Варп: " + Math.round(s.warpDistance()) + " блоков", NamedTextColor.LIGHT_PURPLE,
-                List.of("Зарядка " + fmt(s.warpChargeSec()) + " с, перезарядка " + fmt(s.warpReloadSec()) + " с.", "R — прыжок (пилот).")));
+        double max = mod.hull.maxHp(vessel), hp = vessel.hp(max);
+        double[] zh = mod.hull.zoneHealth(vessel);
+        java.util.List<String> zl = new java.util.ArrayList<>();
+        for (int i = 0; i < Zones.COUNT; i++) zl.add(Zones.NAMES[i] + ": " + Math.round(zh[i] * 100) + "%");
+        zl.add("Клик — ремонт ремкомплектом (+" + Math.round(mod.hull.repairKit()) + "):");
+        zl.add("из инвентаря, иначе из груза корабля.");
+        double f = hp / Math.max(1, max);
+        inv.setItemStack(REPAIR, label(Material.ANVIL, "Корпус: " + Math.round(hp) + " / " + Math.round(max),
+                f > 0.66 ? NamedTextColor.WHITE : f > 0.33 ? NamedTextColor.GOLD : NamedTextColor.RED, zl));
+        inv.setItemStack(INFO_WARP, label(Material.GLOWSTONE_DUST, "Бак: " + s.fuel() + " / " + s.capacity(), NamedTextColor.GOLD,
+                List.of("Варп: " + Math.round(s.warpDistance()) + " блоков, стоит " + s.warpCost() + " топлива.",
+                        "Зарядка " + fmt(s.warpChargeSec()) + " с, перезарядка " + fmt(s.warpReloadSec()) + " с. R — прыжок (пилот).",
+                        s.burnPerMinute() > 0 ? "В полёте: " + s.burnPerMinute() + " в минуту." : "Обычный полёт топливо не тратит.")));
         inv.setItemStack(INFO_GUN, label(Material.BLAZE_ROD, "Орудие: урон " + fmt(s.gunDamage()), NamedTextColor.RED,
                 List.of("Перезарядка " + fmt(s.gunReloadSec()) + " с, дальность " + Math.round(s.gunRange()) + ".", "ЛКМ — огонь (пилот).",
                         "Скорость ×" + fmt(s.speedMul()) + ".")));
@@ -180,6 +191,12 @@ final class VesselMenu {
             int slot = e.getSlot();
             Role r = role(slot);
             if (r == Role.DECOR) { e.setCancelled(true); return; }
+            if (r == Role.BUTTON) {
+                e.setCancelled(true);
+                if (slot == REPAIR) mod.scheduler().run(() -> mod.hull.repairWithKit(p, vessel, false));
+                else if (slot == WORKSHOP) mod.scheduler().run(() -> mod.openWorkshop(p, vessel));
+                return;
+            }
             switch (c) {
                 case Click.Left l -> { if (!accepts(r, cursor)) e.setCancelled(true); else if (r == Role.UPGRADE) oneUpgrade(e, p, slot, cursor); }
                 case Click.Right rr -> { if (!accepts(r, cursor)) e.setCancelled(true); }

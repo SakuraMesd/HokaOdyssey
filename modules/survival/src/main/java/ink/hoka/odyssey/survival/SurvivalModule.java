@@ -322,7 +322,7 @@ public final class SurvivalModule extends OdysseyModule {
         boolean inWater = feet.compare(Block.WATER) || inst.getBlock(pos.add(0, p.getEyeHeight(), 0)).compare(Block.WATER)
                 || "true".equals(feet.getProperty("waterlogged"));
         boolean climbing = feet.compare(Block.LADDER) || feet.compare(Block.VINE) || feet.compare(Block.SCAFFOLDING) || feet.key().asString().contains("vines");
-        if (!live || p.isFlying() || p.getVehicle() != null || inWater || climbing || feet.compare(Block.COBWEB)) { s.fallTop = Double.NaN; return; }
+        if (!live || p.isFlying() || p.getVehicle() != null || inWater || climbing || feet.compare(Block.COBWEB) || fallSafe(p)) { s.fallTop = Double.NaN; return; }
         if (!ground) {
             double top = Math.max(pos.y(), old.y());
             if (Double.isNaN(s.fallTop) || top > s.fallTop) s.fallTop = top;
@@ -338,6 +338,17 @@ public final class SurvivalModule extends OdysseyModule {
             if (dmg > 0) p.damage(new Damage(DamageType.FALL, null, null, null, dmg));
         }
         s.fallTop = Double.NaN;
+    }
+
+    /**
+     * Падение не считается, пока у игрока метка hoka_fall_safe_until (время, мс) в будущем: её ставят другие модули —
+     * vessels (луч корабля над планетой, выброс при разрушении корабля).
+     */
+    private static final net.minestom.server.tag.Tag<Long> FALL_SAFE = net.minestom.server.tag.Tag.Long("hoka_fall_safe_until");
+
+    private static boolean fallSafe(Player p) {
+        Long until = p.getTag(FALL_SAFE);
+        return until != null && until > System.currentTimeMillis();
     }
 
     /** Атрибуты падения карты: множитель (maps.&lt;карта&gt;.fall) и высота без урона. */

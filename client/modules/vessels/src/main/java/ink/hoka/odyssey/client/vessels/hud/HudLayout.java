@@ -46,6 +46,8 @@ public final class HudLayout {
     public Box compass, msg, left, right, hints, warp, speed, alt;
     /** Полувысота лент (0 — лент нет), сдвиг лент от середины, радиус лесенки (0 — нет), высота силуэта. */
     public float tapeHalf, dx, ladderR, silH;
+    /** Высота строки прочности под силуэтом. */
+    public float hpH;
     public final List<HintLine> hintLines = new ArrayList<>();
 
     /**
@@ -63,8 +65,9 @@ public final class HudLayout {
         msg = new Box(M, compass.bottom() + 3, w - 2 * M, MSG_H);
 
         // углы снизу: силуэт с топливом слева, орудие и варп справа
-        silH = h >= 300 ? 40 : 28;
-        float lh = silH + 37;
+        silH = h >= 300 ? 40 : 18;                                                // низкий экран — силуэт ниже: ленты должны влезть
+        hpH = h >= 300 ? 12 : 10;
+        float lh = silH + 37 + hpH;                                               // силуэт, прочность, топливо
         left = new Box(M, h - M - lh, PANEL_W, lh);
         if (w >= 2 * PANEL_W + 3 * M) right = new Box(w - M - PANEL_W, h - M - RIGHT_H, PANEL_W, RIGHT_H);
         else right = new Box(M, left.y - M - RIGHT_H, PANEL_W, RIGHT_H);          // крошечное окно — друг над другом
