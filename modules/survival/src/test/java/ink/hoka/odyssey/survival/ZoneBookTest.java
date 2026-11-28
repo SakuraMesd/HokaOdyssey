@@ -104,4 +104,19 @@ class ZoneBookTest {
         assertFalse(ZoneBook.validName("a b"));
         assertFalse(ZoneBook.validName(""));
     }
+
+    @Test
+    void safeZoneInsidePvpMap() {
+        ZoneBook b = ZoneBook.EMPTY.withDefault("cosmos", true)
+                .with(ZoneBook.Zone.of("base", "cosmos", 0, 0, 0, 99, 99, 99, false))
+                .with(ZoneBook.Zone.of("ring", "cosmos", 40, 40, 40, 59, 59, 59));            // арена внутри базы
+        assertTrue(b.isPvp("cosmos", 500, 50, 500), "вне зон на cosmos — PvP");
+        assertFalse(b.isPvp("cosmos", 10, 10, 10), "в безопасной зоне — без PvP");
+        assertTrue(b.isPvp("cosmos", 50, 50, 50), "меньшая вложенная PvP-зона главнее");
+        assertFalse(b.isPvp("world", 10, 10, 10));
+        ZoneBook back = ZoneBook.fromJson(b.toJson());                                         // флаг переживает файл
+        assertFalse(back.zone("base").pvp());
+        assertTrue(back.zone("ring").pvp());
+        assertFalse(back.isPvp("cosmos", 10, 10, 10));
+    }
 }

@@ -27,19 +27,27 @@ import java.util.Map;
  * <pre>
  * {"version":1,
  *  "maps":{"cosmos":{"default":false}},
- *  "zones":[{"name":"arena","map":"cosmos","min":[-50,0,-50],"max":[50,80,50]}]}
+ *  "zones":[{"name":"arena","map":"cosmos","min":[-50,0,-50],"max":[50,80,50]},
+ *           {"name":"base","map":"cosmos","min":[0,0,0],"max":[9,9,9],"pvp":false}]}
  * </pre>
+ * Зона с {@code "pvp": false} — безопасная (база на карте, где вне зон PvP). Зоны вложены — решает меньшая по объёму
+ * (при равном — заданная позже).
  * min/max — углы коробки (блоки, включительно): точка (x, y, z) внутри, если min ≤ x &lt; max + 1 по каждой оси.
  * Запись — во временный файл и переименование; битый файл не перезаписывается (копия — pvp-zones.json.broken).
  */
 public final class ZoneBook {
 
     /** Зона: коробка блоков [x0..x1]×[y0..y1]×[z0..z1] (включительно) на карте map. */
-    public record Zone(String name, String map, int x0, int y0, int z0, int x1, int y1, int z1) {
+    public record Zone(String name, String map, int x0, int y0, int z0, int x1, int y1, int z1, boolean pvp) {
 
-        /** Из двух любых углов. */
+        /** Из двух любых углов (PvP-зона). */
         public static Zone of(String name, String map, int ax, int ay, int az, int bx, int by, int bz) {
-            return new Zone(name, map, Math.min(ax, bx), Math.min(ay, by), Math.min(az, bz), Math.max(ax, bx), Math.max(ay, by), Math.max(az, bz));
+            return of(name, map, ax, ay, az, bx, by, bz, true);
+        }
+
+        /** Из двух любых углов; pvp false — безопасная зона. */
+        public static Zone of(String name, String map, int ax, int ay, int az, int bx, int by, int bz, boolean pvp) {
+            return new Zone(name, map, Math.min(ax, bx), Math.min(ay, by), Math.min(az, bz), Math.max(ax, bx), Math.max(ay, by), Math.max(az, bz), pvp);
         }
 
         /** Точка внутри коробки (граница блока x1 + 1 — уже снаружи). */
@@ -81,17 +89,20 @@ public final class ZoneBook {
 
     public Map<String, Boolean> defaults() { return defaults; }
 
-    /** Зона в точке (первая по порядку) или null. */
+    /** Зона в точке или null; вложенные — меньшая по объёму (при равном — заданная позже). */
     public Zone zoneAt(String map, double x, double y, double z) {
         if (map == null) return null;
-        for (Zone zn : zones(map)) if (zn.contains(x, y, z)) return zn;
-        return null;
+        Zone best = null;
+        for (Zone zn : zones(map))
+            if (zn.contains(x, y, z) && (best == null || zn.volume() <= best.volume())) best = zn;
+        return best;
     }
 
-    /** PvP в точке: внутри любой зоны — да; вне зон — значение карты по умолчанию (нет — нет). */
+    /** PvP в точке: в зоне — как у зоны (PvP-зона да, безопасная нет); вне зон — значение карты (нет — нет). */
     public boolean isPvp(String map, double x, double y, double z) {
         if (map == null) return false;
-        if (zoneAt(map, x, y, z) != null) return true;
+        Zone zn = zoneAt(map, x, y, z);
+        if (zn != null) return zn.pvp();
         return Boolean.TRUE.equals(defaults.get(map));
     }
 
@@ -143,6 +154,7 @@ public final class ZoneBook {
             o.addProperty("map", z.map());
             o.add("min", ints(z.x0(), z.y0(), z.z0()));
             o.add("max", ints(z.x1(), z.y1(), z.z1()));
+            if (!z.pvp()) o.addProperty("pvp", false);
             arr.add(o);
         }
         root.add("zones", arr);
@@ -168,7 +180,8 @@ public final class ZoneBook {
             String name = o.get("name").getAsString(), map = o.get("map").getAsString();
             JsonArray a = o.getAsJsonArray("min"), b = o.getAsJsonArray("max");
             if (a == null || b == null || a.size() != 3 || b.size() != 3) throw new IllegalStateException("зона " + name + ": нужны min и max по 3 числа");
-            Zone z = Zone.of(name, map, a.get(0).getAsInt(), a.get(1).getAsInt(), a.get(2).getAsInt(), b.get(0).getAsInt(), b.get(1).getAsInt(), b.get(2).getAsInt());
+            boolean pvp = !o.has("pvp") || o.get("pvp").getAsBoolean();
+            Zone z = Zone.of(name, map, a.get(0).getAsInt(), a.get(1).getAsInt(), a.get(2).getAsInt(), b.get(0).getAsInt(), b.get(1).getAsInt(), b.get(2).getAsInt(), pvp);
             for (Zone o2 : l) if (o2.name().equalsIgnoreCase(name)) throw new IllegalStateException("две зоны с именем " + name);
             l.add(z);
         }

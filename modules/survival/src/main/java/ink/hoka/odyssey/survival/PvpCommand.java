@@ -52,7 +52,8 @@ final class PvpCommand extends Command {
         addSyntax((s, c) -> pos(s, 2, false), ArgumentType.Literal("pos2"));
         addSyntax((s, c) -> pos(s, 1, true), ArgumentType.Literal("pos1"), ArgumentType.Literal("target"));
         addSyntax((s, c) -> pos(s, 2, true), ArgumentType.Literal("pos2"), ArgumentType.Literal("target"));
-        addSyntax((s, c) -> create(s, c.get(name)), ArgumentType.Literal("create"), name);
+        addSyntax((s, c) -> create(s, c.get(name), true), ArgumentType.Literal("create"), name);
+        addSyntax((s, c) -> create(s, c.get(name), false), ArgumentType.Literal("create"), name, ArgumentType.Literal("safe"));
         addSyntax((s, c) -> remove(s, c.get(name)), ArgumentType.Literal("remove"), name);
         addSyntax((s, c) -> list(s), ArgumentType.Literal("list"));
         addSyntax((s, c) -> show(s, null), ArgumentType.Literal("show"));
@@ -65,6 +66,7 @@ final class PvpCommand extends Command {
         s.sendMessage(Component.text("""
                 /hopvp pos1|pos2 [target] — угол зоны: у ног (или блок под прицелом)
                 /hopvp create <имя> — зона из pos1–pos2 на этой карте
+                /hopvp create <имя> safe — безопасная зона (без PvP) — база на карте, где вне зон PvP
                 /hopvp remove <имя> · /hopvp list · /hopvp show [имя] · /hopvp here
                 /hopvp default <on|off|unset> — PvP на этой карте вне зон""", NamedTextColor.YELLOW));
     }
@@ -91,7 +93,7 @@ final class PvpCommand extends Command {
         ok(s, "Точка " + which + ": " + at[0] + " " + at[1] + " " + at[2]);
     }
 
-    private void create(CommandSender s, String name) {
+    private void create(CommandSender s, String name, boolean pvp) {
         if (!(s instanceof Player p)) { err(s, "только в игре"); return; }
         String map = map(p);
         if (map == null) { err(s, "Этот мир — не карта из maps/"); return; }
@@ -100,9 +102,9 @@ final class PvpCommand extends Command {
         if (a == null || b == null) { err(s, "Сначала /hopvp pos1 и /hopvp pos2"); return; }
         if (!map.equals(posMap.get(p.getUuid()))) { err(s, "Углы ставились на другой карте — поставьте pos1 и pos2 здесь"); return; }
         ZoneBook.Zone was = mod.zones().zone(name);
-        ZoneBook.Zone z = ZoneBook.Zone.of(was != null ? was.name() : name, map, a[0], a[1], a[2], b[0], b[1], b[2]);
+        ZoneBook.Zone z = ZoneBook.Zone.of(was != null ? was.name() : name, map, a[0], a[1], a[2], b[0], b[1], b[2], pvp);
         if (!mod.editZones(mod.zones().with(z))) { err(s, "pvp-zones.json битый — зоны не сохраняются (см. лог)"); return; }
-        ok(s, (was != null ? "Зона «" + z.name() + "» заменена: " : "PvP-зона «" + z.name() + "» создана: ") + map + " " + z.box()
+        ok(s, (was != null ? "Зона «" + z.name() + "» заменена: " : (pvp ? "PvP-зона «" : "Безопасная зона «") + z.name() + "» создана: ") + map + " " + z.box()
                 + " (" + z.volume() + " блоков)");
         show(s, z.name());
     }
@@ -118,7 +120,7 @@ final class PvpCommand extends Command {
         ZoneBook b = mod.zones();
         s.sendMessage(Component.text("PvP игроков: " + mod.playerMode() + " (config.yml pvp-mode). Зон: " + b.zones().size(), NamedTextColor.YELLOW));
         for (ZoneBook.Zone z : b.zones())
-            s.sendMessage(Component.text(" " + z.name() + " — " + z.map() + " " + z.box(), NamedTextColor.WHITE));
+            s.sendMessage(Component.text(" " + z.name() + (z.pvp() ? " [PvP]" : " [безопасная]") + " — " + z.map() + " " + z.box(), NamedTextColor.WHITE));
         for (var e : b.defaults().entrySet())
             s.sendMessage(Component.text(" карта " + e.getKey() + " вне зон: " + (e.getValue() ? "PvP" : "без PvP"), NamedTextColor.GRAY));
     }
@@ -130,7 +132,7 @@ final class PvpCommand extends Command {
         ZoneBook b = mod.zones();
         ZoneBook.Zone z = b.zoneAt(map, pp.x(), pp.y(), pp.z());
         boolean pvp = b.isPvp(map, pp.x(), pp.y(), pp.z());
-        String where = z != null ? "в PvP-зоне «" + z.name() + "»" : "вне зон (карта " + map + ": " + (pvp ? "PvP" : "без PvP") + ")";
+        String where = z != null ? (z.pvp() ? "в PvP-зоне «" : "в безопасной зоне «") + z.name() + "»" : "вне зон (карта " + map + ": " + (pvp ? "PvP" : "без PvP") + ")";
         s.sendMessage(Component.text("Вы " + where + ". Бой игроков: " + mod.playerMode(), pvp ? NamedTextColor.GOLD : NamedTextColor.AQUA));
     }
 
