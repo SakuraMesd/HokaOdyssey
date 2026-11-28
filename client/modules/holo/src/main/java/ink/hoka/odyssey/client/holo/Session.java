@@ -31,7 +31,7 @@ public final class Session {
     public final Map<String, JsonObject> drafts = new LinkedHashMap<>();
     public final java.util.Set<String> dirty = new java.util.LinkedHashSet<>();
     /** Отправлены на сервер, ответа ещё нет: отказ — снова «не сохранено». */
-    final java.util.Set<String> pending = new java.util.LinkedHashSet<>();
+    final Map<String, JsonObject> pending = new LinkedHashMap<>();
     private final Deque<Step> undo = new ArrayDeque<>(), redo = new ArrayDeque<>();
     public String selected;
     public boolean auto;
@@ -64,6 +64,7 @@ public final class Session {
         JsonObject base = get(selected);
         if (base == null) return false;
         long now = System.currentTimeMillis();
+        if (grp != null) grp = selected + "|" + grp;                             // склейка — только того же поля той же голограммы
         boolean merge = grp != null && grp.equals(group) && now - groupAt < 1500 && !undo.isEmpty();
         JsonObject d = drafts.computeIfAbsent(selected, k -> base.deepCopy());
         String before = GSON.toJson(d);
@@ -145,7 +146,9 @@ public final class Session {
         saver.accept(d);
         server.put(id, d.deepCopy());
         dirty.remove(id);
-        pending.add(id);
+        drafts.remove(id);                                                      // дальше — серверная версия (SET)
+        pending.put(id, d);
+        version++;
         return true;
     }
 
@@ -156,10 +159,18 @@ public final class Session {
     }
 
     /** Ответ сервера на сохранение: отказ — черновики снова «не сохранены» (правки не теряются). */
-    public void result(boolean ok) {
-        if (!ok) for (String id : pending) if (drafts.containsKey(id)) dirty.add(id);
-        pending.clear();
+    public void result(String id, boolean ok) {
+        JsonObject d = id == null ? null : pending.remove(id);
+        if (!ok && d != null && !drafts.containsKey(id)) {
+            drafts.put(id, d);
+            dirty.add(id);
+        }
         version++;
+    }
+
+    /** С сервера пришла новая версия / голограмма удалена: черновик без правок больше не нужен. */
+    public void serverChanged(String id) {
+        if (!dirty.contains(id) && drafts.remove(id) != null) version++;
     }
 
     /** Удалили на сервере — убрать отовсюду (истории это не касается: удаление не отменяется). */

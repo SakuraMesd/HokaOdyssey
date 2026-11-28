@@ -77,6 +77,7 @@ public final class Mini {
             i += Character.charCount(cp);
         }
         finish(cur, out);
+        while (!stack.isEmpty()) finish(stack.pop(), out);                     // незакрытые теги внутри градиента
         return out;
     }
 

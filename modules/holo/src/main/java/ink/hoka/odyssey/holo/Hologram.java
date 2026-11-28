@@ -148,7 +148,7 @@ public final class Hologram {
         public String image;
         /** image, bar, spacer: размеры в блоках (0 — по умолчанию). */
         public double w, h;
-        /** bar: значение «0.4» или «{плейсхолдер}» (0..1; больше 1 — делится на max). */
+        /** bar: значение «0.4» или «{плейсхолдер}»: доля value/max; при max = 1 значение больше 1 считается процентами. */
         public String value;
         public double max = 1;
         /** bar, button: цвет RGB «#8FD8FF» (пусто — из темы). */
@@ -190,7 +190,7 @@ public final class Hologram {
         }
     }
 
-    /** Действие нажатия: тип и строка-значение (команда без «/», текст, звук, «x y z [карта]», окно, next|prev|N). */
+    /** Действие нажатия: тип и строка-значение (команда без «/», текст, звук, «[карта] x y z [курс наклон]», окно, next|prev|N). */
     public record Action(ActionType type, String value) {
         public static Action of(String type, String value) { return new Action(ActionType.parse(type), value == null ? "" : value); }
     }

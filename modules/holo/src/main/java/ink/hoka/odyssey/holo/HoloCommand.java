@@ -40,6 +40,8 @@ final class HoloCommand extends Command {
         addSyntax((s, c) -> player(s, p -> m.openEditor(p, c.get(id))), ArgumentType.Literal("edit"), id);
         addSyntax((s, c) -> player(s, p -> create(p, c.get(id))), ArgumentType.Literal("create"), id);
         addSyntax((s, c) -> {
+            Hologram h = m.holos.get(c.get(id));
+            if (h != null && h.temporary) { err(s, "«" + h.id + "» — временная голограмма модуля"); return; }
             if (m.remove(c.get(id))) ok(s, "Голограмма «" + c.get(id) + "» удалена");
             else err(s, "Нет голограммы «" + c.get(id) + "»");
         }, ArgumentType.Literal("remove"), id);

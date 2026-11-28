@@ -98,8 +98,7 @@ public final class HoloModule extends OdysseyModule implements HoloApi {
         else {
             publishImages();
             api.onReady(MODULE, p -> {                                          // модуль мода загрузился (или обновился)
-                viewers.remove(p.getUuid());
-                ph.forget(p.getUuid());
+                reset(p);
                 sync(p);
             });
             api.on(MODULE, (p, data) -> scheduler().run(() -> onPacket(p, data)));
@@ -160,9 +159,10 @@ public final class HoloModule extends OdysseyModule implements HoloApi {
         }
         holos.putAll(temp);
         try {
+            boolean fresh = !Files.isRegularFile(tstore.file());                // встроенные — только в новый файл (удалённые не возвращаются)
             Map<String, Hologram> t = tstore.loadTemplates();
             boolean add = false;
-            for (var e : Templates.builtIn().entrySet()) if (t.putIfAbsent(e.getKey(), e.getValue()) == null) add = true;
+            if (fresh) for (var e : Templates.builtIn().entrySet()) if (t.putIfAbsent(e.getKey(), e.getValue()) == null) add = true;
             templates.clear();
             templates.putAll(t);
             tbroken = false;
@@ -256,6 +256,13 @@ public final class HoloModule extends OdysseyModule implements HoloApi {
 
     boolean isOp(Player p) { return server().isOp(p); }
 
+    /** Всё отправленное — заново (страницы игрока сохраняются). */
+    private void reset(Player p) {
+        Viewer v = viewers.get(p.getUuid());
+        if (v != null) { v.map = null; v.sent.clear(); v.wanted = Set.of(); }
+        ph.forget(p.getUuid());
+    }
+
     private void forget(UUID id) {
         viewers.remove(id);
         ph.forget(id);
@@ -290,12 +297,16 @@ public final class HoloModule extends OdysseyModule implements HoloApi {
         boolean check = tick % checkPeriod == 0;
         for (Player p : online()) {
             if (!ready(p)) continue;
-            if (check) sync(p);
-            Viewer v = viewers.get(p.getUuid());
-            if (v == null) continue;
-            Map<String, String> due = ph.due(p, v.wanted, tick, v.force);
-            v.force = false;
-            if (!due.isEmpty()) api.send(p, MODULE, Net.values(due));
+            try {
+                if (check) sync(p);
+                Viewer v = viewers.get(p.getUuid());
+                if (v == null) continue;
+                Map<String, String> due = ph.due(p, v.wanted, tick, v.force);
+                v.force = false;
+                if (!due.isEmpty()) api.send(p, MODULE, Net.values(due));
+            } catch (RuntimeException e) {
+                logger().warn("голограммы для {}: {}", p.getUsername(), e.toString());
+            }
         }
     }
 
@@ -318,6 +329,7 @@ public final class HoloModule extends OdysseyModule implements HoloApi {
             v.map = map;
             v.sent.clear();
             ph.forget(p.getUuid());
+            rewant(v);
         }
         ClickGuard.Who w = who(p);
         boolean changed = false;
@@ -469,19 +481,21 @@ public final class HoloModule extends OdysseyModule implements HoloApi {
         Hologram h;
         try { h = HoloCodec.parse(json); }
         catch (RuntimeException e) {
-            api.send(p, MODULE, Net.result(false, "Не сохранено: " + e.getMessage()));
+            String id;
+            try { id = com.google.gson.JsonParser.parseString(json).getAsJsonObject().get("id").getAsString(); } catch (RuntimeException x) { id = ""; }
+            api.send(p, MODULE, Net.result(false, "Не сохранено: " + e.getMessage(), id));
             return;
         }
         Hologram old = holos.get(h.id);
         if (old != null && old.temporary) {
-            api.send(p, MODULE, Net.result(false, "«" + h.id + "» — временная голограмма модуля, её правит код"));
+            api.send(p, MODULE, Net.result(false, "«" + h.id + "» — временная голограмма модуля, её правит код", h.id));
             return;
         }
         h.creatorOp = true;                                                     // правил OP — проверено выше
         holos.put(h.id, h);
         saved();
         changed(h);
-        api.send(p, MODULE, Net.result(true, (old == null ? "Создана «" : "Сохранена «") + h.id + "»" + (broken ? " (файл битый — не записано!)" : "")));
+        api.send(p, MODULE, Net.result(true, (old == null ? "Создана «" : "Сохранена «") + h.id + "»" + (broken ? " (файл битый — не записано!)" : ""), h.id));
     }
 
     void click(Player p, String id, int page, int line, int elem, boolean right) {
@@ -686,8 +700,7 @@ public final class HoloModule extends OdysseyModule implements HoloApi {
         for (Player p : online()) {
             if (!ready(p)) continue;
             api.send(p, MODULE, Net.clear());
-            viewers.remove(p.getUuid());
-            ph.forget(p.getUuid());
+            reset(p);
             sync(p);
         }
         if (err != null) s.sendMessage(Component.text(err + " — сохранение выключено", NamedTextColor.RED));

@@ -945,7 +945,7 @@ public final class EditorUi {
     private void elEdit(String group, Consumer<JsonObject> f) {
         int pg = page, ln = selLine, el = selElem;
         if (ln < 0 || el < 0) return;
-        edit(group, d -> {
+        edit(group == null ? null : group + ":" + pg + ":" + ln + ":" + el, d -> {
             JsonArray ls = lines(d, pg);
             if (ln >= ls.size()) return;
             JsonArray r = row(ls, ln);

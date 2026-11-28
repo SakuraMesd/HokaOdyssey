@@ -84,7 +84,7 @@ public final class ClickGuard {
         }
         if (acts.isEmpty()) return Result.of(Verdict.NOT_CLICKABLE);
         if (!allowed(cond, w)) return Result.of(Verdict.DENIED);
-        String k = who + '|' + h.id + '|' + page + '|' + line + '|' + elem + (right ? "|r" : "|l");
+        String k = who + '|' + h.id + '|' + page + '|' + (elem < 0 ? 0 : line) + '|' + elem + (right ? "|r" : "|l");
         Long prev = last.get(k);
         if (prev != null && tick - prev < cd) return Result.of(Verdict.COOLDOWN);
         last.put(k, tick);

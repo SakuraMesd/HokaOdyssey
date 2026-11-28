@@ -108,6 +108,8 @@ public final class HoloCodec {
         if (!e.align.equals("left") && !e.align.equals("center") && !e.align.equals("right"))
             throw new IllegalArgumentException(id + ": align — left | center | right");
         e.item = str(o, "item", null);
+        if (e.item != null && !e.item.matches("[A-Za-z0-9_:.\\-/]{1,80}"))
+            throw new IllegalArgumentException(id + ": плохой id предмета «" + e.item + "»");
         e.spin = bool(o, "spin", true);
         e.hint = text(o, "hint", id);
         e.image = str(o, "image", null);

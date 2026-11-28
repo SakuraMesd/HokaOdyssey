@@ -162,11 +162,15 @@ class HoloLogicTest {
         assertEquals(1, s.saveAll());
         assertEquals(1, saved[0]);
         assertTrue(s.dirty.isEmpty());
-        s.result(false);                                                          // сервер отказал — снова не сохранено
+        assertFalse(s.drafts.containsKey("a"));                                  // после сохранения — серверная версия
+        s.result("a", false);                                                     // сервер отказал — снова не сохранено
         assertTrue(s.dirty.contains("a"));
+        assertEquals(10, s.current().get("range").getAsInt());                   // правка не потеряна
         s.saveAll();
-        s.result(true);
+        s.result("a", true);
         assertTrue(s.dirty.isEmpty());
+        s.serverChanged("a");
+        assertFalse(s.drafts.containsKey("a"));
 
         // создать → отменить — пропадает; повторить — возвращается
         s.put(Session.parse("{\"id\": \"b\", \"pos\": [0,0,0]}"));

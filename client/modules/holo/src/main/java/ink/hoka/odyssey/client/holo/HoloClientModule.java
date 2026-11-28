@@ -144,10 +144,12 @@ public final class HoloClientModule implements ClientModule {
                         if (it != null) l.items.put(key, it);
                     }
                     if (!session.dirty.contains(h.id)) session.server.put(h.id, o);
+                    session.serverChanged(h.id);
                 }
                 case REMOVE -> {
                     String id = in.readUTF();
                     boolean anim = in.readUnsignedByte() == 1;
+                    if (anim) { session.server.remove(id); session.serverChanged(id); }
                     Live l = live.get(id);
                     if (l != null) {
                         if (anim) l.dying = System.currentTimeMillis();
@@ -168,6 +170,7 @@ public final class HoloClientModule implements ClientModule {
                 case INFO -> {
                     info = Session.parse(str(in));
                     if (info.has("holograms")) {
+                        session.server.clear();                                 // удалённые на сервере — из списка
                         for (var e : info.getAsJsonArray("holograms")) {
                             JsonObject o = e.getAsJsonObject();
                             session.server.put(o.get("id").getAsString(), o);
@@ -180,7 +183,7 @@ public final class HoloClientModule implements ClientModule {
                     lastOk = in.readUnsignedByte() == 1;
                     lastResult = in.readUTF();
                     lastResultAt = System.currentTimeMillis();
-                    session.result(lastOk);
+                    session.result(in.readUTF(), lastOk);
                 }
                 default -> { }
             }
@@ -630,6 +633,7 @@ public final class HoloClientModule implements ClientModule {
         if (!editorAllowed) return;
         if (id != null && !id.isEmpty() && session.get(id) != null) session.select(id);
         else if (id != null && !id.isEmpty()) session.selected = id;            // придёт с INFO
+        if (Minecraft.getInstance().screen instanceof EditorScreen) return;     // уже открыт — не терять черновики
         Minecraft.getInstance().setScreen(new EditorScreen(this));
     }
 

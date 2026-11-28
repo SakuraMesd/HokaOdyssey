@@ -233,6 +233,13 @@ public final class Layout {
             float cw = m.width(g.cp(), (g.flags() & Mini.BOLD) != 0);
             if (g.cp() == ' ') { lastSpace = i; wAtSpace = w; }
             if (w + cw > maxW && i > start) {
+                if (lastSpace == i) {                                            // перенос ровно на пробеле — пробел не считаем
+                    out.add(line(gs, start, i, wAtSpace));
+                    start = i + 1;
+                    w = 0;
+                    lastSpace = -1;
+                    continue;
+                }
                 if (lastSpace > start) {
                     out.add(line(gs, start, lastSpace, wAtSpace));
                     start = lastSpace + 1;

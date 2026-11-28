@@ -21,7 +21,7 @@ import java.util.Map;
  * 6 PAGE    UTF id; int страница
  * 7 INFO    STR JSON для редактора: images, items, placeholders, maps, templates, holograms (все, кроме временных)
  * 8 EDIT    UTF id ("" — список) — открыть редактор
- * 9 RESULT  byte ok; UTF текст — ответ на правку редактора
+ * 9 RESULT  byte ok; UTF текст; UTF id сохранённой голограммы ("" — не сохранение) — ответ на правку редактора
  * </pre>
  * Мод → сервер:
  * <pre>
@@ -102,5 +102,9 @@ final class Net {
 
     static byte[] edit(String id) { return pack(EDIT, o -> o.writeUTF(id == null ? "" : id)); }
 
-    static byte[] result(boolean ok, String msg) { return pack(RESULT, o -> { o.writeByte(ok ? 1 : 0); o.writeUTF(msg); }); }
+    static byte[] result(boolean ok, String msg) { return result(ok, msg, ""); }
+
+    static byte[] result(boolean ok, String msg, String id) {
+        return pack(RESULT, o -> { o.writeByte(ok ? 1 : 0); o.writeUTF(msg); o.writeUTF(id == null ? "" : id); });
+    }
 }
