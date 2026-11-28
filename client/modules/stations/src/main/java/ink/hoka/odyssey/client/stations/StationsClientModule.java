@@ -140,6 +140,7 @@ public final class StationsClientModule implements ClientModule {
             vc.addVertex(m, x3, y3, z3).setColor(c3);
         };
         int[] col = colors;
+        style.visible = (ax, ay, az, bx, by, bz) -> f.visible(new AABB(ax, ay, az, bx, by, bz));   // плёнка — только в кадре
         List<Reg> labels = new ArrayList<>();
         for (Reg r : regs) {
             boolean shown = show && (showId.isEmpty() || showId.equals(r.id()));

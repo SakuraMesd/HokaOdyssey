@@ -31,7 +31,14 @@ public final class BorderMesh {
         public float hexWidth = 0.028f;
         public double hexWidthPerBlock = 0.0018;          // толщина линии на блок расстояния (не тоньше hexWidth)
         public double pulseSpeed = 2.5;                  // блоки в секунду — бег бликов по рёбрам
+        public double tile = 4;                          // плёнка строится плитками (блоки); невидимые в кадре — пропуск
+        public float minAlpha = 0.015f;                  // линии сетки прозрачнее этого не рисуются (край круга)
+        /** Видна ли коробка в кадре (мировые координаты); null — рисовать всё. Ставит модуль перед кадром. */
+        public Visible visible;
     }
+
+    /** Отсечение по кадру (фрустум). */
+    public interface Visible { boolean test(double x0, double y0, double z0, double x1, double y1, double z1); }
 
     private BorderMesh() {}
 
@@ -228,31 +235,48 @@ public final class BorderMesh {
         double w = plane + off - cam[k];
         FaceCtx f = new FaceCtx(k, ku, kv, w, cam, eye, plane, R, rgb, bright, t, st, out);
 
-        // заливка: клетки по сетке мира (1 блок, при большом радиусе — крупнее), прозрачность по вершинам
-        double cell = Math.max(1, Math.floor(R / 16));
-        for (double u = Math.floor(u0 / cell) * cell; u < u1; u += cell) {
-            double ua = Math.max(u, u0), ub = Math.min(u + cell, u1);
-            for (double v = Math.floor(v0 / cell) * cell; v < v1; v += cell) {
-                double va = Math.max(v, v0), vb = Math.min(v + cell, v1);
-                float a00 = f.film(ua, va), a10 = f.film(ub, va), a11 = f.film(ub, vb), a01 = f.film(ua, vb);
-                if (a00 + a10 + a11 + a01 < 0.004f) continue;
-                f.quad(ua, va, a00, ub, va, a10, ub, vb, a11, ua, vb, a01, rgb);
-            }
-        }
-        // шестигранники (остриём вверх): у каждого — три ребра (верх-право, верх-лево, лево), так сетка без повторов
-        double s = st.hexSize, hw = Math.sqrt(3) * s, hh = 1.5 * s;
-        int j0 = (int) Math.floor((v0 - s) / hh), j1 = (int) Math.ceil((v1 + s) / hh);
+        // плёнка — плитками tile×tile: невидимые в кадре и целиком дальше R от глаз пропускаем (у стены в кадре — малая
+        // часть круга радиусом R, а строить весь круг каждый кадр — это тысячи лишних квадов)
+        double T = st.tile, cell = Math.max(1, Math.floor(R / 16));
+        double s6 = st.hexSize, hw = Math.sqrt(3) * s6, hh = 1.5 * s6;
         int hex = lighten(rgb, 0.35f);
-        for (int j = j0; j <= j1; j++) {
-            double shift = (j & 1) == 0 ? 0 : hw * 0.5;
-            int i0 = (int) Math.floor((u0 - shift - hw) / hw), i1 = (int) Math.ceil((u1 - shift + hw) / hw);
-            for (int i = i0; i <= i1; i++) {
-                double cu = i * hw + shift, cv = j * hh;
-                double pu = cu + s * COS[0], pv = cv + s * SIN[0];
-                for (int e = 1; e <= 3; e++) {
-                    double qu = cu + s * COS[e], qv = cv + s * SIN[e];
-                    f.line(pu, pv, qu, qv, u0, v0, u1, v1, hex);
-                    pu = qu; pv = qv;
+        double[] a = new double[3], b = new double[3];
+        for (double tu = Math.floor(u0 / T) * T; tu < u1; tu += T) {
+            double ta = Math.max(tu, u0), tb = Math.min(tu + T, u1);
+            for (double tv = Math.floor(v0 / T) * T; tv < v1; tv += T) {
+                double tc = Math.max(tv, v0), td = Math.min(tv + T, v1);
+                double nu = Math.clamp(eu, ta, tb) - eu, nv = Math.clamp(ev, tc, td) - ev;   // ближайшая точка плитки
+                if (nu * nu + nv * nv + dp * dp >= R * R) continue;
+                if (st.visible != null) {
+                    a[k] = plane - 0.1; a[ku] = ta; a[kv] = tc;
+                    b[k] = plane + 0.1; b[ku] = tb; b[kv] = td;
+                    if (!st.visible.test(a[0], a[1], a[2], b[0], b[1], b[2])) continue;
+                }
+                // заливка: клетки (1 блок, при большом радиусе крупнее), прозрачность по вершинам
+                for (double u = Math.floor(ta / cell) * cell; u < tb; u += cell) {
+                    double ua = Math.max(u, ta), ub = Math.min(u + cell, tb);
+                    for (double v = Math.floor(tc / cell) * cell; v < td; v += cell) {
+                        double va = Math.max(v, tc), vb = Math.min(v + cell, td);
+                        float a00 = f.film(ua, va), a10 = f.film(ub, va), a11 = f.film(ub, vb), a01 = f.film(ua, vb);
+                        if (a00 + a10 + a11 + a01 < 0.004f) continue;
+                        f.quad(ua, va, a00, ub, va, a10, ub, vb, a11, ua, vb, a01, rgb);
+                    }
+                }
+                // шестигранники (остриём вверх): у каждого три ребра (верх-право, верх-лево, лево) — сетка без повторов;
+                // отрезки обрезаются по плитке, так ребро на стыке плиток рисуется ровно один раз (двумя кусками)
+                int j0 = (int) Math.floor((tc - s6) / hh), j1 = (int) Math.ceil((td + s6) / hh);
+                for (int j = j0; j <= j1; j++) {
+                    double shift = (j & 1) == 0 ? 0 : hw * 0.5;
+                    int i0 = (int) Math.floor((ta - shift - hw) / hw), i1 = (int) Math.ceil((tb - shift + hw) / hw);
+                    for (int i = i0; i <= i1; i++) {
+                        double cu = i * hw + shift, cv = j * hh;
+                        double pu = cu + s6 * COS[0], pv = cv + s6 * SIN[0];
+                        for (int e = 1; e <= 3; e++) {
+                            double qu = cu + s6 * COS[e], qv = cv + s6 * SIN[e];
+                            f.line(pu, pv, qu, qv, ta, tc, tb, td, hex);
+                            pu = qu; pv = qv;
+                        }
+                    }
                 }
             }
         }
@@ -298,17 +322,16 @@ public final class BorderMesh {
 
         float hexA(double u, double v) { return near(u, v) * st.hexAlpha * bright * wave(u, v); }
 
+        private final float[] q = new float[12];
+
         void point(double u, double v, float[] o, int at) {
-            double[] p = new double[3];
-            p[k] = w;
-            p[ku] = u - cam[ku];
-            p[kv] = v - cam[kv];
-            o[at] = (float) p[0]; o[at + 1] = (float) p[1]; o[at + 2] = (float) p[2];
+            o[at + k] = (float) w;
+            o[at + ku] = (float) (u - cam[ku]);
+            o[at + kv] = (float) (v - cam[kv]);
         }
 
         void quad(double ua, double va, float a0, double ub, double vb0, float a1, double uc, double vc, float a2,
                   double ud, double vd, float a3, int color) {
-            float[] q = new float[12];
             point(ua, va, q, 0); point(ub, vb0, q, 3); point(uc, vc, q, 6); point(ud, vd, q, 9);
             out.quad(q[0], q[1], q[2], argb(color, a0), q[3], q[4], q[5], argb(color, a1),
                     q[6], q[7], q[8], argb(color, a2), q[9], q[10], q[11], argb(color, a3));
@@ -326,7 +349,7 @@ public final class BorderMesh {
             }
             double au = pu + du * t0, av = pv + dv * t0, bu = pu + du * t1, bv = pv + dv * t1;
             float aa = hexA(au, av), ab = hexA(bu, bv);
-            if (aa + ab < 0.004f) return;
+            if (aa < st.minAlpha && ab < st.minAlpha) return;
             double l = Math.sqrt((bu - au) * (bu - au) + (bv - av) * (bv - av));
             if (l < 1e-6) return;
             // толщина растёт с расстоянием от камеры: вдали линия не тоньше ~1–2 пикселей (иначе рябит)
