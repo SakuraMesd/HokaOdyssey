@@ -211,7 +211,7 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
     }
 
     /** Сколько блоков запаса каждого вида у мода (PoolBlocks: solid 384, clear 48, pass 96). */
-    static final int CLIENT_CLEAR = 48;
+    static final int CLIENT_CLEAR = 160;                               // ядро мода 0.86+
 
     /**
      * Выдать носители: на каждый поворот × часть — своё место. Уже выданные места (states.yml) не меняются, новые
@@ -270,8 +270,8 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
             case TRANSPARENT -> {
                 for (Block leaves : new Block[]{Block.OAK_LEAVES, Block.SPRUCE_LEAVES, Block.BIRCH_LEAVES, Block.JUNGLE_LEAVES,
                         Block.ACACIA_LEAVES, Block.DARK_OAK_LEAVES, Block.MANGROVE_LEAVES, Block.AZALEA_LEAVES, Block.FLOWERING_AZALEA_LEAVES})
-                    for (Block b : leaves.possibleStates())
-                        if ("true".equals(b.getProperty("persistent")) && "false".equals(b.getProperty("waterlogged"))) out.add(b);
+                    for (Block b : leaves.possibleStates())                        // 28ноя: и залитые водой — 126 мест вместо 63
+                        if ("true".equals(b.getProperty("persistent"))) out.add(b);
             }
             case PASSABLE -> {
                 for (Block b : Block.TRIPWIRE.possibleStates()) if (b.stateId() != Block.TRIPWIRE.stateId()) out.add(b);

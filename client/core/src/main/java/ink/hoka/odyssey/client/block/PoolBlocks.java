@@ -28,7 +28,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  */
 public final class PoolBlocks implements ModInitializer {
 
-    public static final int SOLID = 384, CLEAR = 48, PASS = 96;
+    public static final int SOLID = 384, CLEAR = 160, PASS = 96;          // 0.86: clear 48 → 160 (многоклеточные блоки)
     public static final PoolBlock[] solid = new PoolBlock[SOLID], clear = new PoolBlock[CLEAR], pass = new PoolBlock[PASS];
 
     /** Блок запаса: название — от сервера (своего блока, к которому привязан). */

@@ -81,3 +81,15 @@ blocks:
     shape: [0, 0, 1, 16, 16, 15]
     rotatable: true
     sounds: { type: metal }
+  vending_drinks:
+    name: "Автомат с напитками"
+    model: vending_drinks.bbmodel
+    size: [2, 3, 1]
+    rotatable: true
+    sounds: { type: metal }
+  vending_food:
+    name: "Автомат с едой"
+    model: vending_food.bbmodel
+    size: [2, 3, 1]
+    rotatable: true
+    sounds: { type: metal }

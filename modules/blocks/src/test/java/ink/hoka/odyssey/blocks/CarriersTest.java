@@ -14,11 +14,10 @@ class CarriersTest {
     @Test
     void poolsStable() {
         // states.yml хранит строки состояний — набор и порядок пулов не меняли (миграция не нужна)
-        assertEquals(63, BlocksModule.pool(BlocksModule.Kind.TRANSPARENT).size());
-        for (Block b : BlocksModule.pool(BlocksModule.Kind.TRANSPARENT)) {
+        // 28ноя: и залитая водой (126 = 9 видов × 7 distance × 2); прежние 63 — по-прежнему в пуле (states.yml те же)
+        assertEquals(126, BlocksModule.pool(BlocksModule.Kind.TRANSPARENT).size());
+        for (Block b : BlocksModule.pool(BlocksModule.Kind.TRANSPARENT))
             assertEquals("true", b.getProperty("persistent"), b.state());
-            assertEquals("false", b.getProperty("waterlogged"), b.state());
-        }
         assertTrue(BlocksModule.carrier(Block.fromState("minecraft:acacia_leaves[distance=1,persistent=true,waterlogged=false]")));
         Set<Integer> seen = new HashSet<>();
         for (BlocksModule.Kind k : BlocksModule.Kind.values())
@@ -48,7 +47,6 @@ class CarriersTest {
             if (!leaves.key().value().endsWith("_leaves")) continue;
             for (Block b : leaves.possibleStates()) {
                 if ("false".equals(b.getProperty("persistent"))) assertFalse(BlocksModule.carrier(b), b.state());
-                if ("true".equals(b.getProperty("waterlogged"))) assertFalse(BlocksModule.carrier(b), b.state());
                 if (!BlocksModule.carrier(b)) assertEquals(b.stateId(), BlocksModule.foreign(b).stateId(), "не носитель — не трогаем");
             }
         }
