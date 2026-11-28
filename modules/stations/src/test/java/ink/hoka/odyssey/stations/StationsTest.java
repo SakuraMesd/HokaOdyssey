@@ -76,8 +76,8 @@ class StationsTest {
         rs.gravity("alpha", Grav.VACUUM);
         assertEquals(Grav.VACUUM, rs.index().byId("alpha").gravity());
         rs.expand("alpha", 2, Box.Dir.UP, -64, 319);
-        assertEquals(11, rs.get("alpha").boxes().get(0).maxY());
-        assertEquals(11, rs.get("alpha").boxes().get(1).maxY());
+        assertEquals(9, rs.get("alpha").boxes().get(0).maxY());                 // первая — как была
+        assertEquals(11, rs.get("alpha").boxes().get(1).maxY());                // расширяется только последняя
         rs.remove("alpha");
         assertNull(rs.index().at("cosmos", 5, 5, 5));
         assertThrows(Regions.Refused.class, () -> rs.remove("alpha"));

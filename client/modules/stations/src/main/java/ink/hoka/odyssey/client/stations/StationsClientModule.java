@@ -152,8 +152,14 @@ public final class StationsClientModule implements ClientModule {
                 if (d > maxD && shell > maxD) continue;
                 if (d > 0 && !f.visible(new AABB(b[k], b[k + 1], b[k + 2], b[k + 3], b[k + 4], b[k + 5]).inflate(0.5))) continue;
                 any = true;
+                final int self = k;
                 BorderMesh.box(b[k], b[k + 1], b[k + 2], b[k + 3], b[k + 4], b[k + 5], col[Math.min(r.grav(), 2)],
-                        shown ? 1.35f : 1f, true, shown, cam.x, cam.y, cam.z, eye.x, eye.y, eye.z, t, style, sink);
+                        shown ? 1.35f : 1f, true, shown, cam.x, cam.y, cam.z, eye.x, eye.y, eye.z, t, style, sink,
+                        b.length == 6 ? null : (x, y, z) -> {                      // другие коробки этой станции
+                            for (int o = 0; o < b.length; o += 6)
+                                if (o != self && x > b[o] && x < b[o + 3] && y > b[o + 1] && y < b[o + 4] && z > b[o + 2] && z < b[o + 5]) return true;
+                            return false;
+                        });
             }
             if (admin && any && (shown || nearest(r, cam) < 48)) labels.add(r);
         }

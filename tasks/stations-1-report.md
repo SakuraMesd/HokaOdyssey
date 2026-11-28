@@ -20,7 +20,7 @@
 
   Выделение сразу видно в моде жёлтым. Есть также `sel clear` и `sel expand <блоков> [up|down|all|sides]`.
 - Команды (OP): `create <id> [название]`, `add-box <id>`, `remove <id>`, `rename <id> <название>`, `list [карта]`,
-  `info <id>`, `tp <id>`, `expand <id> <блоков> [up|down|all|sides]` (расширяет все коробки региона),
+  `info <id>`, `tp <id>`, `expand <id> <блоков> [up|down|all|sides]` (расширяет последнюю добавленную коробку региона),
   `gravity <id> normal|vacuum|map`, `show [id]`, `reload`. Для id есть подсказки.
 - Сервис `StationsApi`: `regionAt(map|Instance, x, y, z)`, `region(id)`, `regions(map)`, `current(player)` и события
   входа/выхода `addListener(TransitionListener)`.

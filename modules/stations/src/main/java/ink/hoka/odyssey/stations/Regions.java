@@ -79,11 +79,12 @@ public final class Regions {
 
     public Region gravity(String id, Grav g) { return put(require(id).withGravity(g)); }
 
-    /** Расширить все коробки региона. */
+    /** Расширить последнюю (последнюю добавленную) коробку региона; остальные не трогаются. */
     public Region expand(String id, int n, Box.Dir dir, int worldMinY, int worldMaxY) {
         Region r = require(id);
-        List<Box> b = new ArrayList<>();
-        for (Box x : r.boxes()) b.add(x.expand(n, dir, worldMinY, worldMaxY));
+        List<Box> b = new ArrayList<>(r.boxes());
+        int last = b.size() - 1;
+        b.set(last, b.get(last).expand(n, dir, worldMinY, worldMaxY));
         return put(r.withBoxes(b));
     }
 

@@ -42,19 +42,74 @@ public final class BorderMesh {
     public static void box(double x0, double y0, double z0, double x1, double y1, double z1, int rgb, float bright,
                            boolean film, boolean far, double camX, double camY, double camZ,
                            double eyeX, double eyeY, double eyeZ, double t, Style st, Sink out) {
+        box(x0, y0, z0, x1, y1, z1, rgb, bright, film, far, camX, camY, camZ, eyeX, eyeY, eyeZ, t, st, out, null);
+    }
+
+    /** Точка внутри других коробок того же региона (стыки внутри станции не рисуются). */
+    public interface Inside { boolean test(double x, double y, double z); }
+
+    private static final double EPS = 0.05;
+
+    /**
+     * Как {@link #box}, но с соседями по региону: грань, целиком закрытая соседними коробками, и рёбра-швы (по обе
+     * стороны ровная стена или внутри станции) не рисуются — внутри станции нет линий на стыках коробок.
+     */
+    public static void box(double x0, double y0, double z0, double x1, double y1, double z1, int rgb, float bright,
+                           boolean film, boolean far, double camX, double camY, double camZ,
+                           double eyeX, double eyeY, double eyeZ, double t, Style st, Sink out, Inside others) {
         double near = far ? Math.max(st.edgeNear, 400) : st.edgeNear, farD = far ? Math.max(st.edgeFar, 512) : st.edgeFar;
         double[] xs = {x0, x1}, ys = {y0, y1}, zs = {z0, z1};
+        double[] lo = {x0, y0, z0}, hi = {x1, y1, z1};
         for (int a = 0; a < 2; a++) for (int b = 0; b < 2; b++) {
-            edge(xs[0], ys[a], zs[b], xs[1], ys[a], zs[b], rgb, bright, near, farD, camX, camY, camZ, t, st, out);   // вдоль X
-            edge(xs[a], ys[0], zs[b], xs[a], ys[1], zs[b], rgb, bright, near, farD, camX, camY, camZ, t, st, out);   // вдоль Y
-            edge(xs[a], ys[b], zs[0], xs[a], ys[b], zs[1], rgb, bright, near, farD, camX, camY, camZ, t, st, out);   // вдоль Z
+            double[] mx = {(x0 + x1) / 2, ys[a], zs[b]}, my = {xs[a], (y0 + y1) / 2, zs[b]}, mz = {xs[a], ys[b], (z0 + z1) / 2};
+            if (!seam(others, lo, hi, mx, 1, a, 2, b))
+                edge(xs[0], ys[a], zs[b], xs[1], ys[a], zs[b], rgb, bright, near, farD, camX, camY, camZ, t, st, out);   // вдоль X
+            if (!seam(others, lo, hi, my, 0, a, 2, b))
+                edge(xs[a], ys[0], zs[b], xs[a], ys[1], zs[b], rgb, bright, near, farD, camX, camY, camZ, t, st, out);   // вдоль Y
+            if (!seam(others, lo, hi, mz, 0, a, 1, b))
+                edge(xs[a], ys[b], zs[0], xs[a], ys[b], zs[1], rgb, bright, near, farD, camX, camY, camZ, t, st, out);   // вдоль Z
         }
         if (!film) return;
-        double[] lo = {x0, y0, z0}, hi = {x1, y1, z1}, cam = {camX, camY, camZ}, eye = {eyeX, eyeY, eyeZ};
+        double[] cam = {camX, camY, camZ}, eye = {eyeX, eyeY, eyeZ};
         for (int k = 0; k < 3; k++) {
-            face(k, lo[k], lo, hi, rgb, bright, cam, eye, t, st, out);
-            face(k, hi[k], lo, hi, rgb, bright, cam, eye, t, st, out);
+            if (!covered(others, k, lo[k], -1, lo, hi)) face(k, lo[k], lo, hi, rgb, bright, cam, eye, t, st, out);
+            if (!covered(others, k, hi[k], 1, lo, hi)) face(k, hi[k], lo, hi, rgb, bright, cam, eye, t, st, out);
         }
+    }
+
+    /** Грань (ось k, плоскость, наружу — dir) целиком закрыта соседями: углы и середина снаружи грани — внутри соседей. */
+    static boolean covered(Inside others, int k, double plane, int dir, double[] lo, double[] hi) {
+        if (others == null) return false;
+        int u = (k + 1) % 3, v = (k + 2) % 3;
+        double[] p = new double[3];
+        double[] us = {lo[u] + EPS, (lo[u] + hi[u]) / 2, hi[u] - EPS}, vs = {lo[v] + EPS, (lo[v] + hi[v]) / 2, hi[v] - EPS};
+        for (double uu : us) for (double vv : vs) {
+            p[k] = plane + dir * EPS; p[u] = uu; p[v] = vv;
+            if (!others.test(p[0], p[1], p[2])) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Ребро-шов: вокруг ребра (середина m, перпендикулярные оси ia/ib, сторона коробки sa/sb: 0 — низ, 1 — верх) четыре
+     * четверти; своя коробка — внутренняя. Если занято всё или ровно половина (стена продолжается) — это не край
+     * станции, ребро не рисуем.
+     */
+    static boolean seam(Inside others, double[] lo, double[] hi, double[] m, int ia, int sa, int ib, int sb) {
+        if (others == null) return false;
+        double inA = sa == 0 ? EPS : -EPS, inB = sb == 0 ? EPS : -EPS;          // смещение внутрь своей коробки
+        boolean[][] q = new boolean[2][2];                                       // [внутрь по a][внутрь по b]
+        double[] p = m.clone();
+        for (int i = 0; i < 2; i++) for (int j = 0; j < 2; j++) {
+            if (i == 1 && j == 1) { q[1][1] = true; continue; }                  // своя коробка
+            p[ia] = m[ia] + (i == 1 ? inA : -inA);
+            p[ib] = m[ib] + (j == 1 ? inB : -inB);
+            q[i][j] = others.test(p[0], p[1], p[2]);
+        }
+        int n = (q[0][0] ? 1 : 0) + (q[0][1] ? 1 : 0) + (q[1][0] ? 1 : 0) + 1;
+        if (n == 4) return true;
+        if (n == 2) return q[0][1] || q[1][0];                                   // половина — плоская стена, шов
+        return false;
     }
 
     /** Расстояние от точки до отрезка. */
