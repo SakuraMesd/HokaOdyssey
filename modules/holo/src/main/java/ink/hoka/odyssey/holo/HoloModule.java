@@ -97,10 +97,9 @@ public final class HoloModule extends OdysseyModule implements HoloApi {
         if (api == null) logger().warn("нет clientmods — голограммы никто не увидит");
         else {
             publishImages();
-            api.onReady(MODULE, p -> {
+            api.onReady(MODULE, p -> {                                          // модуль мода загрузился (или обновился)
                 viewers.remove(p.getUuid());
                 ph.forget(p.getUuid());
-                hello(p);
                 sync(p);
             });
             api.on(MODULE, (p, data) -> scheduler().run(() -> onPacket(p, data)));
@@ -313,8 +312,9 @@ public final class HoloModule extends OdysseyModule implements HoloApi {
         Viewer v = viewers.computeIfAbsent(p.getUuid(), k -> new Viewer());
         String map = mapOf(p);
         if (map == null) return;
-        if (!map.equals(v.map)) {
-            if (v.map != null) { api.send(p, MODULE, Net.clear()); hello(p); }
+        if (!map.equals(v.map)) {                                              // первый раз (в т.ч. после reload модуля) или смена карты
+            if (v.map != null) api.send(p, MODULE, Net.clear());
+            hello(p);
             v.map = map;
             v.sent.clear();
             ph.forget(p.getUuid());
@@ -688,7 +688,6 @@ public final class HoloModule extends OdysseyModule implements HoloApi {
             api.send(p, MODULE, Net.clear());
             viewers.remove(p.getUuid());
             ph.forget(p.getUuid());
-            hello(p);
             sync(p);
         }
         if (err != null) s.sendMessage(Component.text(err + " — сохранение выключено", NamedTextColor.RED));
