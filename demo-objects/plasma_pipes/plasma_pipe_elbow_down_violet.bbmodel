@@ -1,0 +1,1914 @@
+{
+ "meta": {
+  "format_version": "5.0",
+  "model_format": "free",
+  "box_uv": false
+ },
+ "name": "Колено вниз — фиолетовая",
+ "model_identifier": "plasma_pipe_elbow_down_violet",
+ "visible_box": [
+  2,
+  4,
+  0
+ ],
+ "variable_placeholders": "",
+ "variable_placeholder_buttons": [],
+ "timeline_setups": [],
+ "unhandled_root_fields": {},
+ "resolution": {
+  "width": 128,
+  "height": 128
+ },
+ "elements": [
+  {
+   "name": "Фланец север",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4.8,
+    3.2,
+    -8
+   ],
+   "to": [
+    4.8,
+    12.8,
+    -7.0
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    8.0,
+    -7.5
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      0,
+      0,
+      10,
+      10
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      44,
+      0,
+      45,
+      10
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      11,
+      0,
+      21,
+      10
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      46,
+      0,
+      47,
+      10
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      10,
+      35,
+      20,
+      36
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      21,
+      35,
+      31,
+      36
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "fe73b279-40e2-5bfd-8bc4-b9d147315cbe"
+  },
+  {
+   "name": "Фланец низ",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4.8,
+    0,
+    -4.8
+   ],
+   "to": [
+    4.8,
+    1.0,
+    4.8
+   ],
+   "autouv": 0,
+   "color": 1,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    0.5,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      32,
+      35,
+      42,
+      36
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      43,
+      35,
+      53,
+      36
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      54,
+      35,
+      64,
+      36
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      65,
+      35,
+      75,
+      36
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      22,
+      0,
+      32,
+      10
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      33,
+      0,
+      43,
+      10
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "4c232ab0-e5e7-5c44-827c-29ab6842ffc2"
+  },
+  {
+   "name": "Патрубок север: стекло",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4.0,
+    4.0,
+    -8
+   ],
+   "to": [
+    4.0,
+    12.0,
+    -6
+   ],
+   "autouv": 0,
+   "color": 2,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    8.0,
+    -7.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      72,
+      0,
+      80,
+      8
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      94,
+      11,
+      96,
+      19
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      81,
+      0,
+      89,
+      8
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      97,
+      11,
+      99,
+      19
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      5,
+      31,
+      13,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      14,
+      31,
+      22,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "08236ce6-2871-558a-b253-6a0e2e994b70"
+  },
+  {
+   "name": "Патрубок север: жила",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -2.0,
+    6.0,
+    -8
+   ],
+   "to": [
+    2.0,
+    10.0,
+    -6
+   ],
+   "autouv": 0,
+   "color": 3,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    8.0,
+    -7.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      120,
+      20,
+      124,
+      24
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      87,
+      26,
+      89,
+      30
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      0,
+      26,
+      4,
+      30
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      90,
+      26,
+      92,
+      30
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      107,
+      31,
+      111,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      112,
+      31,
+      116,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "a3256d09-9099-5738-a417-35824abd7d7f"
+  },
+  {
+   "name": "Патрубок низ: стекло",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4.0,
+    0,
+    -4.0
+   ],
+   "to": [
+    4.0,
+    2,
+    4.0
+   ],
+   "autouv": 0,
+   "color": 4,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      23,
+      31,
+      31,
+      33
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      32,
+      31,
+      40,
+      33
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      41,
+      31,
+      49,
+      33
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      50,
+      31,
+      58,
+      33
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      90,
+      0,
+      98,
+      8
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      99,
+      0,
+      107,
+      8
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "bde29022-53fa-5959-8b11-52f8936bc935"
+  },
+  {
+   "name": "Патрубок низ: жила",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -2.0,
+    0,
+    -2.0
+   ],
+   "to": [
+    2.0,
+    2,
+    2.0
+   ],
+   "autouv": 0,
+   "color": 5,
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      117,
+      31,
+      121,
+      33
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      122,
+      31,
+      126,
+      33
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      0,
+      35,
+      4,
+      37
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      5,
+      35,
+      9,
+      37
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      5,
+      26,
+      9,
+      30
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      10,
+      26,
+      14,
+      30
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "ffef2b55-e3b9-5e64-b9b3-b944f3301fac"
+  },
+  {
+   "name": "Колено: стекло 1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4.0,
+    4.0,
+    -8.150903220161283
+   ],
+   "to": [
+    4.0,
+    12.0,
+    -3.8490967798387175
+   ],
+   "autouv": 0,
+   "color": 6,
+   "rotation": [
+    11.25,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    2,
+    -6
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      108,
+      0,
+      116,
+      8
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      54,
+      11,
+      58,
+      19
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      117,
+      0,
+      125,
+      8
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      59,
+      11,
+      63,
+      19
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      48,
+      20,
+      56,
+      24
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      57,
+      20,
+      65,
+      24
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "e9a6e0be-c548-5b81-b808-6f1de5f9e1ab"
+  },
+  {
+   "name": "Колено: жила 1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -2.0,
+    6.0,
+    -7.32054193209677
+   ],
+   "to": [
+    2.0,
+    10.0,
+    -4.67945806790323
+   ],
+   "autouv": 0,
+   "color": 7,
+   "rotation": [
+    11.25,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    2,
+    -6
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      15,
+      26,
+      19,
+      30
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      55,
+      26,
+      58,
+      30
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      20,
+      26,
+      24,
+      30
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      59,
+      26,
+      62,
+      30
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      93,
+      26,
+      97,
+      29
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      98,
+      26,
+      102,
+      29
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "809038c4-c786-5751-9be7-47f6663e07dc"
+  },
+  {
+   "name": "Колено: стекло 2",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4.0,
+    4.0,
+    -8.150903220161283
+   ],
+   "to": [
+    4.0,
+    12.0,
+    -3.8490967798387175
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    33.75,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    2,
+    -6
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      0,
+      11,
+      8,
+      19
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      64,
+      11,
+      68,
+      19
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      9,
+      11,
+      17,
+      19
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      69,
+      11,
+      73,
+      19
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      66,
+      20,
+      74,
+      24
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      75,
+      20,
+      83,
+      24
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "1c74533a-005f-523b-a729-293b80d3df91"
+  },
+  {
+   "name": "Колено: жила 2",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -2.0,
+    6.0,
+    -7.32054193209677
+   ],
+   "to": [
+    2.0,
+    10.0,
+    -4.67945806790323
+   ],
+   "autouv": 0,
+   "color": 1,
+   "rotation": [
+    33.75,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    2,
+    -6
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      25,
+      26,
+      29,
+      30
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      63,
+      26,
+      66,
+      30
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      30,
+      26,
+      34,
+      30
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      67,
+      26,
+      70,
+      30
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      103,
+      26,
+      107,
+      29
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      108,
+      26,
+      112,
+      29
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "c9e38cbf-8463-53ea-b7d2-fe5c45475283"
+  },
+  {
+   "name": "Колено: стекло 3",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4.0,
+    4.0,
+    -8.150903220161283
+   ],
+   "to": [
+    4.0,
+    12.0,
+    -3.8490967798387175
+   ],
+   "autouv": 0,
+   "color": 2,
+   "rotation": [
+    56.25,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    2,
+    -6
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      18,
+      11,
+      26,
+      19
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      74,
+      11,
+      78,
+      19
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      27,
+      11,
+      35,
+      19
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      79,
+      11,
+      83,
+      19
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      84,
+      20,
+      92,
+      24
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      93,
+      20,
+      101,
+      24
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "cca8a405-64f9-57c5-aad9-eec33e16f882"
+  },
+  {
+   "name": "Колено: жила 3",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -2.0,
+    6.0,
+    -7.32054193209677
+   ],
+   "to": [
+    2.0,
+    10.0,
+    -4.67945806790323
+   ],
+   "autouv": 0,
+   "color": 3,
+   "rotation": [
+    56.25,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    2,
+    -6
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      35,
+      26,
+      39,
+      30
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      71,
+      26,
+      74,
+      30
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      40,
+      26,
+      44,
+      30
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      75,
+      26,
+      78,
+      30
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      113,
+      26,
+      117,
+      29
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      118,
+      26,
+      122,
+      29
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "9a5845cd-18a7-5fed-bb0b-fa4e3229de84"
+  },
+  {
+   "name": "Колено: стекло 4",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4.0,
+    4.0,
+    -8.150903220161283
+   ],
+   "to": [
+    4.0,
+    12.0,
+    -3.8490967798387175
+   ],
+   "autouv": 0,
+   "color": 4,
+   "rotation": [
+    78.75,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    2,
+    -6
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      36,
+      11,
+      44,
+      19
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      84,
+      11,
+      88,
+      19
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      45,
+      11,
+      53,
+      19
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      89,
+      11,
+      93,
+      19
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      102,
+      20,
+      110,
+      24
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      111,
+      20,
+      119,
+      24
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "cdaf6d16-3630-5974-a26d-d30647f3b19c"
+  },
+  {
+   "name": "Колено: жила 4",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -2.0,
+    6.0,
+    -7.32054193209677
+   ],
+   "to": [
+    2.0,
+    10.0,
+    -4.67945806790323
+   ],
+   "autouv": 0,
+   "color": 5,
+   "rotation": [
+    78.75,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    2,
+    -6
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      45,
+      26,
+      49,
+      30
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      79,
+      26,
+      82,
+      30
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      50,
+      26,
+      54,
+      30
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      83,
+      26,
+      86,
+      30
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      123,
+      26,
+      127,
+      29
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      0,
+      31,
+      4,
+      34
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "f89bacc2-42b8-5785-af48-b04ca57a235b"
+  },
+  {
+   "name": "Колено: хомут",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -4.4,
+    3.6,
+    -6.5
+   ],
+   "to": [
+    4.4,
+    12.4,
+    -5.5
+   ],
+   "autouv": 0,
+   "color": 6,
+   "rotation": [
+    45,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    2,
+    -6
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      48,
+      0,
+      57,
+      9
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      68,
+      0,
+      69,
+      9
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      58,
+      0,
+      67,
+      9
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      70,
+      0,
+      71,
+      9
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      76,
+      35,
+      85,
+      36
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      86,
+      35,
+      95,
+      36
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "9182f198-63a3-50b3-942b-da0479bc2d73"
+  },
+  {
+   "name": "Колено: сгусток 1",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -2.7,
+    5.3,
+    -7.0
+   ],
+   "to": [
+    2.7,
+    10.7,
+    -5.0
+   ],
+   "autouv": 0,
+   "color": 7,
+   "rotation": [
+    4.0,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    2,
+    -6
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      100,
+      11,
+      105,
+      16
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      24,
+      20,
+      26,
+      25
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      106,
+      11,
+      111,
+      16
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      27,
+      20,
+      29,
+      25
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      59,
+      31,
+      64,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      65,
+      31,
+      70,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "cb4d8bdf-47a4-55e3-b9dd-3b88c1015aeb"
+  },
+  {
+   "name": "Колено: сгусток 2",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -2.7,
+    5.3,
+    -7.0
+   ],
+   "to": [
+    2.7,
+    10.7,
+    -5.0
+   ],
+   "autouv": 0,
+   "color": 0,
+   "rotation": [
+    26.5,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    2,
+    -6
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      112,
+      11,
+      117,
+      16
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      30,
+      20,
+      32,
+      25
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      118,
+      11,
+      123,
+      16
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      33,
+      20,
+      35,
+      25
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      71,
+      31,
+      76,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      77,
+      31,
+      82,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "79f104c0-db9a-5888-af0f-9e09c2c326e6"
+  },
+  {
+   "name": "Колено: сгусток 3",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -2.7,
+    5.3,
+    -7.0
+   ],
+   "to": [
+    2.7,
+    10.7,
+    -5.0
+   ],
+   "autouv": 0,
+   "color": 1,
+   "rotation": [
+    49.0,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    2,
+    -6
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      0,
+      20,
+      5,
+      25
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      36,
+      20,
+      38,
+      25
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      6,
+      20,
+      11,
+      25
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      39,
+      20,
+      41,
+      25
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      83,
+      31,
+      88,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      89,
+      31,
+      94,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "5f641c6a-4741-5814-9ad7-90ef9b8884ba"
+  },
+  {
+   "name": "Колено: сгусток 4",
+   "box_uv": false,
+   "render_order": "default",
+   "locked": false,
+   "export": true,
+   "allow_mirror_modeling": true,
+   "from": [
+    -2.7,
+    5.3,
+    -7.0
+   ],
+   "to": [
+    2.7,
+    10.7,
+    -5.0
+   ],
+   "autouv": 0,
+   "color": 2,
+   "rotation": [
+    71.5,
+    0,
+    0
+   ],
+   "origin": [
+    0,
+    2,
+    -6
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      12,
+      20,
+      17,
+      25
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      42,
+      20,
+      44,
+      25
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      18,
+      20,
+      23,
+      25
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      45,
+      20,
+      47,
+      25
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      95,
+      31,
+      100,
+      33
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      101,
+      31,
+      106,
+      33
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "1502eb9b-e0c4-558a-9b9a-5c2a3c5313c4"
+  }
+ ],
+ "groups": [
+  {
+   "name": "Труба",
+   "uuid": "cf8a414c-4bf9-5da8-8092-a343190e4136",
+   "export": true,
+   "locked": false,
+   "visibility": true,
+   "origin": [
+    0,
+    8,
+    0
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": 0,
+   "children": [],
+   "reset": false,
+   "shade": true,
+   "mirror_uv": false,
+   "autouv": 0,
+   "isOpen": true
+  },
+  {
+   "name": "Поток Колено",
+   "uuid": "d27a6a20-c08f-5422-a234-8114a24cdf8d",
+   "export": true,
+   "locked": false,
+   "visibility": true,
+   "origin": [
+    0,
+    2,
+    -6
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "color": 0,
+   "children": [],
+   "reset": false,
+   "shade": true,
+   "mirror_uv": false,
+   "autouv": 0,
+   "isOpen": true
+  }
+ ],
+ "outliner": [
+  {
+   "uuid": "cf8a414c-4bf9-5da8-8092-a343190e4136",
+   "isOpen": true,
+   "children": [
+    {
+     "uuid": "d27a6a20-c08f-5422-a234-8114a24cdf8d",
+     "isOpen": true,
+     "children": [
+      "cb4d8bdf-47a4-55e3-b9dd-3b88c1015aeb",
+      "79f104c0-db9a-5888-af0f-9e09c2c326e6",
+      "5f641c6a-4741-5814-9ad7-90ef9b8884ba",
+      "1502eb9b-e0c4-558a-9b9a-5c2a3c5313c4"
+     ]
+    },
+    "fe73b279-40e2-5bfd-8bc4-b9d147315cbe",
+    "4c232ab0-e5e7-5c44-827c-29ab6842ffc2",
+    "08236ce6-2871-558a-b253-6a0e2e994b70",
+    "a3256d09-9099-5738-a417-35824abd7d7f",
+    "bde29022-53fa-5959-8b11-52f8936bc935",
+    "ffef2b55-e3b9-5e64-b9b3-b944f3301fac",
+    "e9a6e0be-c548-5b81-b808-6f1de5f9e1ab",
+    "809038c4-c786-5751-9be7-47f6663e07dc",
+    "1c74533a-005f-523b-a729-293b80d3df91",
+    "c9e38cbf-8463-53ea-b7d2-fe5c45475283",
+    "cca8a405-64f9-57c5-aad9-eec33e16f882",
+    "9a5845cd-18a7-5fed-bb0b-fa4e3229de84",
+    "cdaf6d16-3630-5974-a26d-d30647f3b19c",
+    "f89bacc2-42b8-5785-af48-b04ca57a235b",
+    "9182f198-63a3-50b3-942b-da0479bc2d73"
+   ]
+  }
+ ],
+ "textures": [
+  {
+   "path": "",
+   "name": "Колено вниз — фиолетовая.png",
+   "folder": "",
+   "namespace": "",
+   "id": "0",
+   "group": "",
+   "width": 128,
+   "height": 128,
+   "uv_width": 128,
+   "uv_height": 128,
+   "particle": true,
+   "use_as_default": false,
+   "layers_enabled": false,
+   "sync_to_project": "",
+   "render_mode": "default",
+   "render_sides": "auto",
+   "frame_time": 1,
+   "frame_order_type": "loop",
+   "frame_order": "",
+   "frame_interpolate": false,
+   "visible": true,
+   "internal": true,
+   "saved": true,
+   "uuid": "bbde226e-85ab-5028-ac01-fbc5b8e754fa",
+   "relative_path": "Колено вниз — фиолетовая.png",
+   "mode": "bitmap",
+   "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAACZUlEQVR42u3csWsTYRQA8HclUNe6iuDsIAWhCHUptNDFf8Oli1RwbGlHweLSxX/DJaDgYqEECjZDwU0Q17o46HQOcqVJ75Ir3iWXu98PSr68vEuaL1/ve/dKmzx8tJa+ePkqJnn75nVcDAdJE3J3dvfS46PDq9tpx5Z9jaLn/3z5e+L39fTunVjEnExvY3M7zs+HEw/Y2NyOi+EgmpCbF590bNnXKHr+tutdGycFOWlOrAm5ZY5N/yOvE5aCTrMALAAsADqr16L3klac17kFkNYw2XXmRkTEp4/9uHf/QeHjP75/u1XepGvmMtfVi5JztQCmTcxtJnEWueMuhoOkzPV72bzjo8Pk+i20Wmtbnfv905Ht5GD7SdLE2Pj412Wafj0ZfT+PnyWVxdtcBI7YWltN1leW05Off5KIiIOGxsbH4x9apqp4py4DswlfhFje4/oAWABoBHVKXqFWZdwZgG6cAT4Mvox3FZOGxkbGliSzbQTV3XjI4nWN9/un6dbaalJ0FsgaLV3NOXufppNqg6W6Gw/X43WMIyLWV5an/hKpqzln/dGvVhaBZZooXc5xFUBxDTC+R2T7RNXxusY+QqjyDJD309yG2DzvF42bMEe9vMqwrbF53i8azzumCAytYGbs+fHN4nVeMRSBNwuDtrZFZ9X2ritedQEYEZFbBEb8azFO6zItWs4s2951xKsuACMiknc7oyvDPgEaQTdjO7t7pf5sK/v3Kl3OvU3e3BdA3hZgWwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKDF/gKuL95B4Ie1EAAAAABJRU5ErkJggg=="
+  }
+ ],
+ "animations": [
+  {
+   "uuid": "3b75f623-e8c5-5d54-a803-98f6d7fae078",
+   "name": "flow",
+   "loop": "loop",
+   "override": false,
+   "length": 0.5,
+   "snapping": 24,
+   "selected": true,
+   "anim_time_update": "",
+   "blend_weight": "",
+   "start_delay": "",
+   "loop_delay": "",
+   "animators": {
+    "d27a6a20-c08f-5422-a234-8114a24cdf8d": {
+     "name": "Поток Колено",
+     "type": "bone",
+     "rotation_global": false,
+     "quaternion_interpolation": false,
+     "keyframes": [
+      {
+       "channel": "rotation",
+       "data_points": [
+        {
+         "x": "0",
+         "y": "0",
+         "z": "0"
+        }
+       ],
+       "uuid": "dd271d7b-9289-5f85-bc97-e446340591a0",
+       "time": 0,
+       "color": -1,
+       "interpolation": "linear"
+      },
+      {
+       "channel": "rotation",
+       "data_points": [
+        {
+         "x": "22.5",
+         "y": "0",
+         "z": "0"
+        }
+       ],
+       "uuid": "cb5c7885-e428-5d7e-b355-57d2f6baed10",
+       "time": 0.5,
+       "color": -1,
+       "interpolation": "linear"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "uuid": "89bf8164-95e9-54e1-b5c9-c0aae287c1c0",
+   "name": "flow_reverse",
+   "loop": "loop",
+   "override": false,
+   "length": 0.5,
+   "snapping": 24,
+   "selected": false,
+   "anim_time_update": "",
+   "blend_weight": "",
+   "start_delay": "",
+   "loop_delay": "",
+   "animators": {
+    "d27a6a20-c08f-5422-a234-8114a24cdf8d": {
+     "name": "Поток Колено",
+     "type": "bone",
+     "rotation_global": false,
+     "quaternion_interpolation": false,
+     "keyframes": [
+      {
+       "channel": "rotation",
+       "data_points": [
+        {
+         "x": "-0",
+         "y": "0",
+         "z": "0"
+        }
+       ],
+       "uuid": "79448de0-03db-5e60-ad1f-346e7b6d656b",
+       "time": 0,
+       "color": -1,
+       "interpolation": "linear"
+      },
+      {
+       "channel": "rotation",
+       "data_points": [
+        {
+         "x": "-22.5",
+         "y": "0",
+         "z": "0"
+        }
+       ],
+       "uuid": "3ad66e2d-e47b-5c57-8ac1-ad05a6046cd0",
+       "time": 0.5,
+       "color": -1,
+       "interpolation": "linear"
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

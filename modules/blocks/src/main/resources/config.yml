@@ -173,3 +173,244 @@ blocks:
     inside: [-11, 2, -19, 11, 40, 3]       # колба: px модели (центр — середина 2×3), ноги игрока
     rotatable: true
     sounds: { type: metal }
+  # ── плазменные трубы (plasma-pipes-1): 6 деталей × 5 цветов; ПКМ пустой рукой — направление течения ──
+  plasma_pipe_straight_cyan:
+    name: "Плазменная труба: прямая (голубая)"
+    model: plasma_pipe_straight_cyan.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_straight.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_straight_vertical_cyan:
+    name: "Плазменная труба: прямая вертикальная (голубая)"
+    model: plasma_pipe_straight_vertical_cyan.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_straight_vertical.json
+    layer: cutout
+    rotatable: false
+    sounds: { type: glass }
+  plasma_pipe_elbow_cyan:
+    name: "Плазменная труба: колено (голубая)"
+    model: plasma_pipe_elbow_cyan.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_elbow_up_cyan:
+    name: "Плазменная труба: колено вверх (голубая)"
+    model: plasma_pipe_elbow_up_cyan.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow_up.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_elbow_down_cyan:
+    name: "Плазменная труба: колено вниз (голубая)"
+    model: plasma_pipe_elbow_down_cyan.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow_down.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_tee_cyan:
+    name: "Плазменная труба: тройник (голубая)"
+    model: plasma_pipe_tee_cyan.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_tee.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_straight_pink:
+    name: "Плазменная труба: прямая (розовая)"
+    model: plasma_pipe_straight_pink.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_straight.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_straight_vertical_pink:
+    name: "Плазменная труба: прямая вертикальная (розовая)"
+    model: plasma_pipe_straight_vertical_pink.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_straight_vertical.json
+    layer: cutout
+    rotatable: false
+    sounds: { type: glass }
+  plasma_pipe_elbow_pink:
+    name: "Плазменная труба: колено (розовая)"
+    model: plasma_pipe_elbow_pink.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_elbow_up_pink:
+    name: "Плазменная труба: колено вверх (розовая)"
+    model: plasma_pipe_elbow_up_pink.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow_up.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_elbow_down_pink:
+    name: "Плазменная труба: колено вниз (розовая)"
+    model: plasma_pipe_elbow_down_pink.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow_down.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_tee_pink:
+    name: "Плазменная труба: тройник (розовая)"
+    model: plasma_pipe_tee_pink.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_tee.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_straight_green:
+    name: "Плазменная труба: прямая (зелёная)"
+    model: plasma_pipe_straight_green.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_straight.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_straight_vertical_green:
+    name: "Плазменная труба: прямая вертикальная (зелёная)"
+    model: plasma_pipe_straight_vertical_green.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_straight_vertical.json
+    layer: cutout
+    rotatable: false
+    sounds: { type: glass }
+  plasma_pipe_elbow_green:
+    name: "Плазменная труба: колено (зелёная)"
+    model: plasma_pipe_elbow_green.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_elbow_up_green:
+    name: "Плазменная труба: колено вверх (зелёная)"
+    model: plasma_pipe_elbow_up_green.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow_up.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_elbow_down_green:
+    name: "Плазменная труба: колено вниз (зелёная)"
+    model: plasma_pipe_elbow_down_green.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow_down.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_tee_green:
+    name: "Плазменная труба: тройник (зелёная)"
+    model: plasma_pipe_tee_green.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_tee.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_straight_orange:
+    name: "Плазменная труба: прямая (оранжевая)"
+    model: plasma_pipe_straight_orange.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_straight.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_straight_vertical_orange:
+    name: "Плазменная труба: прямая вертикальная (оранжевая)"
+    model: plasma_pipe_straight_vertical_orange.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_straight_vertical.json
+    layer: cutout
+    rotatable: false
+    sounds: { type: glass }
+  plasma_pipe_elbow_orange:
+    name: "Плазменная труба: колено (оранжевая)"
+    model: plasma_pipe_elbow_orange.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_elbow_up_orange:
+    name: "Плазменная труба: колено вверх (оранжевая)"
+    model: plasma_pipe_elbow_up_orange.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow_up.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_elbow_down_orange:
+    name: "Плазменная труба: колено вниз (оранжевая)"
+    model: plasma_pipe_elbow_down_orange.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow_down.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_tee_orange:
+    name: "Плазменная труба: тройник (оранжевая)"
+    model: plasma_pipe_tee_orange.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_tee.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_straight_violet:
+    name: "Плазменная труба: прямая (фиолетовая)"
+    model: plasma_pipe_straight_violet.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_straight.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_straight_vertical_violet:
+    name: "Плазменная труба: прямая вертикальная (фиолетовая)"
+    model: plasma_pipe_straight_vertical_violet.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_straight_vertical.json
+    layer: cutout
+    rotatable: false
+    sounds: { type: glass }
+  plasma_pipe_elbow_violet:
+    name: "Плазменная труба: колено (фиолетовая)"
+    model: plasma_pipe_elbow_violet.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_elbow_up_violet:
+    name: "Плазменная труба: колено вверх (фиолетовая)"
+    model: plasma_pipe_elbow_up_violet.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow_up.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_elbow_down_violet:
+    name: "Плазменная труба: колено вниз (фиолетовая)"
+    model: plasma_pipe_elbow_down_violet.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_elbow_down.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }
+  plasma_pipe_tee_violet:
+    name: "Плазменная труба: тройник (фиолетовая)"
+    model: plasma_pipe_tee_violet.bbmodel
+    animations: [flow, flow_reverse]
+    collision: plasma_pipe_tee.json
+    layer: cutout
+    rotatable: true
+    sounds: { type: glass }

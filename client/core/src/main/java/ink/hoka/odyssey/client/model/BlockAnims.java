@@ -20,7 +20,8 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -33,6 +34,8 @@ import java.util.Map;
  * {@link #ANIM_RANGE} блоков — анимация, до {@link #SCAN_RANGE} — подвижные кости в позе по умолчанию, дальше — только
  * меш (мелкие подвижные детали не рисуются). Блоки ищутся раз в {@link #SCAN_TICKS} тиков по палитрам секций рядом
  * с игроком; на кадр объекты не создаются (позы и матрицы — заранее).
+ * <p>0.89: блоки сгруппированы по (модель, анимация) — поза считается один раз на группу за кадр, хоть у группы
+ * четыре поворота и сотни блоков (трубы ставят сотнями); проход по блокам — только своей группы.</p>
  */
 public final class BlockAnims {
 
@@ -68,8 +71,15 @@ public final class BlockAnims {
         }
     }
 
-    private static final Map<Type, Live> LIVE = new IdentityHashMap<>();
-    private static List<At> found = List.of();
+    /** Блоки одной модели с одной анимацией (повороты — разные состояния, поза общая). */
+    private static final class Group {
+        final String path, anim;
+        final List<At> ats = new ArrayList<>();
+        Group(String path, String anim) { this.path = path; this.anim = anim; }
+    }
+
+    private static final Map<String, Live> LIVE = new HashMap<>();             // «модель#анимация» → поза
+    private static List<Group> found = List.of();
     private static int ticks;
     private static final Pose.Scratch SCRATCH = new Pose.Scratch();
     private static final Matrix4f BASE = new Matrix4f(), M = new Matrix4f();
@@ -96,7 +106,7 @@ public final class BlockAnims {
         int r = SCAN_RANGE >> 4;
         BlockPos pp = mc.player.blockPosition();
         int pcx = pp.getX() >> 4, pcy = pp.getY() >> 4, pcz = pp.getZ() >> 4;
-        List<At> out = new ArrayList<>();
+        Map<String, Group> out = new LinkedHashMap<>();
         for (int cx = pcx - r; cx <= pcx + r; cx++) for (int cz = pcz - r; cz <= pcz + r; cz++) {
             if (!(lvl.getChunkSource().getChunk(cx, cz, net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false) instanceof LevelChunk ch)) continue;
             LevelChunkSection[] secs = ch.getSections();
@@ -108,35 +118,43 @@ public final class BlockAnims {
                 for (int y = 0; y < 16; y++) for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) {
                     BlockState st = sec.getBlockState(x, y, z);
                     Type t = types.get(st);
-                    if (t != null) out.add(new At(new BlockPos((cx << 4) + x, (sy << 4) + y, (cz << 4) + z), st, t));
+                    if (t != null) out.computeIfAbsent(t.path + "#" + t.anim, k -> new Group(t.path, t.anim))
+                            .ats.add(new At(new BlockPos((cx << 4) + x, (sy << 4) + y, (cz << 4) + z), st, t));
                 }
             }
         }
-        found = out;
+        found = List.copyOf(out.values());
+    }
+
+    /** Сколько анимированных блоков найдено рядом (отладка, тесты). */
+    public static int count() {
+        int n = 0;
+        for (Group g : found) n += g.ats.size();
+        return n;
     }
 
     // ───────────────────────── рисование ─────────────────────────
 
-    private static Live live(Type t) {
-        Live l = LIVE.computeIfAbsent(t, k -> new Live());
-        BbModel m = Models.model(t.path);
+    private static Live live(Group g) {
+        Live l = LIVE.computeIfAbsent(g.path + "#" + g.anim, k -> new Live());
+        BbModel m = Models.model(g.path);
         if (m == null) { l.ready = false; return l; }
         if (m != l.model) {                                                       // модель пришла или обновилась
             l.model = m;
-            l.anim = m.animations.get(t.anim);
+            l.anim = m.animations.get(g.anim);
             l.moving = l.anim != null ? l.anim.moving(m) : new boolean[m.bones.size()];
             l.pose = new Matrix4f[m.bones.size()];
             l.rest = new Matrix4f[m.bones.size()];
             Pose.compute(m, null, -1, l.rest, SCRATCH);
-            l.tex = Models.textures(t.path);
+            l.tex = Models.textures(g.path);
         }
         l.ready = l.anim != null;
         return l;
     }
 
     public static void render(WorldRenderContext ctx) {
-        List<At> list = found;
-        if (list.isEmpty()) return;
+        List<Group> groups = found;
+        if (groups.isEmpty()) return;
         var mc = Minecraft.getInstance();
         var level = mc.level;
         if (level == null) return;
@@ -144,27 +162,19 @@ public final class BlockAnims {
         Frustum frustum = Models.frustum();
         float pt = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
         float sec = ((level.getGameTime() % 1_728_000L) + pt) / 20f;           // общее время мира (сутки по 24 000 тиков × 72)
-        for (Live l : LIVE.values()) l.ready = false;
-        for (At at : list) {
-            Live l = LIVE.get(at.type);
-            if (l == null || !l.ready) {
-                l = live(at.type);
-                if (!l.ready) continue;
-                Pose.compute(l.model, l.anim, l.anim.localTime(sec), l.pose, SCRATCH);   // поза на кадр — одна на вид
-            }
-        }
         MultiBufferSource src = ctx.consumers();
         Matrix4f view = ctx.matrices().last().pose();
         double range2 = (double) ANIM_RANGE * ANIM_RANGE;
-        for (Live l : LIVE.values()) {
+        for (Group g : groups) {
+            Live l = live(g);
             if (!l.ready) continue;
+            Pose.compute(l.model, l.anim, l.anim.localTime(sec), l.pose, SCRATCH);   // поза на кадр — одна на группу
             for (int ti = 0; ti < l.tex.length; ti++) {
                 Identifier tex = l.tex[ti];
                 if (tex == null) continue;
                 RenderType type = RenderTypes.entityCutoutNoCull(tex);
                 VertexConsumer vc = null;
-                for (At at : list) {
-                    if (LIVE.get(at.type) != l) continue;
+                for (At at : g.ats) {
                     if (frustum != null && !frustum.isVisible(at.box)) continue;
                     if (level.getBlockState(at.pos) != at.state) continue;          // сломали (до следующего поиска)
                     double dx = at.pos.getX() + 0.5 - cam.x, dy = at.pos.getY() + 0.5 - cam.y, dz = at.pos.getZ() + 0.5 - cam.z;
@@ -173,14 +183,19 @@ public final class BlockAnims {
                     int light = LevelRenderer.getLightColor(level, at.pos);
                     BASE.set(view).translate((float) (at.pos.getX() - cam.x), (float) (at.pos.getY() - cam.y), (float) (at.pos.getZ() - cam.z))
                             .mul(at.type.local);
-                    for (BbModel.Bone b : l.model.bones) {
-                        if (!l.moving[b.index] || b.faces.isEmpty() || "hitbox".equals(b.name)) continue;
-                        M.set(BASE).mul(pose[b.index]);
-                        for (BbModel.Face f : b.faces) if (f.texture() == ti) quad(vc, M, f, light);
-                    }
+                    draw(vc, l.model, l.moving, pose, BASE, ti, light);
                 }
                 if (vc != null && src instanceof MultiBufferSource.BufferSource bs) bs.endBatch(type);
             }
+        }
+    }
+
+    /** Подвижные кости модели с текстурой ti в позе pose (base — блок в мире). Без созданий объектов. */
+    static void draw(VertexConsumer vc, BbModel model, boolean[] moving, Matrix4f[] pose, Matrix4f base, int ti, int light) {
+        for (BbModel.Bone b : model.bones) {
+            if (!moving[b.index] || b.faces.isEmpty() || "hitbox".equals(b.name)) continue;
+            M.set(base).mul(pose[b.index]);
+            for (BbModel.Face f : b.faces) if (f.texture() == ti) quad(vc, M, f, light);
         }
     }
 

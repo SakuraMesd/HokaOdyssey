@@ -56,8 +56,11 @@ public final class HokaTab {
             JsonObject d = el.getAsJsonObject();
             if (d.has("rot") && d.get("rot").getAsInt() != 0) continue;
             if (d.has("part") && d.get("part").getAsInt() != 0) continue;   // 0.84: части многоклеточного блока — один предмет
+            if (d.has("variant") && d.get("variant").getAsInt() != 0) continue;   // 0.89: варианты анимации — тот же предмет
             String carrier = d.getAsJsonObject("state").get("block").getAsString();
-            Item it = carrier.endsWith("note_block") ? Items.NOTE_BLOCK : carrier.endsWith("_leaves") ? Items.OAK_LEAVES : Items.STRING;
+            // предмет — как выдаёт сервер (BlocksModule.item): по виду места; 0.89 — и блоки мода (hoka_odyssey:solid_/clear_/pass_)
+            Item it = carrier.endsWith("note_block") || carrier.startsWith("hoka_odyssey:solid_") ? Items.NOTE_BLOCK
+                    : carrier.endsWith("_leaves") || carrier.startsWith("hoka_odyssey:clear_") ? Items.OAK_LEAVES : Items.STRING;
             String id = d.get("id").getAsString();
             l.add(stack(it, "hoka_block", id, d.has("name") ? d.get("name").getAsString() : id, null));
         }

@@ -190,6 +190,8 @@ public final class CustomBlocks {
                 BlockState st = state(d.getAsJsonObject("state"));
                 if (st == null) { LOG.warn("{}: носитель не найден", id); bad++; continue; }
                 int rot = d.get("rot").getAsInt();
+                // 0.89: вариант анимации (animations у сервера, ПКМ переключает) — не предмет и не ставится игроком
+                int variant = d.has("variant") ? d.get("variant").getAsInt() : 0;
                 BlockForm form = BlockForm.parse(d);                             // 0.84: часть, размер, хитбокс, анимация
                 String modelPath = d.has("model") ? d.get("model").getAsString() : null;
                 boolean animated = modelPath != null && form.animation() != null && form.main();
@@ -230,13 +232,13 @@ public final class CustomBlocks {
                     anims.put(st, at);
                     if (pool != null) anims.put(pool, at);
                 }
-                if (form.main()) place.computeIfAbsent(id, k -> new java.util.HashMap<>()).put(rot, pool != null ? pool : st);   // ставится главная клетка
+                if (form.main() && variant == 0) place.computeIfAbsent(id, k -> new java.util.HashMap<>()).put(rot, pool != null ? pool : st);   // ставится главная клетка
                 if (d.has("sounds")) {
                     var snd = BlockSounds.of(d.getAsJsonObject("sounds"), st.getBlock().defaultBlockState());
                     sounds.put(st, snd);
                     if (pool != null) sounds.put(pool, snd);
                 }
-                if (form.main() && (rot == 0 || !blockItems.containsKey(id))) {
+                if (form.main() && variant == 0 && (rot == 0 || !blockItems.containsKey(id))) {
                     // иконка предмета: модель целиком (и подвижные кости), большая — уменьшена в одну клетку
                     Built icon = b;
                     if (modelPath != null && (animated || form.size()[0] > 1 || form.size()[2] > 1)) {

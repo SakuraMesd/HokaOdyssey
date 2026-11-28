@@ -54,11 +54,13 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
      * Описание блока. size — клеток по X, Y, Z (многоклеточный блок, {@link Multi}); shape — хитбокс одной клетки
      * в пикселях {x1, y1, z1, x2, y2, z2} (null — полный куб); animation — анимация модели, которую мод проигрывает
      * в мире; window — окно houi, которое открывает ПКМ по блоку; collision — коробки по частям ({@link Collision}, вместо
-     * shape); inside — коробка «игрок внутри» (px в системе модели) для {@link HoBlockInsideEvent}.
+     * shape); inside — коробка «игрок внутри» (px в системе модели) для {@link HoBlockInsideEvent}; animations — варианты
+     * анимации (например, течение туда/обратно): у каждого варианта свои места, ПКМ пустой рукой — следующий вариант.
      */
     record Def(String id, String name, Kind kind, boolean rotatable, Map<String, String> faces, String model,
                String layer, String particle, boolean ao, Map<String, Object> sounds,
-               int[] size, int[] shape, String animation, String window, double[][][] collision, double[] inside) {
+               int[] size, int[] shape, String animation, String window, double[][][] collision, double[] inside,
+               List<String> animations) {
         Def(String id, String name, Kind kind, boolean rotatable, Map<String, String> faces, String model,
             String layer, String particle, boolean ao, Map<String, Object> sounds) {
             this(id, name, kind, rotatable, faces, model, layer, particle, ao, sounds, new int[]{1, 1, 1}, null, null, null);
@@ -68,6 +70,18 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
             String layer, String particle, boolean ao, Map<String, Object> sounds, int[] size, int[] shape, String animation, String window) {
             this(id, name, kind, rotatable, faces, model, layer, particle, ao, sounds, size, shape, animation, window, null, null);
         }
+
+        Def(String id, String name, Kind kind, boolean rotatable, Map<String, String> faces, String model,
+            String layer, String particle, boolean ao, Map<String, Object> sounds, int[] size, int[] shape, String animation, String window,
+            double[][][] collision, double[] inside) {
+            this(id, name, kind, rotatable, faces, model, layer, particle, ao, sounds, size, shape, animation, window, collision, inside, null);
+        }
+
+        /** Сколько вариантов анимации (animations: ПКМ пустой рукой переключает); 1 — одна animation. */
+        int variants() { return animations != null && animations.size() > 1 ? animations.size() : 1; }
+
+        /** Анимация варианта v. */
+        String animOf(int v) { return animations != null && !animations.isEmpty() ? animations.get(v) : animation; }
 
         /** Вид места части: с коллизией по частям часть без коробок — проходимая. */
         Kind kindOf(int part) {
@@ -80,7 +94,13 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
     }
 
     /** Состояние-носитель → какой блок, как повёрнут и какая это часть (0 — главная клетка). */
-    record Placed(Def def, int rot, int part) {}
+    record Placed(Def def, int rot, int part, int variant) {
+        Placed(Def def, int rot, int part) { this(def, rot, part, 0); }
+        int key() { return BlocksModule.key(rot, variant); }
+    }
+
+    /** Ключ в blockOf: поворот + 1000 × вариант (вариант 0 — просто поворот, как раньше). */
+    static int key(int rot, int variant) { return rot + 1000 * variant; }
 
     /** Выданные носители: id → поворот → носитель каждой части; и обратно. */
     record Alloc(Map<String, Map<Integer, Block[]>> blockOf, Map<Integer, Placed> byState, int fresh, List<String> problems,
@@ -167,11 +187,18 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
                 for (int i = 0; i < 6; i++) inside[i] = ((Number) il.get(i)).doubleValue();
             } else if (config().get(p + "inside") != null) logger().warn("блок {}: inside — нужно [x1, y1, z1, x2, y2, z2] (px модели)", id);
             String anim = config().getString(p + "animation", null);
-            if (anim != null && model == null) { logger().warn("блок {}: animation без model — не будет", id); anim = null; }
+            List<String> anims = null;
+            if (config().get(p + "animations") instanceof List<?> al && !al.isEmpty()) {
+                anims = new ArrayList<>();
+                for (Object a : al) anims.add(String.valueOf(a));
+                anims = List.copyOf(anims);
+                anim = anims.get(0);
+            }
+            if (anim != null && model == null) { logger().warn("блок {}: animation без model — не будет", id); anim = null; anims = null; }
             d.put(id, new Def(id, config().getString(p + "name", id), kind, config().getBoolean(p + "rotatable", false), faces,
                     model, config().getString(p + "layer", "cutout"), config().getString(p + "particle", null),
                     config().getBoolean(p + "ao", true), sounds(config().get(p + "sounds")),
-                    size, shape, anim, config().getString(p + "window", null), collision, inside));
+                    size, shape, anim, config().getString(p + "window", null), collision, inside, anims));
         }
         String alloc = allocate(d);
         defs = d;
@@ -219,9 +246,11 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
         return out;
     }
 
-    /** Ключ места в states.yml: id[@поворот][#часть] (часть 0 и неповоротный блок — как раньше, места не съезжают). */
-    static String stateKey(Def def, int rot, int part) {
-        return def.id + (def.rotatable ? "@" + rot : "") + (part > 0 ? "#" + part : "");
+    /** Ключ места в states.yml: id[@поворот][#часть][~вариант] (часть 0 и неповоротный блок — как раньше, места не съезжают). */
+    static String stateKey(Def def, int rot, int part) { return stateKey(def, rot, part, 0); }
+
+    static String stateKey(Def def, int rot, int part, int variant) {
+        return def.id + (def.rotatable ? "@" + rot : "") + (part > 0 ? "#" + part : "") + (variant > 0 ? "~" + variant : "");
     }
 
     /** Выдать носители новым блокам; старые остаются на своих местах навсегда. */
@@ -267,11 +296,12 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
         for (Def def : defs) {
             int[] rots = def.rotatable ? new int[]{0, 90, 180, 270} : new int[]{0};
             Map<Integer, Block[]> m = new HashMap<>();
+            for (int v = 0; v < def.variants(); v++)
             rotations:
             for (int rot : rots) {
                 Block[] parts = new Block[def.parts()];
                 for (int part = 0; part < parts.length; part++) {
-                    String key = stateKey(def, rot, part);
+                    String key = stateKey(def, rot, part, v);
                     Block b = state(st.getString("states." + key, ""));
                     Kind kind = def.kindOf(part);
                     if (b == null || pools.get(kind).stream().noneMatch(x -> x.stateId() == b.stateId())) {
@@ -284,8 +314,8 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
                         parts[part] = nb;
                     } else parts[part] = b;
                 }
-                for (int part = 0; part < parts.length; part++) bs.put(parts[part].stateId(), new Placed(def, rot, part));
-                m.put(rot, parts);
+                for (int part = 0; part < parts.length; part++) bs.put(parts[part].stateId(), new Placed(def, rot, part, v));
+                m.put(key(rot, v), parts);
             }
             bo.put(def.id, m);
         }
@@ -395,7 +425,9 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
                 for (var pe : b.properties().entrySet()) props.addProperty(pe.getKey(), pe.getValue());
                 state.add("props", props);
                 o.add("state", state);
-                o.addProperty("rot", e.getKey());
+                o.addProperty("rot", e.getKey() % 1000);
+                int variant = e.getKey() / 1000;
+                if (variant > 0) o.addProperty("variant", variant);                // 0.89: не предмет и не ставится — только ПКМ
                 if (def.multi()) {                                                 // 0.84: многоклеточный блок
                     o.addProperty("part", part);
                     JsonArray sz = new JsonArray();
@@ -408,7 +440,8 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
                     for (int v : def.shape) sh.add(v);
                     o.add("shape", sh);
                 }
-                if (def.animation != null) o.addProperty("animation", def.animation);   // 0.84: анимация модели в мире
+                String anim = def.animOf(variant);
+                if (anim != null) o.addProperty("animation", anim);                // 0.84: анимация модели в мире
                 if (def.model != null) o.addProperty("model", "blocks/" + def.model);
                 else {
                     JsonObject faces = new JsonObject();
@@ -464,7 +497,7 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
         Map<Integer, Block[]> m = blockOf.get(id);
         if (def == null || m == null || m.isEmpty()) { e.setCancelled(true); return; }
         int rot = def.rotatable ? Multi.rotOf(e.getPlayer().getPosition().yaw()) : 0;   // «лицом» к игроку
-        if (!m.containsKey(rot)) rot = m.keySet().iterator().next();
+        if (!m.containsKey(rot)) rot = m.keySet().stream().filter(k -> k < 1000).findFirst().orElse(0);
         Block[] parts = m.get(rot);
         if (def.multi()) {
             var pos = e.getBlockPosition();
@@ -508,7 +541,7 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
             Instance in = e.getInstance();
             var pos = e.getBlockPosition();
             Block was = e.getBlock();
-            Block[] parts = blockOf.getOrDefault(p.def.id, Map.of()).get(p.rot);
+            Block[] parts = blockOf.getOrDefault(p.def.id, Map.of()).get(p.key());
             if (parts == null) return;
             scheduler().later(() -> {
                 if (!in.isRegistered() || !in.isChunkLoaded(pos.blockX() >> 4, pos.blockZ() >> 4)) return;
@@ -523,10 +556,39 @@ public final class BlocksModule extends OdysseyModule implements HoBlocks {
             pl.getInventory().addItemStack(item(p.def, 1));
     }
 
+    /** ПКМ пустой рукой по блоку с animations: все части — следующий вариант (тот же поворот). */
+    private void nextVariant(PlayerBlockInteractEvent e, Placed p) {
+        Map<Integer, Block[]> m = blockOf.getOrDefault(p.def.id, Map.of());
+        int nv = (p.variant + 1) % p.def.variants();
+        Block[] cur = m.get(p.key()), next = m.get(key(p.rot, nv));
+        if (cur == null || next == null) return;
+        e.setBlockingItemUse(true);
+        var pos = e.getBlockPosition();
+        int[] mc = Multi.main(p.def.size, pos.blockX(), pos.blockY(), pos.blockZ(), p.part, p.rot);
+        Instance in = e.getInstance();
+        for (int part = 0; part < cur.length; part++) {
+            int[] o = Multi.offset(p.def.size, part, p.rot);
+            int x = mc[0] + o[0], y = mc[1] + o[1], z = mc[2] + o[2];
+            if (in.getBlock(x, y, z).stateId() == cur[part].stateId()) in.setBlock(x, y, z, next[part], false);
+        }
+        e.getPlayer().sendActionBar(Component.text(p.def.name + ": " + variantName(p.def.animOf(nv)), NamedTextColor.AQUA));
+    }
+
+    /** Подпись варианта для игрока. */
+    static String variantName(String anim) {
+        return switch (anim) {
+            case "flow" -> "течение вперёд";
+            case "flow_reverse" -> "течение обратно";
+            default -> anim;
+        };
+    }
+
     /** ПКМ по своему блоку с окном (window): событие {@link HoBlockUseEvent} для главной клетки и окно houi. */
     private void onInteract(PlayerBlockInteractEvent e) {
         Placed p = byState.get(e.getBlock().stateId());
-        if (p == null || p.def.window == null || e.getHand() != net.minestom.server.entity.PlayerHand.MAIN) return;
+        if (p == null || e.getHand() != net.minestom.server.entity.PlayerHand.MAIN) return;
+        if (p.def.variants() > 1 && e.getPlayer().getItemInMainHand().isAir()) { nextVariant(e, p); return; }
+        if (p.def.window == null) return;
         Player pl = e.getPlayer();
         if (pl.isSneaking() && !pl.getItemInMainHand().isAir()) return;           // с Shift и предметом — ставить блок
         var pos = e.getBlockPosition();
