@@ -30,6 +30,7 @@ public abstract class CameraMixin {
     private void hokaOdyssey$setup(Level level, Entity entity, boolean detached, boolean mirror, float partialTick, CallbackInfo ci) {
         if (!Hooks.hasCamera()) {
             if (Hooks.roll != 0 || Hooks.rotation != null) { Hooks.roll = 0; Hooks.rotation = null; setRotation(yRot(), xRot()); }
+            Hooks.fov = 0;
             return;
         }
         CameraState s = new CameraState();
@@ -41,6 +42,7 @@ public abstract class CameraMixin {
         s.pitch = xRot();
         s.detached = detached;
         Hooks.camera(s, partialTick);
+        Hooks.fov = s.fov > 0 ? Math.clamp(s.fov, 1f, 170f) : 0;              // 0.82: поле зрения от модуля
         if (s.rotation != null) {
             Hooks.rotation = new org.joml.Quaternionf(s.rotation);               // полный поворот на этот кадр
             Hooks.roll = 0;

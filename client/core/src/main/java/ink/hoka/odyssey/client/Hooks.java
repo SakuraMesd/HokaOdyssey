@@ -316,6 +316,9 @@ public final class Hooks {
     }
 
     /** Применить крючки камеры: state на входе — как насчитала игра, на выходе — что нарисовать. */
+    /** 0.82 Поле зрения от модулей на этот кадр (0 — как у игры): ставит CameraMixin, читает GameRendererMixin.getFov. */
+    public static volatile float fov;
+
     public static void camera(CameraState state, float partialTick) {
         for (var o : List.copyOf(CAMERA)) safe(o.owner(), () -> o.hook().apply(state, partialTick));
     }

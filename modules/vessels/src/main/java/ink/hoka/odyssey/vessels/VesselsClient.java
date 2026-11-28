@@ -47,6 +47,12 @@ import java.util.Map;
  *               мастерской и при смене груза: мод рисует окно мастерской по-своему
  *    15 WORLD   UTF-JSON {planet, clearance, soft, beam-reach} — карта игрока: планета (подушка у пилота, лучи) или
  *               космос; при входе в модуль и смене мира
+ *    16 CAMERAS UTF-JSON {first: камера | null, f5: [камера…]} — камеры корабля в деле (корабль поверх вида) — пилоту при
+ *               посадке и при каждой правке камер (vessels-5). Камера: {pos[3] (система корабля), yaw, pitch, fov (нет —
+ *               как у игрока), look[3] (нет — по углам), smooth (нет — camera.chase-smoothing)}
+ *    17 CAMEDIT UTF-JSON {scope ("kind" | "ship"), key, title, which (0 — первое лицо, n — вид F5 n), own {first, f5}
+ *               (камеры области правки), eff {first, f5} (в деле)} — открыть редактор камер (OP, пилот); мод отвечает C2S 9 1
+ *    18 CAMSAVED UTF-JSON {which, own, eff, msg} — камера сохранена: редактор обновляет «уже есть», пилот — камеры
  * C2S 1 POSE    double x y z, float qx qy qz qw — поза своего корабля, 20 раз в секунду
  *     2 BOARD   int корабль — хочу сесть (ПКМ по кораблю)
  *     3 EXIT    — выйти (то же, что F)
@@ -54,6 +60,8 @@ import java.util.Map;
  *     5 FIRE    float x y z — выстрел по направлению прицела (ЛКМ пилота)
  *     6 WARP    — начать зарядку варпа / отменить (R)
  *     7 IMPACT  float скорость (бл/с), float x y z (направление, мир) — мод пилота врезался в блоки на скорости
+ *     8 CAMSAVE UTF-JSON {which, cam} — редактор: сохранить камеру (сервер проверяет OP и что это пилот того корабля)
+ *     9 CAMEDIT byte 1 — редактор открыт, 0 — закрыт
  * </pre>
  * Поза — середина модели в мире и поворот «система корабля → мир» (нос +Z, верх +Y, левый борт +X).
  */
@@ -89,7 +97,7 @@ final class VesselsClient {
         send(p, kinds());
         for (Vessel v : mod.vessels()) if (v.carrier != null && !v.carrier.isRemoved()) send(p, attach(v));
         world(p, p.getInstance());
-        for (Vessel v : mod.vessels()) if (v.pilot != null && v.pilot.player == p) { start(v); state(v); hull(v, false, -1); }   // модуль перезагрузился посреди полёта
+        for (Vessel v : mod.vessels()) if (v.pilot != null && v.pilot.player == p) { start(v); state(v); hull(v, false, -1); cameras(v); }   // модуль перезагрузился посреди полёта
     }
 
     private void send(Player p, byte[] b) {
@@ -259,6 +267,46 @@ final class VesselsClient {
         }));
     }
 
+    /** Пилоту: камеры его корабля (S2C CAMERAS). */
+    void cameras(Vessel v) {
+        if (v.pilot == null) return;
+        String js = CameraBook.setJson(mod.cameras.of(v)).toString();
+        send(v.pilot.player, bytes(out -> {
+            out.writeByte(16);
+            out.writeUTF(js);
+        }));
+    }
+
+    /** Открыть редактор камер (S2C CAMEDIT). */
+    void camEdit(Player p, Vessel v, CameraBook.Scope scope, int which, CameraBook.Set own, CameraBook.Set eff) {
+        com.google.gson.JsonObject o = new com.google.gson.JsonObject();
+        o.addProperty("scope", scope.ship() ? "ship" : "kind");
+        o.addProperty("key", scope.key());
+        o.addProperty("title", scope.title());
+        o.addProperty("which", which);
+        o.add("own", CameraBook.setJson(own));
+        o.add("eff", CameraBook.setJson(eff));
+        String js = o.toString();
+        send(p, bytes(out -> {
+            out.writeByte(17);
+            out.writeUTF(js);
+        }));
+    }
+
+    /** Камера сохранена (S2C CAMSAVED). */
+    void camSaved(Player p, int which, CameraBook.Set own, CameraBook.Set eff, String msg) {
+        com.google.gson.JsonObject o = new com.google.gson.JsonObject();
+        o.addProperty("which", which);
+        o.add("own", CameraBook.setJson(own));
+        o.add("eff", CameraBook.setJson(eff));
+        o.addProperty("msg", msg);
+        String js = o.toString();
+        send(p, bytes(out -> {
+            out.writeByte(18);
+            out.writeUTF(js);
+        }));
+    }
+
     /** Карта игрока: планета (подушка, лучи) или космос. */
     void world(Player p, net.minestom.server.instance.Instance inst) {
         if (p == null || inst == null) return;
@@ -373,6 +421,8 @@ final class VesselsClient {
                 case 5 -> mod.combat.fire(p, in.readFloat(), in.readFloat(), in.readFloat());
                 case 6 -> mod.warp.toggle(p);
                 case 7 -> mod.hull.impact(p, in.readFloat(), in.readFloat(), in.readFloat(), in.readFloat());
+                case 8 -> mod.cameras.onSave(p, in.readUTF());
+                case 9 -> mod.cameras.onEditState(p, in.readUnsignedByte());
                 default -> { }
             }
         } catch (IOException e) {

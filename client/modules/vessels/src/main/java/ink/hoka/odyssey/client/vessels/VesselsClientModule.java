@@ -131,6 +131,10 @@ public final class VesselsClientModule implements ClientModule {
         ctx.onCamera((s, pt) -> { if (pilot != null) pilot.camera(s, pt); });
         ctx.onInput(in -> { if (pilot != null) ctx.setMove(in, 0, 0); });       // пилот не ходит — клавиши читает Pilot
         ctx.onClick((attack, held) -> {
+            if (pilot != null && pilot.editor != null) {                        // редактор камер: ЛКМ — сохранить, ПКМ — выйти
+                if (!held) { if (attack) pilot.editorSave(); else pilot.stopEditor(); }
+                return true;
+            }
             if (pilot != null) {                                                // из кабины ничего не ставим и не ломаем; ЛКМ — огонь
                 if (attack) pilot.fire();
                 return true;
@@ -253,6 +257,18 @@ public final class VesselsClientModule implements ClientModule {
                         was.recipes.addAll(m.recipes);
                     } else shopInfo = m;
                 }
+                case 16 -> {                                                    // CAMERAS: камеры своего корабля
+                    ShipCams.Set c = ShipCams.Set.read(JsonParser.parseString(in.readUTF()));
+                    if (pilot != null) pilot.cams = c;
+                }
+                case 17 -> {                                                    // CAMEDIT: открыть редактор камер
+                    JsonObject o = JsonParser.parseString(in.readUTF()).getAsJsonObject();
+                    if (pilot != null) pilot.startEditor(o);
+                }
+                case 18 -> {                                                    // CAMSAVED
+                    JsonObject o = JsonParser.parseString(in.readUTF()).getAsJsonObject();
+                    if (pilot != null) pilot.editorSaved(o);
+                }
                 case 15 -> {                                                    // WORLD: планета или космос
                     JsonObject o = JsonParser.parseString(in.readUTF()).getAsJsonObject();
                     world = Cushion.Settings.read(o);
@@ -353,12 +369,13 @@ public final class VesselsClientModule implements ClientModule {
         var win = mc.getWindow();
         boolean g = free && com.mojang.blaze3d.platform.InputConstants.isKeyDown(win, org.lwjgl.glfw.GLFW.GLFW_KEY_G);
         boolean r = free && com.mojang.blaze3d.platform.InputConstants.isKeyDown(win, org.lwjgl.glfw.GLFW.GLFW_KEY_R);
-        if (g && !gWas) {
+        boolean editing = pilot != null && pilot.editor != null;               // редактор камер: G и R — его (R — сброс)
+        if (g && !gWas && !editing) {
             int id = pilot != null ? pilot.vessel : -1;
             if (id < 0) { Ship s = looked(menuReach()); if (s != null) id = s.id; }
             if (id >= 0) ctx.send(new byte[]{4, (byte) (id >>> 24), (byte) (id >>> 16), (byte) (id >>> 8), (byte) id});   // MENU
         }
-        if (r && !rWas && pilot != null) ctx.send(new byte[]{6});                // WARP
+        if (r && !rWas && pilot != null && !editing) ctx.send(new byte[]{6});    // WARP
         gWas = g;
         rWas = r;
     }

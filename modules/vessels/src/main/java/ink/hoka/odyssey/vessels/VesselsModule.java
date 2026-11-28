@@ -53,6 +53,8 @@ public final class VesselsModule extends OdysseyModule {
     final Arrivals arrivals = new Arrivals(this);
     /** PvP-зоны модуля survival (бой кораблей только в зонах). */
     final ZoneLink zones = new ZoneLink(this);
+    /** Камеры кораблей (cameras.json, редактор в игре). */
+    final Cameras cameras = new Cameras(this);
     /** Карта — планета (подушка, лучи) или космос: по имени карты (сбрасывается при reload). */
     private final Map<String, Boolean> planetMaps = new ConcurrentHashMap<>();
     private Upgrades.Config upgradeCfg = Upgrades.Config.DEFAULT;
@@ -74,6 +76,7 @@ public final class VesselsModule extends OdysseyModule {
         if (store.broken())
             logger().error("vessels.json не прочитан ({}) — файл не будет перезаписан (копия — vessels.json.broken); исправьте его и перезагрузите модуль", store.brokenWhy());
         for (Vessel v : vessels.values()) spawnCarrier(v);
+        cameras.load(dataFolder().resolve("cameras.json"));
 
         events().addListener(PlayerSwapItemEvent.class, e -> {                  // F — выйти
             Piloting pl = pilotOf(e.getPlayer());
@@ -121,6 +124,7 @@ public final class VesselsModule extends OdysseyModule {
     protected void onDisable() {
         beams.clear();
         arrivals.stop();
+        cameras.clear();
         for (Vessel v : vessels.values()) if (v.pilot != null) exit(v.pilot.player, true);
         for (Vessel v : vessels.values()) if (v.menu != null) { v.menu.closeAll(); v.menu = null; }
         for (Vessel v : vessels.values()) if (v.shop != null) { v.shop.closeAll(); v.shop = null; }
@@ -213,6 +217,7 @@ public final class VesselsModule extends OdysseyModule {
             v.cargo.clear();
         }
         vessels.remove(v.id);
+        cameras.forgetShip(v.id);
         client.detachToAll(v);
         if (v.carrier != null) v.carrier.remove();
         v.carrier = null;
@@ -311,8 +316,9 @@ public final class VesselsModule extends OdysseyModule {
         pvpZone(v, pl, true);
         client.state(v);
         client.hull(v, false, -1);
+        client.cameras(v);
         p.sendMessage(Component.text("Полёт: мышь — прицел, нос доводится к нему. W/S — ход, Ctrl+W — форсаж, A/D — крен, "
-                + "пробел/Shift — вверх/вниз. ЛКМ — огонь, R — варп, G — меню корабля. F5 — вид из кабины / сзади. F — выйти.", NamedTextColor.AQUA));
+                + "пробел/Shift — вверх/вниз. ЛКМ — огонь, R — варп, G — меню корабля. F5 — виды камеры. F — выйти.", NamedTextColor.AQUA));
     }
 
     /** Снять пилота. teleport — поставить рядом с кораблём на безопасное место (если игрок ещё в его мире). */
@@ -321,6 +327,7 @@ public final class VesselsModule extends OdysseyModule {
         if (pl == null) return;
         Vessel v = pl.vessel;
         warp.cancel(v, null);
+        cameras.forget(p);
         v.pilot = null;
         if (p.isOnline()) {
             pl.restore();
@@ -502,6 +509,7 @@ public final class VesselsModule extends OdysseyModule {
         }
         beams.tick();
         arrivals.tick();
+        cameras.tick();
         if (dirty && ticks % 100 == 0) save();                                 // в полёте — раз в 5 с
     }
 
