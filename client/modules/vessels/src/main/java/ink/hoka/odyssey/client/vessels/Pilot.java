@@ -54,7 +54,7 @@ final class Pilot {
     private boolean fovOk = true;
     /** Редактор: клавиши в прошлом тике (нажатие — по фронту) и выбранный слот (колёсико). */
     private final boolean[] edWas = new boolean[12];
-    private int edSlot = -1;
+    private int edSlot = -1, edSlotStart = -1;
     private boolean boost;
     private final CameraType cameraBefore;
     private Quaternionf chase;
@@ -589,7 +589,7 @@ final class Pilot {
         int which = o.has("which") ? o.get("which").getAsInt() : 0;
         editor = new CamEditor(ship, key, title, which, ShipCams.Set.read(o.get("own")), ShipCams.Set.read(o.get("eff")), defaultFirst(), defaultChase());
         Minecraft mc = Minecraft.getInstance();
-        edSlot = mc.player != null ? mc.player.getInventory().getSelectedSlot() : -1;
+        edSlot = edSlotStart = mc.player != null ? mc.player.getInventory().getSelectedSlot() : -1;
         java.util.Arrays.fill(edWas, true);                                     // зажатое при открытии — не нажатие
         editor.status(editor.saved(editor.which) != null ? "Правка сохранённой камеры" : "Новая камера — ЛКМ/Enter, чтобы сохранить", false);
         ctx.send(new byte[]{9, 1});
@@ -608,6 +608,8 @@ final class Pilot {
         if (editor == null) return;
         editor = null;
         chase = null;
+        Minecraft mc = Minecraft.getInstance();                                 // колёсико крутило слот хотбара — вернуть
+        if (mc.player != null && edSlotStart >= 0 && edSlotStart < 9) mc.player.getInventory().setSelectedSlot(edSlotStart);
         ctx.send(new byte[]{9, 0});
         message("Редактор камер закрыт", false);
     }
@@ -642,7 +644,7 @@ final class Pilot {
         for (int i = 0; i < ED_KEYS.length; i++) {
             now[i] = free && com.mojang.blaze3d.platform.InputConstants.isKeyDown(win, ED_KEYS[i]);
             boolean press = now[i] && !edWas[i];
-            edWas[i] = now[i];
+            edWas[i] = !free || now[i];                                          // зажатое под окном (Enter в чате) — не нажатие
             if (!press) continue;
             switch (i) {
                 case 0, 1, 2, 3, 4, 5 -> num = i;

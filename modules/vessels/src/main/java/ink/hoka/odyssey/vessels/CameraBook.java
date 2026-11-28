@@ -203,9 +203,10 @@ final class CameraBook {
         if (p == null || p.size() != 3) throw new IllegalStateException("камера: нужно pos [x, y, z]");
         double[] look = null;
         if (o.get("look") instanceof JsonArray l && l.size() == 3) look = new double[]{l.get(0).getAsDouble(), l.get(1).getAsDouble(), l.get(2).getAsDouble()};
+        if (look != null && !(Double.isFinite(look[0]) && Double.isFinite(look[1]) && Double.isFinite(look[2]))) throw new IllegalStateException("камера: look — не число");
         Cam c = new Cam(p.get(0).getAsDouble(), p.get(1).getAsDouble(), p.get(2).getAsDouble(), num(o, "yaw", 0), num(o, "pitch", 0),
                 num(o, "fov", 0), look, num(o, "smooth", Double.NaN));
-        if (!c.finite()) throw new IllegalStateException("камера: не число");
+        if (!c.finite() || !Double.isFinite(c.fov()) || !(Double.isNaN(c.smooth()) || Double.isFinite(c.smooth()))) throw new IllegalStateException("камера: не число");
         return c;
     }
 

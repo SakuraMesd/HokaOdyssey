@@ -52,14 +52,22 @@ final class Cameras {
     /** Новый снимок: сразу в силе, файл — в фоне, пилотам — новые камеры. false — файл битый (правка не принята). */
     boolean change(CameraBook next) {
         if (broken()) return false;
+        try { next.toJson(); } catch (RuntimeException bad) { mod.logger().warn("камеры не приняты: {}", bad.toString()); return false; }
         book = next;
-        String json = next.toJson();
-        mod.scheduler().async(() -> {
-            try { store.write(json); }
-            catch (Exception e) { mod.logger().error("cameras.json не записан: {}", e.toString()); }
-        });
+        dirty = true;
+        mod.scheduler().async(this::writeNow);                                  // пишет последний снимок: порядок фоновых задач не важен
         for (Vessel v : mod.vessels()) if (v.pilot != null) mod.client.cameras(v);
         return true;
+    }
+
+    private volatile boolean dirty;
+
+    /** Записать текущий снимок (фон; при выключении модуля — сразу). */
+    synchronized void writeNow() {
+        if (!dirty || broken()) return;
+        dirty = false;
+        try { store.write(book.toJson()); }
+        catch (Exception e) { dirty = true; mod.logger().error("cameras.json не записан: {}", e.toString()); }
     }
 
     /** Корабль удалён — его камеры прочь (если были). */

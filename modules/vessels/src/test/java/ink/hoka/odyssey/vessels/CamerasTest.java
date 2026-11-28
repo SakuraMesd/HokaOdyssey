@@ -88,6 +88,11 @@ class CamerasTest {
         assertEquals(0, CameraBook.Cam.of(0, 0, 0, 0, 0, -3).fov(), 1e-9);
         assertEquals(180, CameraBook.wrap(-180), 1e-9);
         assertEquals(10, CameraBook.wrap(370), 1e-9);
+        // не числа (лояльный JSON пропускает NaN) — камера не принимается, файл не портится
+        assertThrows(IllegalStateException.class, () -> CameraBook.camFrom(com.google.gson.JsonParser.parseString(
+                "{\"pos\":[0,0,0],\"look\":[NaN,0,0]}").getAsJsonObject()));
+        assertThrows(IllegalStateException.class, () -> CameraBook.camFrom(com.google.gson.JsonParser.parseString(
+                "{\"pos\":[0,Infinity,0]}").getAsJsonObject()));
     }
 
     @Test

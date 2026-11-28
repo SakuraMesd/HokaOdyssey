@@ -76,6 +76,7 @@ final class WarpDrive {
 
     /** Каждый тик для корабля с пилотом. */
     void tick(Vessel v) {
+        if (v.warpPhase != IDLE && mod.effects(v).warpBroken()) { cancel(v, "Варп-привод повреждён"); return; }   // корпус разбился иначе (команда, конфиг)
         if (v.warpPhase == IDLE) return;
         long now = mod.ticks();
         if (v.warpPhase == CHARGING) {

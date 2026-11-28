@@ -125,6 +125,7 @@ public final class VesselsModule extends OdysseyModule {
         beams.clear();
         arrivals.stop();
         cameras.clear();
+        cameras.writeNow();
         for (Vessel v : vessels.values()) if (v.pilot != null) exit(v.pilot.player, true);
         for (Vessel v : vessels.values()) if (v.menu != null) { v.menu.closeAll(); v.menu = null; }
         for (Vessel v : vessels.values()) if (v.shop != null) { v.shop.closeAll(); v.shop = null; }
@@ -514,7 +515,7 @@ public final class VesselsModule extends OdysseyModule {
     }
 
     /**
-     * PvP-зона корабля (середина корабля): сменилась — пилоту сообщение (вход/выход) и STATE (метка «PvP-ЗОНА» у
+     * PvP-зона корабля (глаза пилота — та же точка, что у орудия): сменилась — пилоту сообщение (вход/выход) и STATE (метка «PvP-ЗОНА» у
      * компаса). quiet — при посадке: без сообщения о входе, только метка.
      */
     void pvpZone(Vessel v, Piloting pl, boolean quiet) {
@@ -522,8 +523,10 @@ public final class VesselsModule extends OdysseyModule {
         if (inst == null) return;
         PvpRule.Mode mode = zones.mode();
         boolean survival = zones.present();
-        String name = survival && mode == PvpRule.Mode.ZONES ? zones.zone(inst, v.x, v.y, v.z) : null;
-        boolean in = PvpRule.label(mode, survival, survival && zones.in(inst, v.x, v.y, v.z));
+        VesselKind k = kinds.get(v.kind);
+        double[] at = k != null ? seatWorld(v, k) : v.pos();                    // как у орудия: стрелок — глаза пилота
+        String name = survival && mode == PvpRule.Mode.ZONES ? zones.zone(inst, at[0], at[1], at[2]) : null;
+        boolean in = PvpRule.label(mode, survival, survival && zones.in(inst, at[0], at[1], at[2]));
         if (in == pl.pvpZone && java.util.Objects.equals(name, pl.pvpZoneName)) return;
         boolean was = pl.pvpZone;
         pl.pvpZone = in;

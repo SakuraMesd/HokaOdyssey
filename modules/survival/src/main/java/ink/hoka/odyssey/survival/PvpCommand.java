@@ -27,6 +27,17 @@ final class PvpCommand extends Command {
     private final Map<UUID, int[]> pos1 = new ConcurrentHashMap<>(), pos2 = new ConcurrentHashMap<>();
     /** Показ контура у игрока (новый показ — старый прочь). */
     private final Map<UUID, Task> shows = new ConcurrentHashMap<>();
+    /** На какой карте ставились углы (create на другой карте — отказ). */
+    private final Map<UUID, String> posMap = new ConcurrentHashMap<>();
+
+    /** Игрок вышел — его углы прочь. */
+    void forget(UUID id) {
+        pos1.remove(id);
+        pos2.remove(id);
+        posMap.remove(id);
+        Task t = shows.remove(id);
+        if (t != null) t.cancel();
+    }
 
     PvpCommand(SurvivalModule mod) {
         super("hopvp", "pvpzone");
@@ -76,6 +87,7 @@ final class PvpCommand extends Command {
             at = new int[]{pp.blockX(), pp.blockY(), pp.blockZ()};
         }
         (which == 1 ? pos1 : pos2).put(p.getUuid(), at);
+        posMap.put(p.getUuid(), String.valueOf(map(p)));
         ok(s, "Точка " + which + ": " + at[0] + " " + at[1] + " " + at[2]);
     }
 
@@ -86,6 +98,7 @@ final class PvpCommand extends Command {
         if (!ZoneBook.validName(name)) { err(s, "Имя: буквы, цифры, _ и -, до 32 знаков"); return; }
         int[] a = pos1.get(p.getUuid()), b = pos2.get(p.getUuid());
         if (a == null || b == null) { err(s, "Сначала /hopvp pos1 и /hopvp pos2"); return; }
+        if (!map.equals(posMap.get(p.getUuid()))) { err(s, "Углы ставились на другой карте — поставьте pos1 и pos2 здесь"); return; }
         ZoneBook.Zone was = mod.zones().zone(name);
         ZoneBook.Zone z = ZoneBook.Zone.of(was != null ? was.name() : name, map, a[0], a[1], a[2], b[0], b[1], b[2]);
         if (!mod.editZones(mod.zones().with(z))) { err(s, "pvp-zones.json битый — зоны не сохраняются (см. лог)"); return; }
@@ -156,9 +169,9 @@ final class PvpCommand extends Command {
         int[] left = {20};
         Task[] t = new Task[1];
         t[0] = mod.scheduler().repeat(() -> {
-            if (!p.isOnline() || left[0]-- <= 0) { t[0].cancel(); shows.remove(p.getUuid(), t[0]); return; }
+            if (!p.isOnline() || left[0]-- <= 0) { if (t[0] != null) { t[0].cancel(); shows.remove(p.getUuid(), t[0]); } return; }
             outline(p, zone);
-        }, 0, 10);
+        }, 1, 10);
         shows.put(p.getUuid(), t[0]);
         ok(s, "Контур зоны «" + z.name() + "» — 10 с");
     }

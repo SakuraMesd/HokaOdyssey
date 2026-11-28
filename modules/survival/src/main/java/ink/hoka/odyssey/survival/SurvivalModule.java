@@ -111,6 +111,7 @@ public final class SurvivalModule extends OdysseyModule implements PvpZones {
             St s = states.remove(e.getPlayer().getUuid());
             if (s != null && s.loaded) save(e.getPlayer(), s);
             extras.forget(e.getPlayer());
+            if (pvpCommand != null) pvpCommand.forget(e.getPlayer().getUuid());
         });
         events().addListener(EntityDamageEvent.class, this::onDamage);
         events().addListener(EntityAttackEvent.class, this::onAttack);
@@ -134,6 +135,7 @@ public final class SurvivalModule extends OdysseyModule implements PvpZones {
     protected void onDisable() {
         saveAll();
         extras.detach();
+        writeZones();                                                           // не записанное в фоне — сейчас
         if (pvpCommand != null) pvpCommand.stop();                            // сервис PvpZones снимет загрузчик
     }
 
@@ -145,12 +147,18 @@ public final class SurvivalModule extends OdysseyModule implements PvpZones {
     boolean editZones(ZoneBook next) {
         if (zoneStore == null || zoneStore.broken()) return false;
         zones = next;
-        String json = next.toJson();
-        scheduler().async(() -> {
-            try { zoneStore.write(json); }
-            catch (Exception e) { logger().error("pvp-zones.json не записан: {}", e.toString()); }
-        });
+        zonesDirty = true;
+        scheduler().async(this::writeZones);                                    // пишет последний снимок: порядок фоновых задач не важен
         return true;
+    }
+
+    private volatile boolean zonesDirty;
+
+    private synchronized void writeZones() {
+        if (!zonesDirty || zoneStore == null || zoneStore.broken()) return;
+        zonesDirty = false;
+        try { zoneStore.write(zones.toJson()); }
+        catch (Exception e) { zonesDirty = true; logger().error("pvp-zones.json не записан: {}", e.toString()); }
     }
 
     private String mapOf(Instance inst) {

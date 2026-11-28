@@ -117,7 +117,7 @@ final class Combat {
 
     /**
      * Луч болта с PvP-зонами: попал в чужой корабль или игрока, а точка попадания вне зоны (режим zones) — эта цель
-     * пропускается (болт летит сквозь), луч заново — не больше 6 раз.
+     * пропускается (болт летит сквозь), луч заново — пока не попадёт в разрешённое.
      */
     private ShotRay.Hit cast(double[] o, double[] d, double max, ShotRay.Blocks blocks, List<ShotRay.Target> targets,
                                     List<ShotRay.Hull> hulls, Instance inst, PvpRule.Mode mode, boolean survival, String playerMode,
@@ -127,7 +127,7 @@ final class Combat {
         ZoneLink z = mod.zones;
         List<ShotRay.Target> ts = targets;
         List<ShotRay.Hull> hs = hulls;
-        for (int i = 0; i < 6 && z != null; i++) {
+        for (int i = 0, lim = targets.size() + hulls.size() + 1; i <= lim && z != null; i++) {   // целей конечно — до разрешённой
             boolean player = hit.kind() == ShotRay.Kind.ENTITY && hit.ref() instanceof Player;
             boolean vessel = hit.kind() == ShotRay.Kind.VESSEL;
             if (!player && !vessel) return hit;
@@ -140,7 +140,7 @@ final class Combat {
             else { hs = new ArrayList<>(hs); hs.removeIf(h -> h.ref() == ref); }
             hit = ShotRay.cast(o, d, max, blocks, ts, hs);
         }
-        return hit;
+        return hit;                                                             // сюда не доходит: каждая проверка убирает цель
     }
 
     /** Направление со случайным отклонением до spread градусов (0 — как есть). */

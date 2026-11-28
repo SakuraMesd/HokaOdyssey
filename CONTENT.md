@@ -250,7 +250,7 @@ public final class MyModule implements ClientModule {
         var tex = ctx.texture("mymod/icon.png");          // текстура из файла, меняется на лету
         ctx.model("models/x.bbmodel").at(0, 64, 0).play("idle", 1);
         ctx.onMouse((dyaw, dpitch) -> false);              // true — съесть движение мыши
-        ctx.onCamera((cam, pt) -> { });                    // своя камера (крен; cam.rotation — полный поворот кватернионом)
+        ctx.onCamera((cam, pt) -> { });                    // своя камера (крен; cam.rotation — полный поворот кватернионом; 0.82: cam.fov — своё поле зрения)
         ctx.onLocalTravel(player -> { });                  // прямо перед движением своего игрока (сила — в этом же тике)
         ctx.onInput(in -> ctx.setMove(in, 0, 0));          // ввод хода (keyPresses, вектор хода), с переназначенными клавишами
         ctx.onCollision((e, area, out) -> { });            // свои тела для столкновений (корабли под любым углом)
