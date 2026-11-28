@@ -30,6 +30,10 @@ public final class Hooks {
     static final List<Owned<ClientContext.PickHook>> PICK = new ArrayList<>();
     static final List<Owned<ClientContext.EntityBoxHook>> BOX = new java.util.concurrent.CopyOnWriteArrayList<>();
     static final List<Owned<ClientContext.EntityEyeHook>> EYE = new java.util.concurrent.CopyOnWriteArrayList<>();
+    static final List<Owned<ClientContext.ModelPartsHook>> PARTS = new java.util.concurrent.CopyOnWriteArrayList<>();
+    /** id сущности в состоянии отрисовки (кладёт EntityTiltMixin, пока есть крючки onModelParts). */
+    public static final net.fabricmc.fabric.api.client.rendering.v1.RenderStateDataKey<Integer> ENTITY_ID =
+            net.fabricmc.fabric.api.client.rendering.v1.RenderStateDataKey.create(() -> "hoka_odyssey:entity_id");
     static volatile Owned<ClientContext.YardResolver> yardResolver;
     static volatile Owned<ClientContext.LocalViewHook> localView;
     static final List<Owned<ClientContext.TravelHook>> TICK_EXIT = new ArrayList<>();
@@ -79,6 +83,7 @@ public final class Hooks {
         PICK.removeIf(o -> o.owner().equals(owner));
         BOX.removeIf(o -> o.owner().equals(owner));
         EYE.removeIf(o -> o.owner().equals(owner));
+        PARTS.removeIf(o -> o.owner().equals(owner));
         if (yardResolver != null && yardResolver.owner().equals(owner)) yardResolver = null;
         if (localView != null && localView.owner().equals(owner)) localView = null;
         TICK_EXIT.removeIf(o -> o.owner().equals(owner));
@@ -106,6 +111,7 @@ public final class Hooks {
         PICK.clear();
         BOX.clear();
         EYE.clear();
+        PARTS.clear();
         yardResolver = null;
         localView = null;
         TICK_EXIT.clear();
@@ -255,6 +261,18 @@ public final class Hooks {
             if (r[0] != null) return r[0];
         }
         return null;
+    }
+
+    public static boolean hasParts() { return !PARTS.isEmpty(); }
+
+    /** Части модели гуманоида от модулей (миксин HumanoidModel.setupAnim, после игры). */
+    public static void parts(net.minecraft.client.model.HumanoidModel<?> model,
+                             net.minecraft.client.renderer.entity.state.HumanoidRenderState s) {
+        if (PARTS.isEmpty() || model == null || s == null) return;
+        Integer id = s.getData(ENTITY_ID);
+        var level = net.minecraft.client.Minecraft.getInstance().level;
+        net.minecraft.world.entity.Entity e = id == null || level == null ? null : level.getEntity(id);
+        for (var o : PARTS) safe(o.owner(), () -> o.hook().apply(e, model, s));
     }
 
     /** Взгляд своего игрока в системе модуля {курс, наклон} или null. */

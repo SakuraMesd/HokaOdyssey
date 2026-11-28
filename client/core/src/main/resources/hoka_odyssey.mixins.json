@@ -30,6 +30,7 @@
     "EntityTiltMixin",
     "EntityBoxMixin",
     "PlayerPoseMixin",
+    "HumanoidPartsMixin",
     "BackOffMixin",
     "HitboxTiltMixin",
     "ClickMixin",

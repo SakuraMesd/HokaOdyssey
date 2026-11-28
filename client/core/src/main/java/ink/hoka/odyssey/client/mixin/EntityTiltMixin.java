@@ -31,6 +31,7 @@ public abstract class EntityTiltMixin {
     @Inject(method = "extractRenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V",
             at = @At("TAIL"))
     private void hokaOdyssey$extract(LivingEntity e, LivingEntityRenderState s, float pt, CallbackInfo ci) {
+        if (Hooks.hasParts()) s.setData(Hooks.ENTITY_ID, e.getId());   // для onModelParts (HumanoidPartsMixin)
         var pose = Hooks.pose(e, pt);
         if (pose != null) {
             s.bodyRot = pose.bodyYaw();

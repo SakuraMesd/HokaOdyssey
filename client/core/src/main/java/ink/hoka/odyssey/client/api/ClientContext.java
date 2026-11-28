@@ -191,6 +191,15 @@ public interface ClientContext {
      */
     default void onContainer(ContainerHook hook) {}
 
+    /**
+     * Части модели гуманоида (голова, тело, руки, ноги) после того, как игра их расставила
+     * ({@code HumanoidModel.setupAnim}): модуль может поменять их поворот ({@code xRot/yRot/zRot}) и положение
+     * ({@code x/y/z}) — например, игрок держит винтовку двумя руками. Зовётся для модели сущности и для моделей её
+     * брони (они расставляются тем же состоянием), предмет в руке идёт за рукой сам. Каждый кадр, на каждую модель:
+     * считать дёшево. Без крючков — как у игры.
+     */
+    default void onModelParts(ModelPartsHook hook) {}
+
     interface HudLayer { void render(GuiGraphics g, DeltaTracker delta); }
 
     interface ContainerHook {
@@ -244,6 +253,12 @@ public interface ClientContext {
     }
 
     interface EntityBoxHook { net.minecraft.world.phys.AABB box(net.minecraft.world.entity.Entity entity, net.minecraft.world.phys.Vec3 pos); }
+
+    /** entity — сущность модели (null — уже не в мире), model и state — как в HumanoidModel.setupAnim. */
+    interface ModelPartsHook {
+        void apply(net.minecraft.world.entity.Entity entity, net.minecraft.client.model.HumanoidModel<?> model,
+                   net.minecraft.client.renderer.entity.state.HumanoidRenderState state);
+    }
 
     interface EntityEyeHook { net.minecraft.world.phys.Vec3 eye(net.minecraft.world.entity.Entity entity); }
 

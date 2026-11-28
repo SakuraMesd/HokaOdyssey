@@ -336,6 +336,7 @@ final class ModuleManager {
         @Override public void onEntityPose(EntityPoseHook hook) { Hooks.POSE.add(new Hooks.Owned<>(id, hook)); }
         @Override public void onEntityBox(EntityBoxHook hook) { Hooks.BOX.add(new Hooks.Owned<>(id, hook)); }
         @Override public void onEntityEye(EntityEyeHook hook) { Hooks.EYE.add(new Hooks.Owned<>(id, hook)); }
+        @Override public void onModelParts(ModelPartsHook hook) { Hooks.PARTS.add(new Hooks.Owned<>(id, hook)); }
         @Override public void setLocalView(LocalViewHook h) { Hooks.localView = h == null ? null : new Hooks.Owned<>(id, h); }
         @Override public void setYardResolver(YardResolver r) { Hooks.yardResolver = r == null ? null : new Hooks.Owned<>(id, r); }
         @Override public void onClick(ClickHook hook) { Hooks.CLICK.add(new Hooks.Owned<>(id, hook)); }
