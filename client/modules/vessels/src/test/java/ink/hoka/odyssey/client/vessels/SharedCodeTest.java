@@ -24,7 +24,7 @@ class SharedCodeTest {
 
     @Test
     void sameAsServer() throws Exception {
-        for (String f : new String[]{"Zones.java", "DistField.java", "Cushion.java"})
+        for (String f : new String[]{"Zones.java", "DistField.java", "Cushion.java", "Glide.java"})
             assertEquals(body(SERVER.resolve(f)), body(CLIENT.resolve(f)), f + " — копия с сервера (только package другой)");
     }
 }

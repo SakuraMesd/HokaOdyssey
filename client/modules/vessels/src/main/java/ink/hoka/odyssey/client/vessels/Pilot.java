@@ -81,6 +81,14 @@ final class Pilot {
     private float hurtPower;
     /** Удар о блоки: когда сообщали серверу последний раз (тик). */
     private long impactTick = -100;
+    /**
+     * Переход (vessels-6, S2C AUTO): корабль ведёт сервер по кривой — мод двигает его по тем же числам, управления нет.
+     * null — нет. autoT — тик пути, autoKind — HudView.AUTO_ENTRY / AUTO_EXIT, autoAltTo — Y конца, autoShake — тряска.
+     */
+    Glide auto;
+    private int autoT, autoKind;
+    private double autoAltTo = Double.NaN;
+    private float autoShake;
     /** Подушка над планетой (null — космос) и поле расстояний до блоков. */
     Cushion.Settings cushion;
     private final DistField.Cache field = new DistField.Cache();
@@ -172,6 +180,7 @@ final class Pilot {
     /** Мышь двигает прицел (каждый кадр, без задержки); игрок не поворачивается. */
     boolean mouse(double dyaw, double dpitch) {
         if (editor != null) { editor.mouse(dyaw, dpitch); return true; }
+        if (auto != null) return true;                                          // переход: мышь не ведёт
         double sens = c("aim", "sensitivity", 0.5);
         offYaw += (float) (dyaw * sens);
         offPitch += (float) (dpitch * sens);
@@ -198,6 +207,7 @@ final class Pilot {
         px = x; py = y; pz = z;
         pq.set(q);
         tickNo++;
+        if (auto != null) { autoTick(mc); return; }
         if (editor != null) {                                                    // редактор камер: корабль стоит
             vx = vy = vz = 0;
             yawRate = pitchRate = rollRate = 0;
@@ -291,6 +301,66 @@ final class Pilot {
         mc.player.setDeltaMovement(Vec3.ZERO);
         mc.player.resetFallDistance();
         send();
+    }
+
+    /** Тик перехода: поза — по кривой сервера, игрок — на месте пилота, поза — серверу (он её не принимает, но видит, что мод жив). */
+    private void autoTick(Minecraft mc) {
+        Glide g = auto;
+        autoT++;
+        double[] p = g.at(autoT), v = g.velocity(autoT);
+        x = p[0]; y = p[1]; z = p[2];
+        vx = v[0]; vy = v[1]; vz = v[2];
+        yawRate = pitchRate = rollRate = 0;
+        offYaw = offPitch = 0;
+        throttle = 0;
+        boost = false;
+        Vector3d eye = seatWorld(x, y, z, q);
+        mc.player.setPos(eye.x, eye.y - mc.player.getEyeHeight(), eye.z);
+        mc.player.setDeltaMovement(Vec3.ZERO);
+        mc.player.resetFallDistance();
+        send();
+    }
+
+    /** S2C AUTO: начать переход (ответ серверу — C2S AUTO) или кончить (скорость конца — своя скорость). */
+    void auto(JsonObject o) {
+        boolean on = o.has("on") && o.get("on").getAsBoolean();
+        if (!on) {
+            auto = null;
+            autoKind = 0;
+            double[] v = arr(o, "vel");
+            if (v != null) { vx = v[0]; vy = v[1]; vz = v[2]; }
+            return;
+        }
+        double[] from = arr(o, "from"), to = arr(o, "to");
+        if (from == null || to == null) return;
+        if (editor != null) stopEditor();
+        int ticks = o.has("ticks") ? o.get("ticks").getAsInt() : 120;
+        int curve = o.has("curve") ? o.get("curve").getAsInt() : Glide.DESCENT;
+        auto = new Glide(curve, from, to, ticks);
+        autoT = 0;
+        autoKind = "exit".equals(o.has("kind") ? o.get("kind").getAsString() : "") ? HudView.AUTO_EXIT : HudView.AUTO_ENTRY;
+        autoAltTo = o.has("alt-to") ? o.get("alt-to").getAsDouble() : to[1];
+        autoShake = o.has("shake") ? (float) Math.clamp(o.get("shake").getAsDouble(), 0, 2) : 0.6f;
+        x = px = from[0]; y = py = from[1]; z = pz = from[2];
+        vx = vy = vz = 0;
+        ctx.send(new byte[]{10});                                               // понял: веду сам
+    }
+
+    private static double[] arr(JsonObject o, String key) {
+        try {
+            var a = o.getAsJsonArray(key);
+            return a == null || a.size() < 3 ? null : new double[]{a.get(0).getAsDouble(), a.get(1).getAsDouble(), a.get(2).getAsDouble()};
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** Тряска перехода сейчас: вход — сильнее в начале и гаснет к концу, выход — растёт с разгоном. */
+    private float autoShakeNow(float pt) {
+        Glide g = auto;
+        if (g == null || autoShake <= 0) return 0;
+        float u = Math.clamp((autoT + pt) / g.ticks, 0f, 1f);
+        return autoKind == HudView.AUTO_EXIT ? autoShake * u : autoShake * (1 - u) * (1 - u) * 1.3f;
     }
 
     /**
@@ -458,7 +528,7 @@ final class Pilot {
 
     /** ЛКМ (и зажатая ЛКМ — каждый тик): орудие готово — выстрел по прицелу (попадание считает сервер). */
     void fire() {
-        if (editor != null) return;
+        if (editor != null || auto != null) return;
         if (tickNo < gunReadyAt) return;
         gunReadyAt = tickNo + Math.max(1, state.gunReload);
         Vector3f d = aimDir();
@@ -535,7 +605,7 @@ final class Pilot {
             view = ShipCams.viewWorld(chase, a[0], a[1]);
             fov = c.fov();
         }
-        float shake = hurtPower();
+        float shake = Math.max(hurtPower(), autoShakeNow(pt));
         if (shake > 0.01f) {                                                    // встряска: небольшая, быстро гаснет
             double t = System.currentTimeMillis() / 1000.0;
             float a = shake * 0.9f;
@@ -799,6 +869,10 @@ final class Pilot {
                 kind.id, kind.tris,
                 state.hullKnown, state.hp, state.hpMax, state.zones.clone(), kind.triZone, hurtA,
                 state.known && state.pvp, state.known ? state.broken : 0);
+        double orbitLeft = state.known && Double.isFinite(state.orbitY) && auto == null && state.orbitY - pos.y <= state.orbitHint
+                ? Math.max(0, state.orbitY - pos.y) : Double.NaN;
+        float autoK = auto == null ? 0 : Math.clamp((autoT + pt) / auto.ticks, 0f, 1f);
+        v = v.withAuto(auto == null ? HudView.AUTO_NONE : autoKind, autoK, autoAltTo, orbitLeft);
         hudDraw.draw(gfx.frame(g), v, now);
     }
 

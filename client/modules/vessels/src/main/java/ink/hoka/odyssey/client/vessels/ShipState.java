@@ -20,6 +20,8 @@ final class ShipState {
     int broken;
     double turnMul = 1;
     boolean pvp;
+    /** vessels-6: высота взлёта в космос на карте планеты (NaN — не планета) и с какого остатка показывать «ДО ОРБИТЫ». */
+    double orbitY = Double.NaN, orbitHint = 600;
 
     static final int GUN = 1, WARP = 2, LEFT = 4, RIGHT = 8, ENGINE = 16;
 
@@ -53,6 +55,8 @@ final class ShipState {
         broken = i(o, "broken", 0);
         turnMul = Math.clamp(d(o, "turn-mul", 1), 0.05, 1);
         pvp = o.has("pvp") && o.get("pvp").getAsBoolean();
+        orbitY = o.has("orbit-y") ? d(o, "orbit-y", Double.NaN) : Double.NaN;
+        orbitHint = d(o, "orbit-hint", 600);
         known = true;
     }
 

@@ -62,8 +62,10 @@ public final class PilotHud {
         if (L.speed != null) { speedTape(g, v, L, gs, small, nowMs); altTape(g, v, L, gs, small, nowMs); }
         if (L.left != null) leftPanel(g, v, L.left, L, gs, small);
         if (L.right != null) rightPanel(g, v, L.right, gs, small);
-        if (v.warp() == HudView.WARP_CHARGING && L.warp != null) warpBlock(g, v, L.warp, gs, small);
-        if (v.hintsAlpha() > 0.02f && L.hints != null) hints(g, v, L, L.k);
+        boolean auto = v.auto() != HudView.AUTO_NONE;
+        if (auto) autoBlock(g, v, L, gs, small, nowMs);                         // vessels-6: вход в атмосферу / выход на орбиту
+        else if (v.warp() == HudView.WARP_CHARGING && L.warp != null) warpBlock(g, v, L.warp, gs, small);
+        if (!auto && v.hintsAlpha() > 0.02f && L.hints != null) hints(g, v, L, L.k);
     }
 
     // ───────────────────────── холсты ─────────────────────────
@@ -368,6 +370,46 @@ public final class PilotHud {
         String s = (vs >= 0.05 ? "+" : vs <= -0.05 ? "-" : "") + String.format(java.util.Locale.ROOT, "%.1f", Math.abs(vs));
         g.text("ВЕРТ", b.x(), ty + (1 - small) * 7, small, argb(GRAY, 0.65f), -1, true);
         g.text(s, b.x() + g.textWidth("ВЕРТ") * small + 4, ty, 1, argb(WHITE, 0.92f), -1, true);
+        if (Double.isFinite(v.orbitLeft())) orbitLine(g, v, b.x(), ty + 11, small);
+    }
+
+    /** «ДО ОРБИТЫ 400» под вертикальной скоростью (vessels-6): на карте планеты, когда взлёт в космос близко. */
+    static void orbitLine(Gfx g, HudView v, float x, float y, float small) {
+        long left = Math.round(Math.max(0, v.orbitLeft()));
+        String n = Long.toString(left);
+        int col = left <= 100 ? AMBER : WHITE;
+        g.text("ДО ОРБИТЫ", x, y + (1 - small) * 7, small, argb(left <= 100 ? AMBER : GRAY, left <= 100 ? 0.9f : 0.65f), -1, true);
+        g.text(n, x + g.textWidth("ДО ОРБИТЫ") * small + 4, y, 1, argb(col, 0.95f), -1, true);
+    }
+
+    /**
+     * Переход (vessels-6): плашка снизу по центру (место шкалы варпа) — «ВХОД В АТМОСФЕРУ» (янтарный, мерцает) или «ВЫХОД
+     * НА ОРБИТУ», шкала пути и строка: высота → высота конца спуска / скорость разгона. Плашки нет (крошечный экран) —
+     * только надпись под компасом.
+     */
+    private void autoBlock(Gfx g, HudView v, HudLayout L, float gs, float small, long now) {
+        boolean entry = v.auto() == HudView.AUTO_ENTRY;
+        String title = entry ? "ВХОД В АТМОСФЕРУ" : "ВЫХОД НА ОРБИТУ";
+        float pulse = entry ? 0.72f + 0.28f * (float) (0.5 + 0.5 * Math.sin(now / 1000.0 * Math.PI * 2 * 1.6)) : 0.95f;
+        int col = entry ? AMBER : WHITE;
+        HudLayout.Box b = L.warp;
+        if (b == null) {
+            g.text(title, L.cx, L.msg.y() + 2, 1, argb(col, pulse), 0, true);
+            return;
+        }
+        drawPanel(g, entry ? "panelA" : "panelO", b, gs);
+        if (g.textWidth(title) > b.w() - 8) title = entry ? "ВХОД В АТМ." : "НА ОРБИТУ";
+        g.text(title, b.x() + b.w() / 2, b.y() + 3, 1, argb(col, pulse), 0, true);
+        float k = Math.clamp(v.autoK(), 0, 1);
+        float x = b.x() + 8, w = b.w() - 16, y = b.y() + 13, px = 1 / gs;
+        g.fill(x - px, y - px, x + w + px, y + 5 + px, argb(DARK, 0.6f));
+        g.fill(x, y, x + w, y + 5, argb(GRAY, 0.12f));
+        g.fill(x, y, x + w * k, y + 2.5f, argb(col, 0.95f));
+        g.fill(x, y + 2.5f, x + w * k, y + 5, argb(entry ? AMBER : GRAY, 0.6f));
+        String sub = entry && Double.isFinite(v.autoAltTo())
+                ? "ВЫСОТА " + Math.round(v.alt()) + " → " + Math.round(v.autoAltTo())
+                : "РАЗГОН " + Math.round(Math.max(0, v.speed())) + " бл/с";
+        g.text(sub, b.x() + b.w() / 2, b.y() + 20, small, argb(GRAY, 0.8f), 0, true);
     }
 
     /**

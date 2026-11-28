@@ -14,6 +14,9 @@ package ink.hoka.odyssey.client.vessels.hud;
  *                 каждого треугольника модели (для силуэта); hurt — 0..1 красный край экрана (по нам попали)
  * @param pvp      корабль в PvP-зоне — янтарная метка «PvP-ЗОНА» у компаса (vessels-5)
  * @param broken   разбитые зоны с эффектом: {@link #GUN} — орудие, {@link #WARP} — варп-привод, борта, двигатели
+ * @param auto     корабль ведёт сервер (vessels-6): {@link #AUTO_ENTRY} — вход в атмосферу, {@link #AUTO_EXIT} — выход на
+ *                 орбиту, 0 — нет; autoK — доля пути 0…1, autoAltTo — высота конца спуска
+ * @param orbitLeft сколько блоков до высоты взлёта в космос на карте планеты («ДО ОРБИТЫ»); NaN — не показывать
  */
 public record HudView(
         float noseX, float noseY, boolean noseOn, float aimX, float aimY, boolean aimOn,
@@ -27,7 +30,29 @@ public record HudView(
         float hintsAlpha, float hit, int hitKind,
         String kindName, float[] tris,
         boolean hullKnown, double hp, double hpMax, float[] zones, int[] triZone, float hurt,
-        boolean pvp, int broken) {
+        boolean pvp, int broken,
+        int auto, float autoK, double autoAltTo, double orbitLeft) {
+
+    public static final int AUTO_NONE = 0, AUTO_ENTRY = 1, AUTO_EXIT = 2;
+
+    /** То же без перехода и «ДО ОРБИТЫ» (как до vessels-6). */
+    public HudView(float noseX, float noseY, boolean noseOn, float aimX, float aimY, boolean aimOn, float heading, float[] rungs,
+                   double speed, double cruise, double boostMax, int throttle, boolean boost, double alt, double vspeed,
+                   boolean fuelKnown, int fuel, int capacity, int warpCost, boolean fuelEmpty, float gunReady, float gunLeftSec,
+                   int warp, float warpProgress, int warpLeftSec, String msg, boolean msgWarn, float msgAlpha,
+                   float hintsAlpha, float hit, int hitKind, String kindName, float[] tris,
+                   boolean hullKnown, double hp, double hpMax, float[] zones, int[] triZone, float hurt, boolean pvp, int broken) {
+        this(noseX, noseY, noseOn, aimX, aimY, aimOn, heading, rungs, speed, cruise, boostMax, throttle, boost, alt, vspeed,
+                fuelKnown, fuel, capacity, warpCost, fuelEmpty, gunReady, gunLeftSec, warp, warpProgress, warpLeftSec, msg, msgWarn, msgAlpha,
+                hintsAlpha, hit, hitKind, kindName, tris, hullKnown, hp, hpMax, zones, triZone, hurt, pvp, broken, AUTO_NONE, 0, Double.NaN, Double.NaN);
+    }
+
+    /** Копия с переходом и «ДО ОРБИТЫ». */
+    public HudView withAuto(int auto, float autoK, double autoAltTo, double orbitLeft) {
+        return new HudView(noseX, noseY, noseOn, aimX, aimY, aimOn, heading, rungs, speed, cruise, boostMax, throttle, boost, alt, vspeed,
+                fuelKnown, fuel, capacity, warpCost, fuelEmpty, gunReady, gunLeftSec, warp, warpProgress, warpLeftSec, msg, msgWarn, msgAlpha,
+                hintsAlpha, hit, hitKind, kindName, tris, hullKnown, hp, hpMax, zones, triZone, hurt, pvp, broken, auto, autoK, autoAltTo, orbitLeft);
+    }
 
     /** Биты broken (как у сервера). */
     public static final int GUN = 1, WARP = 2, LEFT = 4, RIGHT = 8, ENGINE = 16;

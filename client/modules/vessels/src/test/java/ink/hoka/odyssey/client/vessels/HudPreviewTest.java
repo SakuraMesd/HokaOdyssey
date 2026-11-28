@@ -58,6 +58,45 @@ class HudPreviewTest {
                 true, hp, 200, zones, tz, hurt, pvp, broken);
     }
 
+    /** vessels-6: вход в атмосферу, выход на орбиту, «ДО ОРБИТЫ» на карте планеты. */
+    @Test
+    void previewLanding() throws Exception {
+        float[] tris = KindTest.corabll(KindTest.tris(), 180).tris;
+        float[] ok = {1, 1, 1, 1, 1};
+        Scene[] scenes = {
+                new Scene("hud-11-entry", 640, 360, 3, view(640, 360, tris, 0, 0, 132, 0, 0, 96, 0, false, 2262, -96, 150, 1,
+                        HudView.WARP_READY, 1, 0, "Вход в атмосферу планеты…", false, 1, 0, 1, 200, ok, 0)
+                        .withAuto(HudView.AUTO_ENTRY, 0.35f, 2000, Double.NaN)),
+                new Scene("hud-12-entry-gui4-320x240", 320, 240, 4, view(320, 240, tris, 0, 0, 132, 0, 0, 31, 0, false, 2034, -18, 150, 1,
+                        HudView.WARP_READY, 1, 0, null, false, 1, 0, 1, 200, ok, 0)
+                        .withAuto(HudView.AUTO_ENTRY, 0.8f, 2000, Double.NaN)),
+                new Scene("hud-13-orbit", 640, 360, 3, view(640, 360, tris, 12, -20, 47, -18, 6, 34, 1, false, 2200, 9.6, 150, 1,
+                        HudView.WARP_READY, 1, 0, null, false, 0, 0, 1, 200, ok, 0)
+                        .withAuto(HudView.AUTO_NONE, 0, Double.NaN, 400)),
+                new Scene("hud-14-orbit-close-gui4-320x240", 320, 240, 4, view(320, 240, tris, 0, -10, 300, -25, 0, 40, 1, true, 2540, 14.2, 150, 1,
+                        HudView.WARP_READY, 1, 0, null, false, 0, 0, 1, 200, ok, 0)
+                        .withAuto(HudView.AUTO_NONE, 0, Double.NaN, 60)),
+                new Scene("hud-15-exit", 640, 360, 3, view(640, 360, tris, 0, 0, 270, -90, 0, 22, 0, false, 4361, 22, 150, 1,
+                        HudView.WARP_READY, 1, 0, "Выход на орбиту…", false, 1, 0, 1, 200, ok, 0)
+                        .withAuto(HudView.AUTO_EXIT, 0.6f, Double.NaN, Double.NaN)),
+                new Scene("hud-16-entry-gui2-960x540", 960, 540, 2, view(960, 540, tris, 0, 0, 12, 0, 0, 120, 0, false, 2330, -126, 150, 1,
+                        HudView.WARP_READY, 1, 0, null, false, 1, 0, 1, 200, ok, 0)
+                        .withAuto(HudView.AUTO_ENTRY, 0.15f, 2000, Double.NaN)),
+        };
+        render(scenes);
+    }
+
+    static void render(Scene[] scenes) throws Exception {
+        for (Scene s : scenes) {
+            PngGfx g = new PngGfx(s.w(), s.h(), s.gs()).space(s.name().hashCode());
+            PilotHud hud = new PilotHud();
+            hud.eager = true;
+            hud.draw(g, s.v(), 0);
+            g.save(out().resolve(s.name() + ".png"));
+            assertTrue(out().resolve(s.name() + ".png").toFile().length() > 1000);
+        }
+    }
+
     @Test
     void preview() throws Exception {
         float[] tris = KindTest.corabll(KindTest.tris(), 180).tris;

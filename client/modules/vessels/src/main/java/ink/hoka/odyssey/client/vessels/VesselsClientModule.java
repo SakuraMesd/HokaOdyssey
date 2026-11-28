@@ -269,6 +269,10 @@ public final class VesselsClientModule implements ClientModule {
                     JsonObject o = JsonParser.parseString(in.readUTF()).getAsJsonObject();
                     if (pilot != null) pilot.editorSaved(o);
                 }
+                case 19 -> {                                                    // AUTO: корабль ведёт сервер (вход в атмосферу / выход на орбиту)
+                    JsonObject o = JsonParser.parseString(in.readUTF()).getAsJsonObject();
+                    if (pilot != null) pilot.auto(o);
+                }
                 case 15 -> {                                                    // WORLD: планета или космос
                     JsonObject o = JsonParser.parseString(in.readUTF()).getAsJsonObject();
                     world = Cushion.Settings.read(o);
@@ -375,7 +379,7 @@ public final class VesselsClientModule implements ClientModule {
             if (id < 0) { Ship s = looked(menuReach()); if (s != null) id = s.id; }
             if (id >= 0) ctx.send(new byte[]{4, (byte) (id >>> 24), (byte) (id >>> 16), (byte) (id >>> 8), (byte) id});   // MENU
         }
-        if (r && !rWas && pilot != null && !editing) ctx.send(new byte[]{6});    // WARP
+        if (r && !rWas && pilot != null && !editing && pilot.auto == null) ctx.send(new byte[]{6});    // WARP (не в переходе)
         gWas = g;
         rWas = r;
     }
