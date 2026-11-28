@@ -1,0 +1,7 @@
+{
+  "id": "holo",
+  "version": "0.1.0",
+  "main": "ink.hoka.odyssey.client.holo.HoloClientModule",
+  "authors": ["Takuyamo"],
+  "description": "Голограммы: панели в кубоидном космическом стиле (текст, предметы, картинки, шкалы, кнопки), нажатия, редактор для OP"
+}
