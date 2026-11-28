@@ -587,6 +587,9 @@ public final class HoloModule extends OdysseyModule implements HoloApi {
         JsonObject t = new JsonObject();
         for (var e : new java.util.TreeMap<>(templates).entrySet()) t.add(e.getKey(), HoloCodec.toJson(e.getValue()));
         o.add("templates", t);
+        JsonArray hs = new JsonArray();                                         // все (кроме временных) — список редактора
+        for (Hologram h : sorted()) if (!h.temporary) hs.add(HoloCodec.toJson(h));
+        o.add("holograms", hs);
         o.addProperty("broken", broken);
         return HoloCodec.COMPACT.toJson(o);
     }

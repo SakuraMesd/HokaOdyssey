@@ -19,7 +19,7 @@ import java.util.Map;
  * 4 CLEAR   — смена карты: забыть все
  * 5 VALUES  int n; n × (UTF имя, UTF значение) — плейсхолдеры игрока (только изменившиеся)
  * 6 PAGE    UTF id; int страница
- * 7 INFO    STR JSON для редактора: images, items, placeholders, maps, templates
+ * 7 INFO    STR JSON для редактора: images, items, placeholders, maps, templates, holograms (все, кроме временных)
  * 8 EDIT    UTF id ("" — список) — открыть редактор
  * 9 RESULT  byte ok; UTF текст — ответ на правку редактора
  * </pre>
