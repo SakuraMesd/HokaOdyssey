@@ -55,6 +55,9 @@ public final class VesselsModule extends OdysseyModule {
     final ZoneLink zones = new ZoneLink(this);
     /** Камеры кораблей (cameras.json, редактор в игре). */
     final Cameras cameras = new Cameras(this);
+    /** Модуль planets (softdepends) и посадка/взлёт с кораблём (vessels-6). */
+    final PlanetLink planets = new PlanetLink(this);
+    final Landings landings = new Landings(this, planets);
     /** Карта — планета (подушка, лучи) или космос: по имени карты (сбрасывается при reload). */
     private final Map<String, Boolean> planetMaps = new ConcurrentHashMap<>();
     private Upgrades.Config upgradeCfg = Upgrades.Config.DEFAULT;
@@ -83,6 +86,7 @@ public final class VesselsModule extends OdysseyModule {
             if (pl == null) return;
             e.setCancelled(true);
             Vessel v = pl.vessel;
+            if (Landings.busy(v)) { client.message(e.getPlayer(), "Корабль в переходе — дождитесь конца", true); return; }
             if (v.carrier != null && isPlanet(v.carrier.getInstance()) && beams.lavaBelow(v, kinds.get(v.kind))) {
                 client.message(e.getPlayer(), "Внизу лава — отлетите в сторону, чтобы выйти", true);
                 return;
@@ -111,17 +115,20 @@ public final class VesselsModule extends OdysseyModule {
         events().addListener(PlayerDeathEvent.class, e -> exit(e.getPlayer(), false));
         events().addListener(PlayerSpawnEvent.class, e -> {                   // сменил мир — корабль остаётся, пилот снимается
             Piloting pl = pilotOf(e.getPlayer());
-            if (pl != null && pl.vessel.carrier != null && e.getInstance() != pl.vessel.carrier.getInstance()) exit(e.getPlayer(), false);
+            if (pl != null && !Landings.busy(pl.vessel) && pl.vessel.carrier != null && e.getInstance() != pl.vessel.carrier.getInstance()) exit(e.getPlayer(), false);
             client.world(e.getPlayer(), e.getInstance());                      // планета или космос — моду (подушка, лучи)
         });
         registerCommand(new HoVesselCommand(this));
         scheduler().repeat(this::tick, 1, 1);
         client.enable();
+        planets.skip(landings::handles);                                       // пилотов и экипаж planets не переносит — это делаем мы
         logger().info("видов кораблей: {}, кораблей: {}", kinds.size(), vessels.size());
     }
 
     @Override
     protected void onDisable() {
+        planets.skip(null);
+        landings.stop();
         beams.clear();
         arrivals.stop();
         cameras.clear();
@@ -211,6 +218,7 @@ public final class VesselsModule extends OdysseyModule {
     void remove(Vessel v) {
         if (v.pilot != null) exit(v.pilot.player, true);
         arrivals.cancel(v);
+        landings.cancel(v);
         if (v.menu != null) { v.menu.closeAll(); v.menu = null; }
         if (v.shop != null) { v.shop.closeAll(); v.shop = null; }
         if (!v.cargo.isEmpty()) {
@@ -226,7 +234,10 @@ public final class VesselsModule extends OdysseyModule {
     }
 
     /** Носитель корабля в его мире (мира нет — подождёт, вида нет — корабль сохраняется, но не виден). */
-    private void spawnCarrier(Vessel v) {
+    void spawnCarrier(Vessel v) { spawnCarrier(v, null); }
+
+    /** То же; then — когда носитель поставлен и показан всем (в тике сервера). */
+    void spawnCarrier(Vessel v, Runnable then) {
         if (!kinds.containsKey(v.kind)) return;
         Instance inst = instanceOf(v);
         if (inst == null) return;
@@ -242,7 +253,10 @@ public final class VesselsModule extends OdysseyModule {
         v.carrier = e;
         e.setInstance(inst, new Pos(v.x, v.y, v.z)).whenComplete((ok, err) -> scheduler().run(() -> {
             if (err != null) { logger().warn("корабль {}: носитель не поставлен: {}", v.id, err.toString()); return; }
-            if (v.carrier == e && vessels.get(v.id) == v) client.attachToAll(v);
+            if (v.carrier == e && vessels.get(v.id) == v) {
+                client.attachToAll(v);
+                if (then != null) then.run();
+            }
         }));
     }
 
@@ -277,6 +291,7 @@ public final class VesselsModule extends OdysseyModule {
         if (p.getInstance() != v.carrier.getInstance()) return;
         if (pilotOf(p) != null || beams.active(p)) return;
         if (v.arrival != null) { client.message(p, "Корабль ещё не прибыл", true); return; }
+        if (Landings.busy(v)) { client.message(p, "Корабль в переходе", true); return; }
         Pos pp = p.getPosition();
         double d = VesselMath.distanceToBox(pp.x(), pp.y() + p.getEyeHeight(), pp.z(), v.pos(), v.rot, k.half);
         double slack = config().getDouble("board-slack", 1);
@@ -327,6 +342,7 @@ public final class VesselsModule extends OdysseyModule {
         Piloting pl = pilotOf(p);
         if (pl == null) return;
         Vessel v = pl.vessel;
+        if (v.trip != null && v.trip.pilot == p && p.isOnline() && v.trip.committed()) teleport = false;   // в пути между картами — не дёргать
         warp.cancel(v, null);
         cameras.forget(p);
         v.pilot = null;
@@ -382,6 +398,7 @@ public final class VesselsModule extends OdysseyModule {
         Piloting pl = pilotOf(p);
         if (pl == null) return;
         Vessel v = pl.vessel;
+        if (Landings.busy(v)) { pl.lastPose = ticks; return; }                  // переход: корабль ведёт сервер
         VesselKind k = kinds.get(v.kind);
         Instance inst = v.carrier != null ? v.carrier.getInstance() : null;
         if (k == null || inst == null) return;
@@ -503,11 +520,13 @@ public final class VesselsModule extends OdysseyModule {
                 exit(p, true);
                 continue;
             }
+            if (Landings.busy(v)) continue;                                     // переход: всё ведёт Landings
             if (ticks % 2 == 0) aheadLoad(v, pl);
             if (ticks % 10 == 0) pvpZone(v, pl, false);
             warp.tick(v);
             burn(v, pl);
         }
+        landings.tick();
         beams.tick();
         arrivals.tick();
         cameras.tick();
@@ -665,6 +684,7 @@ public final class VesselsModule extends OdysseyModule {
         VesselKind k = v == null ? null : kinds.get(v.kind);
         if (v == null || k == null || v.carrier == null || p.getInstance() != v.carrier.getInstance()) return;
         if (v.arrival != null) { client.message(p, "Корабль ещё не прибыл", true); return; }
+        if (Landings.busy(v)) { client.message(p, "Корабль в переходе", true); return; }
         if (!canOpen(v, p.getUuid().toString(), server().isOp(p))) {
             client.message(p, "Это не ваш корабль" + (v.ownerName != null ? " (владелец — " + v.ownerName + ")" : ""), true);
             return;

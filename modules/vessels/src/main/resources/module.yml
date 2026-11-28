@@ -1,8 +1,8 @@
 id: vessels
 name: Корабли-модели
-version: 0.5.0
+version: 0.6.0
 main: ink.hoka.odyssey.vessels.VesselsModule
 authors: [Takuyamo]
-description: Корабль — модель .bbmodel; ПКМ — сесть пилотом, полёт (считает клиентский модуль vessels), твёрдый корпус, меню (хранилище, улучшения, топливо, мастерская), орудие, варп, прочность и бой, прилёт (/hovessel call), подушка над планетой, бой в PvP-зонах, эффекты зон корпуса, камеры корабля
+description: Корабль — модель .bbmodel; ПКМ — сесть пилотом, полёт (считает клиентский модуль vessels), твёрдый корпус, меню (хранилище, улучшения, топливо, мастерская), орудие, варп, прочность и бой, прилёт (/hovessel call), подушка над планетой, бой в PvP-зонах, эффекты зон корпуса, камеры корабля, посадка на планету с кораблём и взлёт (planets)
 depends: [clientmods]
-softdepends: [hoitems, blocks, survival]
+softdepends: [hoitems, blocks, survival, planets]

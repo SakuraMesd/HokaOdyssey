@@ -48,6 +48,7 @@ final class Combat {
         Piloting pl = mod.pilotOf(p);
         if (pl == null) return;
         Vessel v = pl.vessel;
+        if (Landings.busy(v)) return;                                           // переход: орудие молчит
         VesselKind k = mod.kinds().get(v.kind);
         Instance inst = v.carrier != null ? v.carrier.getInstance() : null;
         if (k == null || inst == null) return;

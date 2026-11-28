@@ -45,6 +45,10 @@ final class Vessel {
     transient volatile boolean cushionBuilding;
     transient double cushionLast = Double.NaN;
 
+    /** Переход между картами (посадка на планету / взлёт, vessels-6) и когда снова можно (тик модуля). */
+    transient Landings.Trip trip;
+    transient long tripReady;
+
     /** Носитель: невидимый item display — его положение и поворот (с интерполяцией) мод берёт для отрисовки. */
     transient Entity carrier;
     /** Пилот (null — свободен). */

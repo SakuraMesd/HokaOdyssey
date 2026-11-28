@@ -44,6 +44,7 @@ final class WarpDrive {
         Instance inst = v.carrier != null ? v.carrier.getInstance() : null;
         if (k == null || inst == null) return;
         if (v.warpPhase != IDLE) { cancel(v, "Варп отменён"); return; }
+        if (Landings.busy(v)) { mod.client.message(p, "Корабль в переходе — варп недоступен", true); return; }
         if (mod.effects(v).warpBroken()) { mod.client.message(p, "Варп-привод повреждён — нужен ремонт корпуса", true); return; }
         long now = mod.ticks();
         if (now < v.warpReady) { mod.client.message(p, "Варп перезаряжается: " + secs(v.warpReady - now) + " с", true); return; }

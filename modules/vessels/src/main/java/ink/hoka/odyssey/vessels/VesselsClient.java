@@ -28,8 +28,9 @@ import java.util.Map;
  *     7 STATE   UTF-JSON {fuel, capacity, warp-cost, speed-mul, empty, gun-reload (тики), gun-range, warp-phase
  *               (0 нет, 1 зарядка, 2 наводка), warp-left (тики до конца зарядки), warp-charge (тики), warp-reload-left,
  *               warp-reload (тики), broken (биты разбитых зон с эффектом: 1 нос/орудие, 2 корпус/варп, 4 левый,
- *               8 правый, 16 двигатели), turn-mul (поворот), pvp (корабль в PvP-зоне)} — пилоту: HUD (топливо,
- *               перезарядки, варп, поломки, метка PvP)
+ *               8 правый, 16 двигатели), turn-mul (поворот), pvp (корабль в PvP-зоне), orbit-y (vessels-6: высота
+ *               взлёта в космос на карте планеты; нет — не планета), orbit-hint (показывать «ДО ОРБИТЫ» ближе стольких
+ *               блоков)} — пилоту: HUD (топливо, перезарядки, варп, поломки, метка PvP, до орбиты)
  *     8 SHOT    int корабль, double x y z (ствол), double x y z (куда), byte что (0 мимо, 1 блок, 2 сущность,
  *               3 корабль, 4 незагружено) — всем рядом: болт, вспышка, звук, искры
  *     9 WARP    int корабль, byte что (0 отмена, 1 зарядка: int тиков, 2 прыжок) — пилоту и стоящим на корабле
@@ -53,6 +54,11 @@ import java.util.Map;
  *    17 CAMEDIT UTF-JSON {scope ("kind" | "ship"), key, title, which (0 — первое лицо, n — вид F5 n), own {first, f5}
  *               (камеры области правки), eff {first, f5} (в деле)} — открыть редактор камер (OP, пилот); мод отвечает C2S 9 1
  *    18 CAMSAVED UTF-JSON {which, own, eff, msg} — камера сохранена: редактор обновляет «уже есть», пилот — камеры
+ *    19 AUTO    UTF-JSON {on: true, kind ("entry" — вход в атмосферу, "exit" — выход на орбиту), curve (0 спуск, 1 разгон —
+ *               {@link Glide}), from[3], to[3], ticks, alt-to (Y конца), shake (0…1)} — корабль ведёт сервер по кривой:
+ *               мод пилота двигает свой корабль по тем же числам, управления нет, HUD «ВХОД В АТМОСФЕРУ» (vessels-6);
+ *               мод отвечает C2S 10. {on: false, vel[3] (скорость конца, блоков/тик)} — управление снова у пилота.
+ *               Старый мод пакет пропускает: сервер ведёт его позами CORRECT каждый тик
  * C2S 1 POSE    double x y z, float qx qy qz qw — поза своего корабля, 20 раз в секунду
  *     2 BOARD   int корабль — хочу сесть (ПКМ по кораблю)
  *     3 EXIT    — выйти (то же, что F)
@@ -62,6 +68,7 @@ import java.util.Map;
  *     7 IMPACT  float скорость (бл/с), float x y z (направление, мир) — мод пилота врезался в блоки на скорости
  *     8 CAMSAVE UTF-JSON {which, cam} — редактор: сохранить камеру (сервер проверяет OP и что это пилот того корабля)
  *     9 CAMEDIT byte 1 — редактор открыт, 0 — закрыт
+ *    10 AUTO    — мод понял S2C AUTO и ведёт корабль сам (сервер больше не шлёт CORRECT каждый тик)
  * </pre>
  * Поза — середина модели в мире и поворот «система корабля → мир» (нос +Z, верх +Y, левый борт +X).
  */
@@ -157,9 +164,43 @@ final class VesselsClient {
         m.put("broken", ef.broken());
         m.put("turn-mul", ef.turn());
         m.put("pvp", v.pilot.pvpZone);
+        double orbit = mod.landings.orbitY(v);                                  // vessels-6: «ДО ОРБИТЫ» на карте планеты
+        if (!Double.isNaN(orbit)) { m.put("orbit-y", Math.round(orbit)); m.put("orbit-hint", mod.landings.orbitHint()); }
         String js = new Gson().toJson(m);
         send(v.pilot.player, bytes(out -> {
             out.writeByte(7);
+            out.writeUTF(js);
+        }));
+    }
+
+    /** Пилоту: корабль ведёт сервер по кривой перехода (S2C AUTO on). */
+    void auto(Vessel v, Landings.Trip t) {
+        if (v.pilot == null || t.glide == null) return;
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("on", true);
+        m.put("kind", t.kind == Landings.Kind.ENTRY ? "entry" : "exit");
+        m.put("curve", t.glide.curve);
+        m.put("from", t.glide.from);
+        m.put("to", t.glide.to);
+        m.put("ticks", t.glide.ticks);
+        m.put("alt-to", Math.round(t.glide.to[1]));
+        m.put("shake", t.kind == Landings.Kind.ENTRY ? mod.config().getDouble("planet-entry.shake", 0.6) : mod.config().getDouble("planet-entry.shake", 0.6) * 0.4);
+        String js = new Gson().toJson(m);
+        send(v.pilot.player, bytes(out -> {
+            out.writeByte(19);
+            out.writeUTF(js);
+        }));
+    }
+
+    /** Пилоту: переход кончился — управление снова его (S2C AUTO off), скорость конца. */
+    void autoEnd(Vessel v, double[] vel) {
+        if (v.pilot == null) return;
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("on", false);
+        m.put("vel", vel);
+        String js = new Gson().toJson(m);
+        send(v.pilot.player, bytes(out -> {
+            out.writeByte(19);
             out.writeUTF(js);
         }));
     }
@@ -423,6 +464,10 @@ final class VesselsClient {
                 case 7 -> mod.hull.impact(p, in.readFloat(), in.readFloat(), in.readFloat(), in.readFloat());
                 case 8 -> mod.cameras.onSave(p, in.readUTF());
                 case 9 -> mod.cameras.onEditState(p, in.readUnsignedByte());
+                case 10 -> {                                                    // AUTO понят: мод ведёт корабль сам
+                    Piloting pl = mod.pilotOf(p);
+                    if (pl != null && pl.vessel.trip != null) pl.vessel.trip.acked = true;
+                }
                 default -> { }
             }
         } catch (IOException e) {

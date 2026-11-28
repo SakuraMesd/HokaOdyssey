@@ -24,26 +24,30 @@ import java.util.concurrent.ConcurrentHashMap;
  * «невидимый барьер»: к планете ближе не подлететь, но корабль не упирается в стену — вход срабатывает раньше.
  * Конфиг — config.yml модуля (planets.&lt;id&gt;: map, x, y, z, size, round, color, atmosphere, approach, target, tx, ty, tz,
  * type: terra | desert | ice | lava | gas | rock | star). Звезда (star) светит планетам карты и не впускает — отбрасывает.
+ * <p>
+ * 0.3 (vessels-6): у планеты с target — посадка корабля (ship-scatter, ship-x, ship-z, ship-entry-y, ship-y,
+ * ship-descent, ship-exit-y). Сам корабль переносит модуль vessels через сервис {@link PlanetsApi}: пилотов и экипаж
+ * (фильтр {@link PlanetsApi#skip}) planets не трогает. Без vessels — всё как раньше.
  */
-public final class PlanetsModule extends OdysseyModule {
+public final class PlanetsModule extends OdysseyModule implements PlanetsApi {
 
     static final String MODULE = "planets";
 
     record Planet(String id, String map, double x, double y, double z, double size, double round, int rgb, int atmo,
-                  double approach, String target, Pos targetPos, int seed, String type) {
+                  double approach, String target, Pos targetPos, int seed, String type, ShipEntry ship) {
 
         boolean star() { return "star".equals(type); }
 
         /** Расстояние от точки до поверхности скруглённого куба (отрицательное — внутри). */
-        double distance(double px, double py, double pz) {
-            double h = size / 2, r = Math.min(round, h), in = h - r;
-            double qx = Math.abs(px - x) - in, qy = Math.abs(py - y) - in, qz = Math.abs(pz - z) - in;
-            double ox = Math.max(qx, 0), oy = Math.max(qy, 0), oz = Math.max(qz, 0);
-            return Math.sqrt(ox * ox + oy * oy + oz * oz) + Math.min(Math.max(qx, Math.max(qy, qz)), 0) - r;
-        }
+        double distance(double px, double py, double pz) { return PlanetsApi.roundedBox(px - x, py - y, pz - z, size, round); }
+
+        /** Для сервиса. */
+        PlanetsApi.Planet api() { return new PlanetsApi.Planet(id, map, x, y, z, size, round, approach, target, star(), ship); }
     }
 
-    private final List<Planet> planets = new ArrayList<>();
+    private volatile List<Planet> planets = List.of();
+    /** Пилоты кораблей и экипаж — их переносит vessels ({@link PlanetsApi#skip}). */
+    private volatile java.util.function.Predicate<Player> skip;
     private ClientModsApi api;
     private final Set<UUID> entering = ConcurrentHashMap.newKeySet();
     private final Map<UUID, String> lastMap = new ConcurrentHashMap<>();
@@ -58,14 +62,18 @@ public final class PlanetsModule extends OdysseyModule {
         events().addListener(PlayerSpawnEvent.class, e -> sendList(e.getPlayer()));   // сменил карту — свои планеты
         events().addListener(PlayerDisconnectEvent.class, e -> { entering.remove(e.getPlayer().getUuid()); lastMap.remove(e.getPlayer().getUuid()); });
         scheduler().repeat(this::tick, 20, 2);
+        services().register(PlanetsApi.class, this);
         logger().info("планет: {}", planets.size());
     }
 
     @Override
-    protected void onDisable() { if (api != null) api.off(MODULE); }
+    protected void onDisable() {
+        skip = null;
+        if (api != null) api.off(MODULE);
+    }
 
     private void loadPlanets() {
-        planets.clear();
+        List<Planet> planets = new ArrayList<>();
         for (String id : config().keys("planets")) {
             String k = "planets." + id + ".";
             String color = config().getString(k + "color", "#4a8f4f").replace("#", "");
@@ -78,7 +86,64 @@ public final class PlanetsModule extends OdysseyModule {
                     config().getString(k + "target", ""),
                     new Pos(config().getDouble(k + "tx", 0.5), config().getDouble(k + "ty", 41), config().getDouble(k + "tz", 0.5)),
                     config().getInt(k + "seed", id.hashCode()),
-                    config().getString(k + "type", "terra").toLowerCase()));
+                    config().getString(k + "type", "terra").toLowerCase(), ship(id, k)));
+        }
+        this.planets = List.copyOf(planets);
+    }
+
+    /** Посадка корабля (vessels-6) — только у планеты с target; высоты проверяет и урезает vessels (по высоте карты). */
+    private ShipEntry ship(String id, String k) {
+        if (config().getString(k + "target", "").isEmpty()) return null;
+        ShipEntry d = ShipEntry.DEFAULT;
+        ShipEntry e = new ShipEntry(Math.max(0, config().getDouble(k + "ship-scatter", d.scatter())),
+                config().getDouble(k + "ship-x", d.x()), config().getDouble(k + "ship-z", d.z()),
+                config().getDouble(k + "ship-entry-y", d.entryY()), config().getDouble(k + "ship-y", d.y()),
+                Math.max(1, config().getDouble(k + "ship-descent", d.descentSec())), config().getDouble(k + "ship-exit-y", d.exitY()));
+        if (e.entryY() < e.y()) logger().warn("планета {}: ship-entry-y {} ниже ship-y {} — корабль появится на ship-y", id, e.entryY(), e.y());
+        return e;
+    }
+
+    // ───────────────────────── сервис PlanetsApi ─────────────────────────
+
+    @Override
+    public List<PlanetsApi.Planet> planets() { return planets.stream().map(Planet::api).toList(); }
+
+    @Override
+    public java.util.Optional<PlanetsApi.Planet> near(String map, double x, double y, double z, double pad) {
+        Planet best = null;
+        double bd = Double.MAX_VALUE;
+        for (Planet pl : planets) {
+            if (!pl.map.equals(map)) continue;
+            double d = pl.distance(x, y, z);
+            if (d <= pl.approach + pad && d < bd) { bd = d; best = pl; }
+        }
+        return java.util.Optional.ofNullable(best).map(Planet::api);
+    }
+
+    @Override
+    public java.util.Optional<PlanetsApi.Planet> byTarget(String map) {
+        for (Planet pl : planets) if (pl.ship != null && !pl.star() && pl.target.equals(map)) return java.util.Optional.of(pl.api());
+        return java.util.Optional.empty();
+    }
+
+    @Override
+    public void skip(java.util.function.Predicate<Player> who) { skip = who; }
+
+    @Override
+    public void fade(Player p, int fadeIn, int hold, int fadeOut) {
+        send(p, out -> { out.writeByte(2); out.writeInt(Math.max(0, fadeIn)); out.writeInt(Math.max(0, hold)); out.writeInt(Math.max(0, fadeOut)); });
+    }
+
+    /** Игрока ведёт другой модуль (пилот корабля, экипаж) — фильтр упал — не ведёт. */
+    private boolean skipped(Player p) {
+        var s = skip;
+        if (s == null) return false;
+        try {
+            return s.test(p);
+        } catch (RuntimeException | LinkageError e) {
+            logger().warn("фильтр пилотов (vessels) упал: {} — снят", e.toString());
+            skip = null;
+            return false;
         }
     }
 
@@ -110,6 +175,7 @@ public final class PlanetsModule extends OdysseyModule {
             for (Planet pl : planets) {
                 if (!pl.map.equals(map)) continue;
                 if (pl.distance(pos.x(), pos.y() + 1, pos.z()) > pl.approach) continue;
+                if (skipped(p)) break;                                          // пилот корабля / экипаж — ведёт vessels
                 if (pl.star()) { push(p, pl, "Слишком жарко — щиты не выдержат!"); break; }
                 if (pl.target.isEmpty()) { push(p, pl, "Посадка на эту планету пока недоступна"); break; }
                 enter(p, pl);
