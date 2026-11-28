@@ -29,7 +29,7 @@ public final class Smooth {
     public static final int OFF = 0, AUTO = 1, STABLE = 2;
     /** 0.90: режимы 3…8 — авто с потолком: ровные «до N» (игрок хочет стабильные 500, а не скачки 700…900). */
     static final int[] CAPS = {120, 144, 165, 240, 360, 500};
-    public static final int CAP_500 = 8, MAX_MODE = 2 + CAPS.length, DEFAULT = CAP_500;
+    public static final int CAP_500 = 8, MAX_MODE = 2 + CAPS.length, DEFAULT = OFF;   // 0.94: по умолчанию выкл — потолок игроку не нужен
 
     /** Потолок режима (без потолка — Integer.MAX_VALUE). */
     static int cap(int m) { return m > STABLE && m <= MAX_MODE ? CAPS[m - STABLE - 1] : Integer.MAX_VALUE; }

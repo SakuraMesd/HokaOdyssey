@@ -483,6 +483,15 @@ public final class LodRenderer {
         return (long) new int[]{0, 96, 192, 320, 512}[LodSetting.quality()] << 20;
     }
 
+    private static org.joml.Vector3f[] OFFS = new org.joml.Vector3f[64];
+
+    private static org.joml.Vector3f offs(int i) {
+        if (i >= OFFS.length) OFFS = java.util.Arrays.copyOf(OFFS, Math.max(i + 1, OFFS.length * 2));
+        org.joml.Vector3f v = OFFS[i];
+        if (v == null) OFFS[i] = v = new org.joml.Vector3f();
+        return v;
+    }
+
     private static void draw(Minecraft mc, Camera cam, ClientLevel lvl, int dist, int cutoff) {
         var pos = cam.position();
         // проекция кадра с другими near/far: заменить строку z (покачивание камеры — аффинное, см. описание класса)
@@ -528,8 +537,7 @@ public final class LodRenderer {
             float ox = (float) (n.x0() - px), oz = (float) (n.z0() - pz), oy = (float) -py;
             int w = width(n.level);
             if (!FRUSTUM.testAab(ox, n.yMin + oy, oz, ox + w, n.yMax + oy, oz + w)) continue;
-            OFF.set(ox, oy, oz);
-            slices[cnt] = RenderSystem.getDynamicUniforms().writeTransform(VIEW, MOD, OFF, IDENT);
+            offs(cnt).set(ox, oy, oz);                                          // 0.94: матрицы — одной записью ниже
             vis[cnt++] = n;
             quads += n.quads + n.wquads;
             maxQ = Math.max(maxQ, Math.max(n.quads, n.wquads));
@@ -543,11 +551,19 @@ public final class LodRenderer {
             if (bd.vb == null || bd.quads == 0) continue;                       // 0.90: список видимых кэшируется — тело могли выгрузить
             float ox = (float) (bd.x0 - px), oy = (float) (bd.y0 - py), oz = (float) (bd.z0 - pz);
             if (!FRUSTUM.testAab(ox, oy, oz, ox + bd.size, oy + bd.size, oz + bd.size)) continue;
-            OFF.set(ox, oy, oz);
-            bodySlices[bn] = RenderSystem.getDynamicUniforms().writeTransform(VIEW, MOD, OFF, IDENT);
+            offs(cnt + bn).set(ox, oy, oz);
             bodyVis[bn++] = bd;
             quads += bd.quads;
             maxQ = Math.max(maxQ, bd.quads);
+        }
+        // 0.94: все матрицы кадра — одной записью (writeTransforms: один map буфера). По одной (writeTransform) каждая
+        // отображала буфер заново — на сотнях астероидов это десятки мс вызовов драйвера и рывки до 100+ мс.
+        if (cnt + bn > 0) {
+            var tr = new net.minecraft.client.renderer.DynamicUniforms.Transform[cnt + bn];
+            for (int i = 0; i < tr.length; i++) tr[i] = new net.minecraft.client.renderer.DynamicUniforms.Transform(VIEW, MOD, new org.joml.Vector3f(OFFS[i]), IDENT);
+            var sl = RenderSystem.getDynamicUniforms().writeTransforms(tr);
+            for (int i = 0; i < cnt; i++) slices[i] = sl[i];
+            for (int i = 0; i < bn; i++) bodySlices[i] = sl[cnt + i];
         }
         lastDrawn = cnt + bn;
         lastQuads = quads;
